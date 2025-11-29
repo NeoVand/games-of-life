@@ -1,0 +1,1778 @@
+Directory structure:
+└── mrphlip-life3/
+    ├── README.md
+    ├── bitgrid.cpp
+    ├── bitgrid.h
+    ├── build.sh
+    ├── constants_in.py
+    ├── convert_format.py
+    ├── gen_constants.py
+    ├── LICENSE
+    ├── make_animation.cpp
+    ├── make_animation.py
+    ├── make_animation_multiproc.sh
+    ├── make_tiles_basic.lua
+    ├── make_tiles_core.lua
+    ├── make_tiles_full.lua
+    ├── make_tiles_multiproc.sh
+    ├── make_tiles_slice.lua
+    ├── make_video.sh
+    ├── Makefile
+    ├── show_tile.py
+    ├── showrle.py
+    ├── tile_on.gz
+    ├── life2/
+    │   ├── README.md
+    │   ├── enc.sh
+    │   ├── lifeanim.py
+    │   └── soundgen.py
+    └── modules/
+        ├── bits.py
+        └── rle.py
+
+================================================
+FILE: README.md
+================================================
+# Life in Life in Life generator
+This is the code that was used to generate the [Life in Life in Life video](https://youtu.be/4lO0iZDzzXk).
+
+This uses the [OTCA Metapixel](http://otcametapixel.blogspot.com/) to generate an animation of Conway's Game of Life, simulated within Conway's Game of Life, nested multiple times.
+
+The code here is a bit scattered around, but can be mostly be broken up as:
+1. Lua scripts to run Golly to simulate the Metapixel and extract the results as tiles, which will be stitched together to form the video.
+    * `make_tiles_core.lua`
+    * `make_tiles_{basic,slice,full}.lua`
+    * `make_tiles_multiproc.sh`
+    * `convert_format.py`
+    * `modules/rle.py`
+1. C++ code to stitch those tiles together and render the final video frames
+    * `make_animation.cpp`
+    * `bitgrid.cpp`/`.h`
+    * `Makefile`
+    * `make_animation_multiproc.sh`
+1. Python code that is an earlier version of the same rendering code, from before I realised that Python is not a great language to do this sort of intensive number-crunching and bit-manipulation stuff, and ported it to C++, improving the runtime by a factor of 80(!).
+    * `make_animation.py`
+    * `modules/bits.py`
+1. Code to generate a pre-prepare a bunch of settings and constants, which controls things like how big the video is, how fast it zooms out, what point in the cell it zooms out from in each layer, etc.
+    * `constants_in.py`
+    * `gen_constants.py`
+1. Other assorted miscellaneous scripts:
+    * `make_video.sh` &ndash; convert the final video to MP4 to upload
+    * `build.sh` &ndash; run all everything in order... more intended as reference, than to actually be run directly
+    * `show_tile.py` &ndash; convert the tile data into an image format so it can be easily inspected
+    * `showrle.py` &ndash; convert the RLE file format exported from Golly into an image format
+
+## How to run the code
+On the offchance you actually want to run this code yourself, rather than just reading it out of curiosity, here's what you would need to do:
+### Prerequisites
+* Linux &ndash; this could probably be converted to work on Windows but that's what it's written for
+* Golly (including Lua engine)
+* Python 3
+* GCC, make, and whatever other packages your distro needs to build C++ code
+* zlib
+* ImageMagick
+* FFmpeg
+### Running
+In theory, you could just run `build.sh` and it would do everything. But chances are that would take much too long, and you'd probably want to run each of the stages individually. So the build script mostly exists as a reference, so you can open it and see what the steps are, in what order.
+### Setting config
+To start with, you'll want to set up some settings to configure how you want the video to come out. Resolution, FPS, that sort of thing. But also some other settings, like how fast it zooms out, or how many levels of nesting to animate. And some more specific settings, like what point it should zoom out from at each level.
+
+Edit the file `constants_in.py`, there are comments in the file to explain what the settings do.
+
+Once this is done, run `./gen_constants.py`, this will generate constants files for the different components.
+### Generating tiles
+The next step is to run Golly, to generate images of how each metapixel looks like in different contexts, and how it evolves over time.
+
+If you have Golly installed and in your search path, you should simply be able to run `./make_tiles_full.lua`, which will invoke Golly, generate all the tiles, and then quit when it is done. Just don't click anything in the Golly window while the script is running.
+
+If you're feeling very fancy, you can run `./make_tiles_multiproc.sh`, which will spawn multiple instances of Golly in order to make use of multiple CPU cores (as Golly appears to be single-threaded, each instance of Golly will only use a single CPU core), which will significantly speed up generation, at the cost of having multiple Golly windows that you need to remember not to click on until they're done.
+
+The output of this will be a directory called `tiles/` which contains a ton of little data files, each one of which contains a representation of what a metacell looks like in a specific context, after a certain amount of time.
+
+Fair warning: this step of the process took a week to run on my computer, and generated 40GB of data, so make sure you have the time and space to spare.
+### Generating video
+The final big step is generating the actual video frames, based on the tiles.
+
+To do this, run `make` to build the code, and then `./make_animation` to kick it off.
+
+Again, if you're feeling fancy, you can run `./make_animation_multiproc.sh` to run multiple processes to make use of multiple CPU cores.
+
+The output of this will be a directory called `frames/` which contains a sequence of PNG images, which is the final animation for the video.
+### Building video file
+The final step is to run `./make_video.sh` which will use FFmpeg to convert the image sequence into an actual MP4 file, which can then be uploaded to YouTube or wherever. If you have a `soundtrack.m4a` file, it will also mix that into the final video. You may want to edit the `make_video.sh` file first and twiddle with the settings, in particular the bitrate... the bitrate that's in there is intended for 4K video, so if you're rendering at a lower resolution you will probably want to lower the bitrate to match.
+
+
+
+================================================
+FILE: bitgrid.cpp
+================================================
+#include <cstdint>
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <cstring>
+#include <zlib.h>
+#define ENABLE_ZLIB_GZIP 32
+
+#include "bitgrid.h"
+
+void die(std::string message) {
+	// Proper error handling is for real projects
+	std::cerr << message << std::endl;
+	std::exit(1);
+}
+
+BitGrid * BitGrid::load(std::string filename) {
+	// yayyy zlib
+	uint32_t width, height;
+	uint64_t *data = NULL;
+	unsigned char *dataptr = NULL;
+	int datalen;
+
+	// initialise file
+	std::ifstream fp;
+	fp.exceptions(std::ifstream::eofbit | std::ifstream::failbit | std::ifstream::badbit);
+	fp.open(filename, std::ifstream::binary);
+	fp.seekg(0, fp.end);
+	int ziplen = fp.tellg();
+	fp.seekg(0, fp.beg);
+
+	// initialise zlib
+	static const int BUFLEN = 65536;
+	static unsigned char inbuffer[BUFLEN], outbuffer[BUFLEN];
+	z_stream strm;
+	memset(&strm, 0, sizeof(strm));
+	strm.zalloc = Z_NULL;
+	strm.zfree = Z_NULL;
+	strm.opaque = Z_NULL;
+	strm.next_in = inbuffer;
+	strm.avail_in = 0;
+	if (inflateInit2(&strm, 15|ENABLE_ZLIB_GZIP) < 0)
+		die("Error initialising zlib");
+
+	while (ziplen > 0) {
+		// read a chunk of data from the file
+		int chunklen = ziplen > BUFLEN ? BUFLEN : ziplen;
+		fp.read(reinterpret_cast<char*>(inbuffer), chunklen);
+		if (!fp) die("Error reading from " + filename);
+		strm.next_in = inbuffer;
+		strm.avail_in = chunklen;
+		ziplen -= chunklen;
+
+		// decompress the chunk
+		do {
+			strm.avail_out = BUFLEN;
+			strm.next_out = outbuffer;
+			if (inflate(&strm, Z_NO_FLUSH) < 0)
+				die("Gzip error in " + filename);
+			int avail_data = BUFLEN - strm.avail_out;
+
+			// is this the very beginning of the file?
+			// read the header
+			int dataoffset = 0;
+			if (!data) {
+				if (avail_data < 8)
+					die("Didn't read enough data in the first chunk somehow, for " + filename);
+				std::memcpy(&width, outbuffer, 4);
+				std::memcpy(&height, outbuffer + 4, 4);
+				// figure out how big the data buffer needs to be
+				int len = width * height;
+				int slots = len / BITS_PER_SLOT;
+				if (len % BITS_PER_SLOT > 0)
+					slots++;
+				data = new uint64_t[slots];
+				dataptr = reinterpret_cast<unsigned char*>(data);
+				datalen = slots * 8;
+
+				dataoffset = 8;
+			}
+
+			// read the body of the data
+			if (avail_data - dataoffset > datalen)
+				die("Too much data in " + filename);
+			memcpy(dataptr, outbuffer + dataoffset, avail_data - dataoffset);
+			dataptr += avail_data - dataoffset;
+			datalen -= avail_data - dataoffset;
+		} while (strm.avail_out == 0);
+	}
+
+	fp.close();
+	inflateEnd(&strm);
+
+	if (datalen > 0)
+		die("Not enough data in " + filename);
+
+	return new BitGrid(width, height, data);
+}
+
+
+
+================================================
+FILE: bitgrid.h
+================================================
+#ifndef __BITGRID_H__
+#define __BITGRID_H__
+
+const int BITS_PER_SLOT = 64;
+
+class BitGrid {
+public:
+	const int width, height;
+	const uint64_t * const data;
+
+private:
+	BitGrid(int width, int height, uint64_t *data)
+		: width(width), height(height), data(data)
+	{}
+public:
+	~BitGrid() {
+		delete[] this->data;
+	}
+
+	static BitGrid * load(std::string filename);
+
+	bool get(int ix) {
+		int slot = ix / BITS_PER_SLOT, pos = ix % BITS_PER_SLOT;
+		return bool(this->data[slot] & (1ull << pos));
+	}
+	bool get(int x, int y) {
+		return this->get(x + y * this->width);
+	}
+
+	int context(int ix) {
+		int slot = ix / BITS_PER_SLOT, pos = ix % BITS_PER_SLOT;
+		if (pos == 0) {
+			// need context from previous slot
+			return (this->data[slot - 1]) >> (BITS_PER_SLOT - 1) | (this->data[slot] & 0x3) << 1;
+		} else if (pos == BITS_PER_SLOT - 1) {
+			// need context from the following slot
+			return (this->data[slot] >> (BITS_PER_SLOT - 2)) | (this->data[slot + 1] & 0x1) << 2;
+		} else {
+			// everything is in one slot
+			return (this->data[slot] >> (pos - 1)) & 0x7;
+		}
+	}
+	int context(int x, int y) {
+		int ix = x + y * this->width;
+		int above = this->context(ix - this->width), here = this->context(ix), below = this->context(ix + this->height);
+		return above | here<<3 | below<<6;
+	}
+
+	bool is_covered(int ix1, int ix2) {
+		int slot1 = ix1 / BITS_PER_SLOT, pos1 = ix1 % BITS_PER_SLOT;
+		int slot2 = ix2 / BITS_PER_SLOT, pos2 = ix2 % BITS_PER_SLOT;
+
+		if (slot1 == slot2) {
+			return bool(this->data[slot1] & ((1ull << pos2) - (1ull << pos1)));
+		}
+
+		if (this->data[slot1] >> pos1)
+			return 1;
+		for (int i = slot1 + 1; i < slot2; i++)
+			if (this->data[i])
+				return 1;
+		if (pos2 > 0 && this->data[slot2] & ((1ull << pos2) - 1))
+			return 1;
+		return 0;
+	}
+	bool is_covered(int x1, int x2, int y1, int y2) {
+		int ixstart = x1 + y1 * this->width;
+		int ixend = x1 + y2 * this->width;
+		int w = x2 - x1;
+		for (int ix = ixstart; ix < ixend; ix += this->width)
+			if (this->is_covered(ix, ix + w))
+				return 1;
+		return 0;
+	}
+
+private:
+	BitGrid(BitGrid&);
+	BitGrid& operator=(BitGrid&);
+};
+
+#endif
+
+
+
+================================================
+FILE: build.sh
+================================================
+#!/bin/bash
+set -e
+
+# clean environment
+rm -f constants.py constants.lua constants.h
+rm -rf tiles/* tile_on.gz
+rm -rf frames/
+
+# generate data
+./gen_constants.py
+#./make_tiles_full.lua
+./make_tiles_multiproc.sh
+
+# generate animation
+mkdir -p frames
+make make_animation
+./make_animation_multiproc.sh
+
+# generate video file
+./make_video.sh
+
+
+
+================================================
+FILE: constants_in.py
+================================================
+SMALL_MODE = False
+
+if SMALL_MODE:
+	WIDTH = 640
+	HEIGHT = 360
+	OSA = 1
+else:
+	# Render size: this is the resolution of 4K video
+	WIDTH = 3840
+	HEIGHT = 2160
+	# Oversampling level - renders multiple pixels per pixel and averages them, to get
+	# feathered edges and shades of grey. If this is set to 1, you'll get pure B&W
+	# output with hard edges.
+	OSA = 3
+FPS = 60
+
+# How much time to spend each level of the nesting, measured in frames
+LOOP_LENGTH = 80*FPS
+# How many loops to generate (80 seconds per loop * 45 loops = 1 hour)
+LOOP_COUNT = 45
+# Set initial zoom such that there are about 5 spaceships across, and they're 23 cells apart
+INIT_SCALE = 5*23
+# Don't zoom in for the first 3 seconds of the video
+INIT_NO_SCALE = 3*FPS
+
+# How much to scale up each level
+# These are the stats for the size/period of the metacell
+LOOP_SCALE = 2048
+LOOP_TIMESCALE = 35328
+# How many generations to skip before starting the loop, because the full period doesn't start straight away
+FRAME_OFFSET = 4097
+
+# Fixed seed so that re-running gen script is deterministic
+# Changing this will make it generate a different sequence of zoom-out centre points
+SEED = 123456
+# Manually set the first few centres, all the following ones are random
+# This is:
+#   * two zooms out at the same position (near the original video)
+#   * one zoom out on the upper half of the grid, where the spaceships are moving vertically
+#   * one zoom out on a spaceship right at the bottom of the grid, so some outer machinery is visible
+#   * one zoom out in the outer machinery around the edge of the cell
+# Note that for the animation to make sense, this must be the position of a cell
+# that is *on* at the start of the animation.
+# gen_constants.py will check this, and refuse if you pick a cell that is off.
+# Look at tile_on.png in an image editor to check your coordinates.
+FIRST_CENTRES = [(1767,1030), (1767,1030), (1007,270), (1612,1830), (53, 1172)]
+# Random area weights - how likely is it to pick a cell in each of these regions?
+WEIGHT_BOTTOM_TRIANGLE = 8
+WEIGHT_TOP_TRIANGLE = 3
+WEIGHT_OTHER = 1
+# define the different regions of the image
+is_bottom_triangle = lambda x,y: x < 1925 and y < 1833 and x+y > 2040
+is_top_triangle = lambda x,y: x > 205 and y > 112 and x+y < 2040
+# Don't pick centres within this distance of the edge of the tile
+# Should be around half of INIT_SCALE, to ensure we don't zoom out to see the
+# edge of the metacell before it's ready
+EDGE_BUFFER = 50
+
+# Expand cells slightly so they overlap
+# Multiplies the size of each pixel by this factor
+# If this is too low, it causes Moiré effects as the zoom changes
+# IF this is too high, the fine detail becomes a blobby mess as it zooms out
+if SMALL_MODE:
+	BLOOM = 1.25
+else:
+	BLOOM = 5
+
+
+
+================================================
+FILE: convert_format.py
+================================================
+#!/usr/bin/env python3
+import sys
+import os
+from modules import rle
+import gzip
+
+def main(basename):
+	with open(basename + ".rle", "r") as fp:
+		tile = rle.rle_read(fp)
+	with gzip.open(basename + ".gz", "wb") as fp:
+		tile.dump(fp)
+	os.unlink(basename + ".rle")
+
+if __name__ == '__main__':
+	main(sys.argv[1])
+
+
+
+================================================
+FILE: gen_constants.py
+================================================
+#!/usr/bin/env python3
+from constants_in import *
+import math
+import random
+import gzip
+from modules import bits
+
+# Scale factor should be such that it increases by a factor of LOOP_SCALE every LOOP_LENGTH frames
+#  scale = A * LOOP_SCALE^(t/LOOP_LENGTH)
+#  scale = A * exp(log(LOOP_SCALE)/LOOP_LENGTH * t)
+SCALE_K = math.log(LOOP_SCALE)/LOOP_LENGTH
+# Scale constant should be such that, at t=INIT_NO_SCALE, the scale is equal to INIT_SCALE
+#  INIT_SCALE = A * exp(k*INIT_NO_SCALE)
+SCALE_A = INIT_SCALE / math.exp(SCALE_K * INIT_NO_SCALE)
+
+# Time scale factor should be such that it increases by a factor of LOOP_TIMESCALE every LOOP_LENGTH frames
+TIMESCALE_K = math.log(LOOP_TIMESCALE)/LOOP_LENGTH
+# Time scale constant should be such that, at t=0, it is increasing at a rate of approx 1 per second
+#  d/dt A*exp(k*t) |t=0 = 1/FPS
+#  A*k*exp(k*0) = 1/FPS
+TIMESCALE_A = 1/FPS/TIMESCALE_K
+# But round off so we're starting at the same point at every level of the nesting
+TIMESCALE_A = round(TIMESCALE_A) * LOOP_TIMESCALE / (LOOP_TIMESCALE-1)
+
+# Pre-generate the list of which frames of the render correspond to which frames of the tile graphics
+above = []
+current = []
+below = []
+for t in range(LOOP_LENGTH):
+	x = TIMESCALE_A * math.exp(TIMESCALE_K * t)
+	above.append(int(x) // LOOP_TIMESCALE)
+	current.append(int(x) % LOOP_TIMESCALE)
+	below.append(int(x * LOOP_TIMESCALE) % LOOP_TIMESCALE)
+FRAMES = above + current + below
+# For the first couple loops through, use the accurate tile frame numbers
+# but after that, fudge towards reusing existing frames
+# so that we don't have to extract as many frames
+# at that point the animation's going so quick that it doesn't matter if it's slightly off
+count_first_frame = current.count(current[0])
+usable_tiles = list(set(above + current + below[:count_first_frame]))
+usable_tiles.sort()
+nearest_usable = {}
+for i in range(0, usable_tiles[0]):
+	nearest_usable[i] = usable_tiles[0]
+for a,b in zip(usable_tiles, usable_tiles[1:]):
+	mid = (a + b + 1) // 2
+	for i in range(a, mid):
+		nearest_usable[i] = a
+	for i in range(mid, b):
+		nearest_usable[i] = b
+for i in range(usable_tiles[-1], LOOP_TIMESCALE):
+	nearest_usable[i] = usable_tiles[-1]
+FRAMES = [nearest_usable[i] for i in FRAMES]
+
+# Find all the active tiles in the top-level tile, these are places where we can recurse
+with gzip.open("tile_on.gz", "rb") as fp:
+	tile = bits.BitGrid.load(fp)
+top_triangle = []
+bottom_triangle = []
+other = []
+# classify them by regions
+for y in range(EDGE_BUFFER, LOOP_SCALE - EDGE_BUFFER):
+	for x in range(EDGE_BUFFER, LOOP_SCALE - EDGE_BUFFER):
+		if tile[x,y]:
+			if is_top_triangle(x, y):
+				top_triangle.append((x, y))
+			elif is_bottom_triangle(x, y):
+				bottom_triangle.append((x, y))
+			else:
+				other.append((x, y))
+# sanity-check the hard-coded locations
+all_valid_centers = set(top_triangle + bottom_triangle + other)
+for i in FIRST_CENTRES:
+	if i not in all_valid_centers:
+		raise ValueError(f"{i} is not valid for FIRST_CENTRES")
+# generate more locations
+CENTRES = list(FIRST_CENTRES)
+rand = random.Random(SEED)
+for i in range(len(FIRST_CENTRES), LOOP_COUNT + 2):
+	section = rand.choices([top_triangle, bottom_triangle, other], [WEIGHT_TOP_TRIANGLE, WEIGHT_BOTTOM_TRIANGLE, WEIGHT_OTHER])[0]
+	CENTRES.append(rand.choice(section))
+# generate context for the very first centre
+TOPLEVEL_CONTEXT = tile.context(FIRST_CENTRES[0])
+
+# generate float versions of the centre locations, which are affected by all the lower centres
+x, y = CENTRES[0]
+x *= LOOP_SCALE / (LOOP_SCALE - 1)
+y *= LOOP_SCALE / (LOOP_SCALE - 1)
+CENTRES_FLOAT = [(x, y)]
+for cx, cy in CENTRES:
+	x = cx + x / LOOP_SCALE
+	y = cy + y / LOOP_SCALE
+	CENTRES_FLOAT.append((x, y))
+
+with open("constants.py", "w") as fp:
+	print(f"{WIDTH=!r}", file=fp)
+	print(f"{HEIGHT=!r}", file=fp)
+	print(f"{FPS=!r}", file=fp)
+	print(f"{OSA=!r}", file=fp)
+	print(f"{LOOP_SCALE=!r}", file=fp)
+	print(f"{LOOP_LENGTH=!r}", file=fp)
+	print(f"{LOOP_COUNT=!r}", file=fp)
+	print(f"{INIT_NO_SCALE=!r}", file=fp)
+	print(f"{SCALE_A=!r}", file=fp)
+	print(f"{SCALE_K=!r}", file=fp)
+	print(f"{FRAMES=!r}", file=fp)
+	print(f"{CENTRES=!r}", file=fp)
+	print(f"{CENTRES_FLOAT=!r}", file=fp)
+	print(f"{TOPLEVEL_CONTEXT=!r}", file=fp)
+	print(f"{EDGE_BUFFER=!r}", file=fp)
+	print(f"{BLOOM=!r}", file=fp)
+
+with open("constants.h", "w") as fp:
+	print(f"const int WIDTH = {WIDTH!r};", file=fp)
+	print(f"const int HEIGHT = {HEIGHT!r};", file=fp)
+	print(f"const int FPS = {FPS!r};", file=fp)
+	print(f"const int OSA = {OSA!r};", file=fp)
+	print(f"const int LOOP_SCALE = {LOOP_SCALE!r};", file=fp)
+	print(f"const int LOOP_LENGTH = {LOOP_LENGTH!r};", file=fp)
+	print(f"const int LOOP_COUNT = {LOOP_COUNT!r};", file=fp)
+	print(f"const int INIT_NO_SCALE = {INIT_NO_SCALE!r};", file=fp)
+	print(f"const double SCALE_A = {SCALE_A!r};", file=fp)
+	print(f"const double SCALE_K = {SCALE_K!r};", file=fp)
+	print(f"const int FRAMES[] = {{{', '.join(repr(i) for i in FRAMES)}}};", file=fp)
+	print(f"const int CENTRESX[] = {{{', '.join(repr(i[0]) for i in CENTRES)}}};", file=fp)
+	print(f"const int CENTRESY[] = {{{', '.join(repr(i[1]) for i in CENTRES)}}};", file=fp)
+	print(f"const double CENTRES_FLOATX[] = {{{', '.join(repr(i[0]) for i in CENTRES_FLOAT)}}};", file=fp)
+	print(f"const double CENTRES_FLOATY[] = {{{', '.join(repr(i[1]) for i in CENTRES_FLOAT)}}};", file=fp)
+	print(f"const int TOPLEVEL_CONTEXT = {TOPLEVEL_CONTEXT!r};", file=fp)
+	print(f"const int EDGE_BUFFER = {EDGE_BUFFER!r};", file=fp)
+	print(f"const double BLOOM = {BLOOM!r};", file=fp)
+
+with open("constants.lua", "w") as fp:
+	print("local constants = {}", file=fp)
+	print(f"constants.FRAMES = {{{', '.join(repr(f) for f in sorted(set(FRAMES)))}}}", file=fp)
+	print(f"constants.FRAME_OFFSET = {FRAME_OFFSET}", file=fp)
+	print("return constants", file=fp)
+
+
+
+================================================
+FILE: LICENSE
+================================================
+MIT License
+
+Copyright (c) 2022 Phillip Bradbury
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+================================================
+FILE: make_animation.cpp
+================================================
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <map>
+#include <sstream>
+#include <cmath>
+#include <cstdlib>
+#include <cstdio>
+#include <ctime>
+#include <unistd.h>
+#include <sys/stat.h>
+
+#include "bitgrid.h"
+#include "constants.h"
+
+std::map<std::pair<int, int>, BitGrid*> tilecache;
+BitGrid &get_tile(int context, int frame) {
+	std::pair<int,int> key = std::make_pair(context, frame);
+	auto i = tilecache.find(key);
+	if (i != tilecache.end())
+		return *i->second;
+
+	std::ostringstream filename;
+	filename << "tiles/" << context << "/" << frame << ".gz";
+	BitGrid *bg = BitGrid::load(filename.str());
+	tilecache[key] = bg;
+	return *bg;
+}
+void clear_tilecache() {
+	for (auto i = tilecache.begin(); i != tilecache.end(); i++) {
+		delete i->second;
+	}
+	tilecache.clear();
+}
+
+int ifloor(double);
+int iceil(double);
+int ifloor(double x) {
+	if (x < 0)
+		return -iceil(-x);
+	return int(x);
+}
+int iceil(double x) {
+	if (x < 0)
+		return -ifloor(-x);
+	int i = int(x);
+	if (x > double(i))
+		i++;
+	return i;
+}
+
+bool is_covered(int depth, int frame, int depthofs, int depthmax, double x1, double x2, double y1, double y2, int context) {
+	int frameix;
+	if (depthofs >= 2) {
+		frameix = 0;
+	} else {
+		frameix = frame + LOOP_LENGTH * (1 - depthofs);
+	}
+	BitGrid &tile = get_tile(context, FRAMES[frameix]);
+	if (depthofs <= depthmax) {
+		return tile.is_covered(ifloor(x1), iceil(x2), ifloor(y1), iceil(y2));
+	} else {
+		int ix1 = ifloor(x1), ix2 = ifloor(x2), iy1 = ifloor(y1), iy2 = ifloor(y2);
+		double newx1 = (x1 - ix1) * LOOP_SCALE, newx2 = (x2 - ix2) * LOOP_SCALE, newy1 = (y1 - iy1) * LOOP_SCALE, newy2 = (y2 - iy2) * LOOP_SCALE;
+		if (ix2 > ix1 + 1 || iy2 > iy1 + 1) {
+			// shouldn't happen, sanity check shortcut
+			return 1;
+		}
+		if (ix1 == ix2 && iy1 == iy2) {
+			return is_covered(depth, frame, depthofs - 1, depthmax, newx1, newx2, newy1, newy2, tile.context(ix1, iy1));
+		} else if (ix1 == ix2) {
+			return (
+				is_covered(depth, frame, depthofs - 1, depthmax, newx1, newx2, newy1, LOOP_SCALE, tile.context(ix1, iy1)) ||
+				is_covered(depth, frame, depthofs - 1, depthmax, newx1, newx2, 0, newy2, tile.context(ix1, iy2))
+			);
+		} else if (iy1 == iy2) {
+			return (
+				is_covered(depth, frame, depthofs - 1, depthmax, newx1, LOOP_SCALE, newy1, newy2, tile.context(ix1, iy1)) ||
+				is_covered(depth, frame, depthofs - 1, depthmax, 0, newx2, newy1, newy2, tile.context(ix2, iy1))
+			);
+		} else {
+			return (
+				is_covered(depth, frame, depthofs - 1, depthmax, newx1, LOOP_SCALE, newy1, LOOP_SCALE, tile.context(ix1, iy1)) ||
+				is_covered(depth, frame, depthofs - 1, depthmax, 0, newx2, newy1, LOOP_SCALE, tile.context(ix2, iy1)) ||
+				is_covered(depth, frame, depthofs - 1, depthmax, newx1, LOOP_SCALE, 0, newy2, tile.context(ix1, iy2)) ||
+				is_covered(depth, frame, depthofs - 1, depthmax, 0, newx2, 0, newy2, tile.context(ix2, iy2))
+			);
+		}
+	}
+}
+
+unsigned char render_pixel_level(int depth, int frame, int depthmax, double x1, double x2, double y1, double y2) {
+	x1 = CENTRESX[depth] + x1 / LOOP_SCALE;
+	x2 = CENTRESX[depth] + x2 / LOOP_SCALE;
+	y1 = CENTRESY[depth] + y1 / LOOP_SCALE;
+	y2 = CENTRESY[depth] + y2 / LOOP_SCALE;
+
+	x1 = CENTRESX[depth+1] + x1 / LOOP_SCALE;
+	x2 = CENTRESX[depth+1] + x2 / LOOP_SCALE;
+	y1 = CENTRESY[depth+1] + y1 / LOOP_SCALE;
+	y2 = CENTRESY[depth+1] + y2 / LOOP_SCALE;
+
+	/*
+	If you've read this far into the code, you might be interested in an amusing fact:
+	
+	Each level of the metapixel grid is 2048 pixels across, that's the LOOP_SCALE, so
+	it takes 11 bits of precision in each direction to pinpoint a specific pixel in
+	the grid.
+
+	The rendering process here works on four different levels - the top level (which is
+	far enough out that we don't see it change), the outer level (that we zoom out into),
+	the current main level (that we start watching, and then zoom out so it's one of many
+	small squares), and the sub level (which comprise the many small squares at the
+	start of the loop)... so we want to be able to pinpoint a specific location, 4 levels deep.
+
+	This takes 44 bits of precision, just to be accurate to the nearest pixel... we'd like a bit
+	more precision so we can have fractional locations within that smallest pixel, just in case.
+
+	A double-precision float has 53 bits of precision.
+
+	So those 53 bits are essentially storing:
+	* the first 11 bits hold CENTRES[depth+1]
+	* the next 11 bits hold CENTRES[depth]
+	* the next 11 bits hold where we are on the main level
+	* the next 11 bits hold where we are on the sub level
+	* the final 9 bits are there for moral support and to stop rounding errors being visable
+
+	So we have enough precision to do what we want, but we could _not_ go one level deeper
+	with this datatype. Switching to long doubles could let us go a little further, but
+	not much.
+	*/
+
+	return is_covered(depth, frame, 2, depthmax, x1, x2, y1, y2, TOPLEVEL_CONTEXT) ? 255 : 0;
+}
+
+unsigned char render_pixel(int depth, int frame, double x1, double x2, double y1, double y2) {
+	if (depth >= 1 && frame < INIT_NO_SCALE) {
+		int p0 = render_pixel_level(depth, frame, 0, x1, x2, y1, y2);
+		int p1 = render_pixel_level(depth, frame, -1, x1, x2, y1, y2);
+		return (p1 * (INIT_NO_SCALE - frame) + p0 * frame) / INIT_NO_SCALE;
+	} else {
+		return render_pixel_level(depth, frame, 0, x1, x2, y1, y2);
+	}
+}
+
+unsigned char render_pixel_osa(int depth, int frame, double x1, double x2, double y1, double y2) {
+	double dx = (x2 - x1) / 2;
+	double dy = (y2 - y1) / 2;
+	double cx = (x1 + x2) / 2;
+	double cy = (y1 + y2) / 2;
+	double bloomx = dx * BLOOM;
+	double bloomy = dy * BLOOM;
+	if (OSA > 1) {
+		// do over-sampling
+		int dat = 0;
+		for (int i = 0; i < OSA; i++) {
+			double factor = 1.0 + double(i) / OSA;
+			dat += render_pixel(depth, frame, cx - bloomx * factor, cx + bloomx * factor, cy - bloomy * factor, cy + bloomy * factor);
+		}
+		return dat / OSA;
+	} else {
+		// single-sample
+		return render_pixel(depth, frame, cx - bloomx, cx + bloomx, cy - bloomy, cy + bloomy);
+	}
+}
+
+unsigned char *render_frame(int frame) {
+	int depth = frame / LOOP_LENGTH;
+	frame = frame % LOOP_LENGTH;
+
+	int scale_frame = depth <= 0 && frame < INIT_NO_SCALE ? INIT_NO_SCALE : frame;
+	double scalex = SCALE_A * std::exp(SCALE_K * scale_frame);
+	double scaley = scalex * HEIGHT / WIDTH;
+
+	double xmin = CENTRES_FLOATX[depth] - scalex/2;
+	double ymin = CENTRES_FLOATY[depth] - scaley/2;
+
+	static unsigned char image_buffer[WIDTH * HEIGHT];
+	unsigned char *ptr = image_buffer;
+
+	for (int y = 0; y < HEIGHT; y++)
+		for (int x = 0; x < WIDTH; x++)
+			*ptr++ = render_pixel_osa(depth, frame, xmin + scalex * double(x)/WIDTH, xmin + scalex * double(x+1)/WIDTH, ymin + scaley * double(y)/HEIGHT, ymin + scaley * double(y+1)/HEIGHT);
+
+	clear_tilecache();
+
+	return image_buffer;
+}
+
+void save_frame(int frame, unsigned char *image) {
+	std::ostringstream filename;
+	filename << "frames/" << std::setw(4) << std::setfill('0') << (frame / LOOP_LENGTH);
+	if (access(filename.str().c_str(), F_OK)) {
+		if (mkdir(filename.str().c_str(), 0755)) {
+			std::cerr << "Error creating subdir" << std::endl;
+			std::exit(1);
+		}
+	}
+	filename << '/' << std::setw(8) << std::setfill('0') << frame;
+	std::string pgmfilename = filename.str() + ".pgm";
+	std::string pngfilename = filename.str() + ".png";
+
+	std::ofstream fp;
+	fp.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+	fp.open(pgmfilename);
+
+	fp << "P2\n" << WIDTH << " " << HEIGHT << " 255\n";
+	unsigned char *ptr = image;
+	for (int y = 0; y < HEIGHT; y++) {
+		for (int x = 0; x < WIDTH; x++) {
+			fp << int(*ptr++) << " ";
+		}
+		fp << "\n";
+	}
+	fp.close();
+
+	std::ostringstream cmdline;
+	cmdline << "convert " << pgmfilename << " " << pngfilename;
+	if (std::system(cmdline.str().c_str())) {
+		std::cerr << "Error running convert" << std::endl;
+		std::exit(1);
+	}
+	if (std::remove(pgmfilename.c_str())) {
+		std::cerr << "Error unlinking pgm file" << std::endl;
+		std::exit(1);
+	}
+}
+
+void doframe(int frame) {
+	std::time_t now = time(NULL);
+	std::string nowstr = std::ctime(&now);
+	size_t pos = nowstr.find_last_not_of('\n');
+	if (pos == std::string::npos)
+		nowstr = "";
+	else if (pos < nowstr.length() - 1)
+		nowstr.erase(pos + 1, std::string::npos);
+
+	std::cout << frame << " - " << nowstr << std::endl;
+
+	unsigned char *image = render_frame(frame);
+	save_frame(frame, image);
+}
+
+void doanim(int ofs, int step) {
+	for (int i = ofs; i < LOOP_LENGTH * LOOP_COUNT; i += step) {
+		doframe(i);
+	}
+}
+
+void usage() {
+	std::cout
+		<< "Usage:\n"
+		<< "  make_animation              - render entire animation\n"
+		<< "  make_animation frame        - render a single frame\n"
+		<< "  make_animation offset step  - render a slice of the animation\n";
+}
+
+int main(int argn, char **argv) {
+	if (argn == 1) {
+		doanim(1, 1);
+	} else if (argn == 2) {
+		char *endptr;
+		int frame = std::strtol(argv[1], &endptr, 0);
+		if (*endptr != '\0') {
+			usage();
+			return 1;
+		}
+
+		doframe(frame);
+	} else if (argn == 3) {
+		char *endptr;
+		int ofs = std::strtol(argv[1], &endptr, 0);
+		if (*endptr != '\0') {
+			usage();
+			return 1;
+		}
+		int step = std::strtol(argv[2], &endptr, 0);
+		if (*endptr != '\0') {
+			usage();
+			return 1;
+		}
+
+		doanim(ofs, step);
+	} else {
+		usage();
+	}
+
+	return 0;
+}
+
+
+
+================================================
+FILE: make_animation.py
+================================================
+#!/usr/bin/env python3
+import math
+import gzip
+import constants
+import subprocess
+import time
+import os
+from modules.bits import BitGrid
+
+GRID_CACHE = {}
+def get_grid(context, frame):
+	if (context, frame) not in GRID_CACHE:
+		with gzip.open(f"tiles/{context}/{frame}.gz", "rb") as fp:
+			GRID_CACHE[context, frame] = BitGrid.load(fp)
+	return GRID_CACHE[context, frame]
+
+def clear_cache():
+	GRID_CACHE.clear()
+
+def split_range(valmin, valmax):
+	ivalmin = math.floor(valmin)
+	fvalmin = valmin - ivalmin
+	ivalmax = math.ceil(valmax) - 1
+	fvalmax = valmax - ivalmax
+	if ivalmin == ivalmax:
+		yield ivalmin, fvalmin * constants.LOOP_SCALE, fvalmax * constants.LOOP_SCALE
+		return
+	yield ivalmin, fvalmin * constants.LOOP_SCALE, constants.LOOP_SCALE
+	for i in range(ivalmin + 1, ivalmax):
+		yield i, 0.0, constants.LOOP_SCALE
+	yield ivalmax, 0.0, fvalmax * constants.LOOP_SCALE
+
+def is_covered(depth, frame, depthofs, depthmax, xmin, xmax, ymin, ymax, context=None):
+	if depthofs >= 2:
+		context = constants.TOPLEVEL_CONTEXT
+		frameix = 0
+	else:
+		frameix = frame + constants.LOOP_LENGTH * (1 - depthofs)
+	tile = get_grid(context, constants.FRAMES[frameix])
+	if depthofs <= depthmax:
+		return tile.is_covered((math.floor(xmin), math.floor(ymin)), (math.ceil(xmax), math.ceil(ymax)))
+	else:
+		splity = list(split_range(ymin, ymax))
+		splitx = list(split_range(xmin, xmax))
+		for y, newymin, newymax in splity:
+			for x, newxmin, newxmax in splitx:
+				if is_covered(depth, frame, depthofs - 1, depthmax,
+						newxmin, newxmax, newymin, newymax, tile.context((x, y))):
+					return True
+		return False
+
+def render_pixel_level(depth, frame, depthmax, xmin, xmax, ymin, ymax):
+	for i in range(2):
+		cx, cy = constants.CENTRES[depth + i]
+		xmin = cx + (xmin / constants.LOOP_SCALE)
+		xmax = cx + (xmax / constants.LOOP_SCALE)
+		ymin = cy + (ymin / constants.LOOP_SCALE)
+		ymax = cy + (ymax / constants.LOOP_SCALE)
+	if is_covered(depth, frame, 2, depthmax, xmin, xmax, ymin, ymax):
+		return 1.0
+	else:
+		return 0.0
+
+def render_pixel(depth, frame, xmin, xmax, ymin, ymax):
+	if depth >= 1 and frame < constants.INIT_NO_SCALE:
+		p0 = render_pixel_level(depth, frame, 0, xmin, xmax, ymin, ymax)
+		p1 = render_pixel_level(depth, frame, -1, xmin, xmax, ymin, ymax)
+		prop = frame / constants.INIT_NO_SCALE
+		return p1 * (1 - prop) + p0 * prop
+	else:
+		return render_pixel_level(depth, frame, 0, xmin, xmax, ymin, ymax)
+
+def render_pixel_osa(depth, frame, xmin, xmax, ymin, ymax):
+	dx = (xmax - xmin) / 2
+	dy = (ymax - ymin) / 2
+	cx = (xmin + xmax) / 2
+	cy = (ymin + ymax) / 2
+	bloomx = dx * constants.BLOOM
+	bloomy = dy * constants.BLOOM
+	if constants.OSA <= 1:
+		return render_pixel(depth, frame, cx - bloomx, cx + bloomx, cy - bloomy, cy + bloomy)
+	dat = 0
+	for n in range(constants.OSA):
+		px = xmin + dx * (2 * n + 1) / constants.OSA
+		py = ymin + dy * (2 * n + 1) / constants.OSA
+		dat += render_pixel(depth, frame, px - bloomx, px + bloomx, py - bloomy, py + bloomy)
+		py = ymax - dy * (2 * n + 1) / constants.OSA
+		dat += render_pixel(depth, frame, px - bloomx, px + bloomx, py - bloomy, py + bloomy)
+	return dat / (2 * constants.OSA)
+
+def render_frame(frame):
+	depth, frame = divmod(frame, constants.LOOP_LENGTH)
+
+	scale_frame = constants.INIT_NO_SCALE if depth <= 0 and frame <= constants.INIT_NO_SCALE else frame
+	scalex = constants.SCALE_A * math.exp(constants.SCALE_K * scale_frame)
+	scaley = scalex * constants.HEIGHT / constants.WIDTH
+
+	centrex, centrey = constants.CENTRES_FLOAT[depth]
+	xmin = centrex - scalex/2
+	ymin = centrey - scaley/2
+
+	for y in range(constants.HEIGHT):
+		#print(f"{y=}")
+		for x in range(constants.WIDTH):
+			yield render_pixel_osa(depth, frame,
+				xmin + scalex * (x / constants.WIDTH),
+				xmin + scalex * ((x + 1) / constants.WIDTH),
+				ymin + scaley * (y / constants.HEIGHT),
+				ymin + scaley * ((y + 1) / constants.HEIGHT))
+
+	clear_cache()
+
+def save_frame(frame, dat):
+	with open(f"frames/{frame:08d}.pgm", "w") as fp:
+		print("P2", file=fp)
+		print(f"{constants.WIDTH} {constants.HEIGHT} 255", file=fp)
+		for ix, x in enumerate(dat):
+			print(int(x * 255), file=fp, end=" ")
+			if (ix + 1) % constants.WIDTH == 0:
+				print(file=fp)
+	subprocess.check_call(["convert", f"frames/{frame:08d}.pgm", f"frames/{frame:08d}.png"])
+	os.unlink(f"frames/{frame:08d}.pgm")
+
+def doframe(frame):
+	print(f'{frame} - {time.strftime("%Y-%m-%d %H:%M:%S")}')
+	dat = render_frame(frame)
+	save_frame(frame, dat)
+
+def main():
+	#for i in range(0, constants.LOOP_LENGTH * constants.LOOP_COUNT, constants.FPS):
+	#	doframe(i)
+	doframe(0)
+	#doframe(4800+179)
+
+def main_profile():
+	import cProfile
+	prof = cProfile.Profile()
+	prof.runcall(main)
+	prof.dump_stats(time.strftime("%Y%m%d-%H%M%S") + ".profile")
+
+if __name__ == '__main__':
+	#main()
+	main_profile()
+
+
+
+================================================
+FILE: make_animation_multiproc.sh
+================================================
+#!/bin/bash
+set -e
+
+# be a little nice - keep one core free
+NPROC=$(nproc --ignore 1)
+
+trap 'killall make_animation' INT
+
+for I in $(seq 0 $((NPROC-1)) )
+do
+	./make_animation $I $NPROC &
+done
+
+wait
+
+
+
+================================================
+FILE: make_tiles_basic.lua
+================================================
+#!/usr/bin/env golly
+local make_tiles_core = require "make_tiles_core"
+
+make_tiles_core.frames = {0,8}
+
+make_tiles_core.dotileset(0)
+make_tiles_core.dotileset(16)
+make_tiles_core.dotileset(57)
+make_tiles_core.dotileset(511)
+
+make_tiles_core.quit()
+
+
+
+================================================
+FILE: make_tiles_core.lua
+================================================
+local make_tiles_core = {}
+
+require "gplus.strict"
+local g = golly()
+
+make_tiles_core.frames = {0}
+make_tiles_core.frame_offset = 1
+local status, constants = pcall(require, "constants")
+if (status) then
+	make_tiles_core.frames = constants.FRAMES
+	make_tiles_core.frame_offset = constants.FRAME_OFFSET
+end
+
+--os.execute("rm -rf tiles/")
+
+function make_tiles_core.dotileset (n)
+	while g.numlayers() > 1 do
+		g.dellayer()
+	end
+	g.new("make-tile-" .. n)
+
+	for i = 0,8 do
+		g.setcell(i % 3, i // 3, (n >> i) & 1)
+	end
+	g.select({0,0,3,3})
+	g.open(g.getdir("app") .. "Scripts/Lua/metafier.lua")
+
+	g.run(make_tiles_core.frame_offset)
+
+	os.execute("mkdir -p tiles/" .. n)
+	local laststep = 0
+	for i = 1,#make_tiles_core.frames do
+		local step = make_tiles_core.frames[i]
+		if (step > laststep) then
+			g.run(step - laststep)
+			laststep = step
+		end
+		g.show("Tile " .. n .. " step " .. i .. "/" .. #make_tiles_core.frames)
+		local cells = g.getcells({2048,2048,2048,2048})
+		local basename = "tiles/" .. n .. "/" .. step
+		g.store(cells, basename .. ".rle")
+		os.execute("./convert_format.py " .. basename)
+	end
+end
+
+function make_tiles_core.dofullset (ix, n)
+	-- Generate a slice of the tilesets
+	-- can call, eg, dofullset(1, 3), dofullset(2, 3), dofullset(3, 3)
+	-- in separate processes, to make use of multiple CPU cores
+	for tilenum = (ix-1),511,n do
+		make_tiles_core.dotileset(tilenum)
+	end
+end
+
+function make_tiles_core.quit()
+	g.doevent("key q cmd")
+end
+
+return make_tiles_core
+
+
+
+================================================
+FILE: make_tiles_full.lua
+================================================
+#!/usr/bin/env golly
+local make_tiles_core = require "make_tiles_core"
+
+make_tiles_core.dofullset(1, 1)
+
+make_tiles_core.quit()
+
+
+
+================================================
+FILE: make_tiles_multiproc.sh
+================================================
+#!/bin/bash
+set -e
+
+# be a little nice - keep one core free
+NPROC=$(nproc --ignore 1)
+
+for I in $(seq 1 $NPROC)
+do
+	(
+		echo '#!/usr/bin/env golly'
+		echo 'local make_tiles_core = require "make_tiles_core"'
+		echo "make_tiles_core.dofullset($I, $NPROC)"
+		echo 'make_tiles_core.quit()'
+	) > make_tiles_$I.lua
+	chmod +x make_tiles_$I.lua
+	./make_tiles_$I.lua &
+done
+
+wait
+
+
+
+================================================
+FILE: make_tiles_slice.lua
+================================================
+#!/usr/bin/env golly
+local make_tiles_core = require "make_tiles_core"
+
+make_tiles_core.dotileset(16)
+make_tiles_core.dotileset(7)
+
+make_tiles_core.frames = {0}
+make_tiles_core.dofullset(1, 1)
+
+make_tiles_core.quit()
+
+
+
+================================================
+FILE: make_video.sh
+================================================
+#!/bin/bash
+set -e
+ARGS=(
+	-pattern_type glob -f image2 -r 60 -i 'frames/*/*.png'
+)
+if [ -f soundtrack.m4a ]
+then
+	ARGS+=(-i soundtrack.m4a)
+fi
+ARGS+=(
+	-codec:v libx264 -b:v 10M -profile:v high -pix_fmt yuv420p
+	-codec:a copy
+	-movflags +faststart
+	life.mp4
+)
+ffmpeg "${ARGS[@]}"
+
+
+
+================================================
+FILE: Makefile
+================================================
+all: make_animation
+
+clean:
+	rm -f bitgrid.o make_animation.o make_animation
+
+build: clean all
+
+.PHONY: all clean build
+
+CXXFLAGS=-Wall -Wextra -Werror
+
+%.o: %.cpp
+	g++ $(CXXFLAGS) -c -o $@ $<
+
+make_animation.o: make_animation.cpp bitgrid.h constants.h
+bitgrid.o: bitgrid.cpp bitgrid.h
+
+make_animation: make_animation.o bitgrid.o
+	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $^ -lz
+
+
+
+================================================
+FILE: show_tile.py
+================================================
+#!/usr/bin/env python3
+import gzip
+import sys
+import struct
+
+filename = sys.argv[1]
+with gzip.open(filename, "rb") as fpin:
+	with open(filename + ".pbm", "wb") as fpout:
+		width, height = struct.unpack("<LL", fpin.read(8))
+		fpout.write(f"P4\n{width} {height}\n".encode("ascii"))
+		for i in range(width*height//8):
+			c, = fpin.read(1)
+			c = (c & 0xF0) >> 4 | (c & 0x0F) << 4
+			c = (c & 0xCC) >> 2 | (c & 0x33) << 2
+			c = (c & 0xAA) >> 1 | (c & 0x55) << 1
+			fpout.write(bytes([c]))
+
+
+
+================================================
+FILE: showrle.py
+================================================
+#!/usr/bin/env python3
+
+from modules import rle
+import sys
+import cProfile
+
+def main(fn):
+	print("reading")
+	with open(fn) as fp:
+		grid = rle.rle_read(fp)
+	print("writing")
+	with open(fn + ".pbm", "w") as fp:
+		print("P1", file=fp)
+		print(f"{grid.width} {grid.height}", file=fp)
+		for i in grid:
+			fp.write("1 " if i else "0 ")
+		print(file=fp)
+	print("done")
+
+def do_profile(fn):
+	prof = cProfile.Profile()
+	prof.runcall(main, fn)
+	prof.dump_stats("showrle.profile")
+
+if __name__ == '__main__':
+	#main(sys.argv[1])
+	do_profile(sys.argv[1])
+
+
+
+================================================
+FILE: tile_on.gz
+================================================
+[Binary file]
+
+
+================================================
+FILE: life2/README.md
+================================================
+# Life in Life generator
+This is the code that was used to generate the original [Life in Life video](https://youtu.be/xP5-iIeKXE8).
+
+This uses the [OTCA Metapixel](http://otcametapixel.blogspot.com/) to generate an animation of Conway's Game of Life, simulated within Conway's Game of Life, nested multiple times.
+
+This code is 10 years old at this point, and hasn't been updated since... it's just included here for reference, and to move the code into Github (rather than it just living in a random pastebin link).
+
+You can tell it's old because
+1. It's a Golly script written in Python 2 (Ubuntu removed Golly's Python scripting modules from their build because they wanted to remove everything with a Python2 dependency)
+1. The encoding script uses `mencoder` to encode the video, when MPlayer has been obsolete for a long time. The newer iteration of the script uses FFmpeg instead.
+
+The files here are:
+* `lifeanim.py` &ndash; the main script, rendering images directly from Golly
+* `soundgen.py` &ndash; generates a Shepard tone soundfile, the soundtrack of the [real original version of the video](https://youtu.be/zOwFvytK5K0) before I came to my senses and replaced the soundrack with _Back of the Room Hang_.
+* `enc.sh` &ndash; encodes the video file for upload
+
+
+
+================================================
+FILE: life2/enc.sh
+================================================
+#!/bin/bash
+mencoder mf://*.png -mf fps=30 -audiofile out.wav -o out.avi -ovc lavc -oac mp3lame
+
+
+
+================================================
+FILE: life2/lifeanim.py
+================================================
+from __future__ import division
+
+import golly as g
+from math import floor, ceil, log
+from os import system, unlink
+
+resx, resy = 1920, 1080 # woo 1080p
+osa = 3 # 3x3 oversampling
+framerate = 30
+#resx, resy = 160, 90
+#osa = 2
+#framerate = 5
+framecount = framerate*90 # 90 seconds long seems reasonable
+outputmask = "/home/phlip/lifeanim/%08d.%s" # outputmask % (frameno, extension)
+cellsize = osa # make cells larger by a full pixel in each direction, to cut down on moire effects
+
+centrex, centrey = 114500, 4365
+initw, inith = 96, 54
+finalscale = 11.0 # so that we scale out by a factor of 2**11 over the animation
+finalratefact = 17.0  # so that we speed up by a factor of 2**17 over the animation (the metapixels animate at about 2**-15 of the speed)
+initrate = 1 # initially approx one step per second
+initrateadj = initrate * framecount/framerate/(finalratefact*log(2)) # magic calculation to make it so that d/dt of setframe(t) at 0 is initrate
+
+curstep = 0
+def setstep(n):
+	global curstep
+	n = int(round(n))
+	if n < curstep:
+		return
+	g.run(n - curstep)
+	curstep = n
+
+def setframe(t):
+	setstep(initrateadj * 2**(finalratefact * t))
+
+class Rect:
+	def __init__(self, l, t, w, h):
+		self.left = l
+		self.top = t
+		self.width = w
+		self.height = h
+
+def calcscale(t):
+	if t < 3*framerate/framecount:
+		t = 3*framerate/framecount # don't zoom out for the first 3 seconds
+	w = initw * 2**(finalscale * t)
+	h = inith * 2**(finalscale * t)
+	l = centrex - w / 2.0
+	t = centrey - h / 2.0
+	return Rect(l,t,w,h)
+
+def clamp(x,minim,maxim):
+	if x < minim:
+		return minim
+	if x > maxim:
+		return maxim
+	return x
+
+def doframe(n):
+	t = n/framecount
+	setframe(t)
+	sc = calcscale(t)
+	# get all the cells in the view area
+	cells = g.getcells([sc.left, sc.top, sc.width, sc.height])
+	# generate a large image (for oversampling)
+	output = [[0 for x in xrange(resx * osa)] for y in xrange(resy * osa)]
+	# draw all the live cells on the image
+	for i in xrange(0, len(cells), 2):
+		cellx, celly = cells[i:i+2]
+		# find the bounds of this cell on the screen
+		xmin = int(floor(((cellx - sc.left) / sc.width) * resx * osa))
+		xmax = int(floor(((cellx - sc.left + 1) / sc.width) * resx * osa)) + 1
+		ymin = int(floor(((celly - sc.top) / sc.height) * resy * osa))
+		ymax = int(floor(((celly - sc.top + 1) / sc.height) * resy * osa)) + 1
+		# make the cells slightly larger and overlapping, to reduce the moire effects
+		xmin -= cellsize
+		ymin -= cellsize
+		xmax += cellsize
+		ymax += cellsize
+		# draw the cell on the image
+		xmin = clamp(xmin, 0, resx * osa)
+		xmax = clamp(xmax, 0, resx * osa)
+		ymin = clamp(ymin, 0, resy * osa)
+		ymax = clamp(ymax, 0, resy * osa)
+		for y in xrange(ymin, ymax):
+			output[y][xmin:xmax] = [1] * (xmax - xmin)
+	# Scale down the oversampled image to the target size, by averaging
+	if osa > 1:
+		output = [[sum(output[i][j] for i in xrange(y*osa,(y+1)*osa) for j in xrange(x*osa,(x+1)*osa)) for x in xrange(resx)] for y in xrange(resy)]
+	# Save the image as a PGM, and then use ImageMagick to convert it to PNG
+	with open(outputmask % (n, "pgm"), 'w') as fp:
+		fp.write("P2\n%d %d\n%d\n" % (resx, resy, osa*osa))
+		sc = calcscale(t)
+		for row in output:
+			fp.write(' '.join(map(str,row)))
+			fp.write('\n')
+	system("convert %s -depth 8 %s" % (outputmask % (n, "pgm"), outputmask % (n, "png")))
+	unlink(outputmask % (n, "pgm"))
+
+# Parameters so that I can run several instances of Golly and have them render separate slices of the frames
+# and thus make use of my multicore CPU...
+def main(step=1,start=0):
+	global curstep
+	g.reset()
+	curstep = 0
+	for i in xrange(start,framecount,step):
+		g.show("Frame %d of %d..." % (i+1, framecount));
+		doframe(i)
+
+main()
+# or, make copies of the script and have each copy have one of, eg:
+#main(3,0)
+#main(3,1)
+#main(3,2)
+# and then run three instances of Golly and have each run a different copy of the script
+
+
+
+================================================
+FILE: life2/soundgen.py
+================================================
+#!/usr/bin/python
+from __future__ import division
+import sys, os
+from math import cos, pi
+twopi = 2.0 * pi # a much more useful constant - http://tauday.com/tau-manifesto
+
+srate = 48000
+length = 90
+numsamples = srate * length
+
+numchannels = 7
+channeltheta = [0.0] * numchannels
+def gensample(freqamps): # freqamps is [(channel 0 frequency, channel 0 amplitude), (chan 1 freq, chan 1 amp), ...]
+	sample = 0.0
+	for i in xrange(numchannels):
+		channeltheta[i] += freqamps[i][0] / srate
+		channeltheta[i] %= 1.0
+		
+		sample += freqamps[i][1] * cos(channeltheta[i] * twopi)
+	return sample
+
+basefreq = 25.0
+def genfreqamp(n, chan):
+	x = n / srate
+	
+	if x < 3: # ramp in for first 3 seconds
+		x = x ** 2 / 6 + 1.5 # so that the value and first derivative are equal at the cutover
+	
+	if x >= length - 5 and x < length - 2: # ramp out for last 5 seconds
+		x = length - 2 - 1.5 - (length - 2 - x) ** 2 / 6
+	if x >= length - 2:
+		x = length - 2 - 1.5
+	
+	x /= 10.0
+	x += chan
+	x %= float(numchannels)
+	
+	freq = basefreq * (2 ** x)
+	amp = 1 - cos(x / numchannels * twopi) # ranges from 0 at min frequency, up to 2, down to 0 at max frequency
+	return (freq, amp)
+
+def main():
+	samples = []
+	maxsample = 0.0
+	
+	for i in xrange(numsamples):
+		if i % srate == 0:
+			print "\rGenerating: %3.0f%%" % (i / numsamples * 100.0),
+			sys.stdout.flush()
+		freqamps = [genfreqamp(i, c) for c in xrange(numchannels)]
+		samples.append(gensample(freqamps))
+		if abs(samples[-1]) > maxsample:
+			maxsample = abs(samples[-1])
+	print "\rGenerating: 100%   "
+	sys.stdout.flush()
+	
+	# Generate the audio as a raw output file, and then use SoX to convert it to WAV
+	with open("out.raw", "wb") as fp:
+		for i,x in enumerate(samples):
+			if i % srate == 0:
+				print "\rWriting: %3.0f%%" % (i / numsamples * 100.0),
+			sys.stdout.flush()
+			n = int(round(x / maxsample * 32767))
+			if n < 0:
+				n += 65536
+			fp.write(chr(n % 256) + chr(n // 256))
+	print "\rWriting: 100%   "
+	sys.stdout.flush()
+	os.system("sox -t raw -r %d -b 16 -c 1 -e signed-integer --endian little out.raw out.wav" % (srate))
+	os.unlink("out.raw")
+
+main()
+
+
+================================================
+FILE: modules/bits.py
+================================================
+import struct
+
+BITS_PER_SLOT = 64
+
+class BitVector(object):
+	def __init__(self, length_or_data, rawdata=None):
+		if rawdata is not None:
+			if len(rawdata) != ((length_or_data + BITS_PER_SLOT - 1) // BITS_PER_SLOT):
+				raise ValueError("Raw data not correct length")
+			self.length = length_or_data
+			self._data = rawdata
+		elif isinstance(length_or_data, int):
+			self.length = length_or_data
+			self._data = [0] * ((length_or_data + BITS_PER_SLOT - 1) // BITS_PER_SLOT)
+		else:
+			self._data = list(self._build_init_data(length_or_data))
+
+	def _build_init_data(self, data):
+		length = 0
+		pos = 0
+		val = 0
+		for bit in data:
+			if bit:
+				val |= (1 << pos)
+			pos += 1
+			if pos >= BITS_PER_SLOT:
+				yield val
+				length += pos
+				val = pos = 0
+		if pos > 0:
+			yield val
+			length += pos
+		self.length = length
+
+	def _getslot(self, ix):
+		if ix >= self.length or ix < -self.length:
+			raise IndexError("index out of range")
+		if ix < 0:
+			ix += self.length
+		slot, pos = divmod(ix, BITS_PER_SLOT)
+		return slot, 1 << pos
+
+	def __getitem__(self, ix):
+		slot, val = self._getslot(ix)
+		return bool(self._data[slot] & val)
+
+	def __setitem__(self, ix, newval):
+		slot, val = self._getslot(ix)
+		if newval:
+			self._data[slot] |= val
+		else:
+			self._data[slot] &= ~val
+
+	def __iter__(self):
+		for i, dat in enumerate(self._data):
+			for ix in range(min(BITS_PER_SLOT, self.length - BITS_PER_SLOT*i)):
+				yield bool(dat & 1)
+				dat >>= 1
+
+	def __len__(self):
+		return self.length
+
+	def __eq__(self, other):
+		return self.length == other.length and self._data == other._data
+
+	def context(self, ix):
+		if ix >= self.length - 1 or ix < 1:
+			raise IndexError("index out of range")
+		slot, pos = divmod(ix, BITS_PER_SLOT)
+		if pos == 0:
+			return self._data[slot - 1] >> (BITS_PER_SLOT - 1) | (self._data[slot] & 0x03) << 1
+		elif pos == BITS_PER_SLOT - 1:
+			return self._data[slot] >> (BITS_PER_SLOT - 2) | (self._data[slot + 1] & 0x01) << 2
+		else:
+			return (self._data[slot] >> (pos - 1)) & 0x07
+
+	def is_covered(self, start, end):
+		startslot, startpos = divmod(start, BITS_PER_SLOT)
+		endslot, endpos = divmod(end, BITS_PER_SLOT)
+
+		if startslot == endslot:
+			return bool(self._data[startslot] & ((1 << endpos) - (1 << startpos)))
+
+		if self._data[startslot] >> startpos:
+			return True
+		if any(self._data[startslot + 1:endslot]):
+			return True
+		if endpos > 0 and self._data[endslot] & ((1 << endpos) - 1):
+			return True
+		return False
+
+	def _dumpdata(self, fp):
+		for i in range(0, len(self._data), 1024):
+			chunk = self._data[i:i+1024]
+			fp.write(struct.pack(f"<{len(chunk)}Q", *chunk))
+
+	def dump(self, fp):
+		fp.write(struct.pack("<L", self.length))
+		self._dumpdata(fp)
+
+	@classmethod
+	def _loaddata(cls, fp):
+		data = []
+		buffer = b''
+		while True:
+			chunk = fp.read(4096)
+			if not chunk:
+				break
+
+			# just in case it didn't actually read a multiple of 8 bytes somehow
+			if buffer:
+				chunk = buffer + chunk
+			if len(chunk) % 8:
+				cutoff = len(chunk) - len(chunk) % 8
+				buffer = chunk[cutoff:]
+				chunk = chunk[:cutoff]
+			else:
+				buffer = b''
+
+			data.extend(struct.unpack(f"<{len(chunk)//8}Q", chunk))
+		return data
+
+	@classmethod
+	def load(cls, fp):
+		length, = struct.unpack("<L", fp.read(4))
+		data = cls._loaddata(fp)
+		return cls(length, rawdata=data)
+
+class BitGrid(BitVector):
+	def __init__(self, width, height, data=None, rawdata=None):
+		if rawdata is not None:
+			super().__init__(width * height, rawdata=rawdata)
+		elif data is not None:
+			super().__init__(data)
+			if self.length != width * height:
+				raise ValueError("initialise data has wrong length")
+		else:
+			super().__init__(width * height)
+		self.width = width
+		self.height = height
+
+	def __getitem__(self, ix):
+		if isinstance(ix, tuple):
+			x, y = ix
+			ix = x + y * self.width
+		return super().__getitem__(ix)
+
+	def __setitem__(self, ix, newval):
+		if isinstance(ix, tuple):
+			x, y = ix
+			ix = x + y * self.width
+		return super().__setitem__(ix, newval)
+
+	def __eq__(self, other):
+		return self.width == other.width and self.height == other.height and self._data == other._data
+
+	def context(self, ix):
+		if isinstance(ix, tuple):
+			x, y = ix
+			ix = x + y * self.width
+		return super().context(ix - self.height) | super().context(ix) << 3 | super().context(ix + self.height) << 6
+
+	def is_covered(self, start, end):
+		startx, starty = start
+		endx, endy = end
+		ix = startx + starty * self.width
+		endix = startx + endy * self.width
+		dx = endx - startx
+		while ix < endix:
+			if super().is_covered(ix, ix + dx):
+				return True
+			ix += self.width
+		return False
+
+	def dump(self, fp):
+		fp.write(struct.pack("<LL", self.width, self.height))
+		self._dumpdata(fp)
+
+	@classmethod
+	def load(cls, fp):
+		width, height = struct.unpack("<LL", fp.read(8))
+		data = cls._loaddata(fp)
+		return cls(width, height, rawdata=data)
+
+
+
+================================================
+FILE: modules/rle.py
+================================================
+from .bits import BitGrid
+from io import StringIO
+import re
+
+_re_header = re.compile(r"^\s*x\s*=\s*(\d*)\s*,\s*y\s*=\s*(\d*)\s*,\s*rule\s*=\s*[^,]*\s*$", re.IGNORECASE)
+
+def rle_read(fp):
+	if isinstance(fp, str):
+		fp = StringIO(fp)
+
+	grid = None
+	x = y = 0
+	for line in fp:
+		line = line.strip()
+		if line[0] == '#' or not line:
+			continue
+
+		if grid is None:
+			match = _re_header.match(line)
+			if not match:
+				raise ValueError("Could not parse header line: %r" % line)
+			width = int(match.group(1))
+			height = int(match.group(2))
+			break
+	else:
+		raise ValueError("Did not find header - file blank?")
+
+	return BitGrid(width, height, _rle_decode(fp, width))
+
+_unsupported = set("BCDEFGHIJKLMNOPQRSTUVWXYZpqy")
+_supported = {'.': 0, 'b': 0, 'A': 1, 'o': 1}
+def _rle_decode(fp, width):
+	repeat = ''
+	xpos = 0
+	for line in fp:
+		for ch in line:
+			if ch.isspace():
+				pass
+			elif ch.isdigit():
+				repeat += ch
+			elif ch in _unsupported:
+				raise NotImplementedError("Multistate grids are not currently supported")
+			elif ch in _supported:
+				ch = _supported[ch]
+				if repeat:
+					repeatint = int(repeat)
+					yield from [ch] * repeatint
+					xpos += repeatint
+					repeat = ''
+				else:
+					yield ch
+					xpos += 1
+			elif ch == '$':
+				if repeat:
+					repeatint = int(repeat)
+					yield from [False] * (repeatint * width - xpos)
+					repeat = ''
+				else:
+					yield from [False] * (width - xpos)
+				xpos = 0
+			elif ch == '!':
+				yield from [False] * (width - xpos)
+				return
+			else:
+				raise ValueError("Unrecognised character: %r" % ch)
+
+
