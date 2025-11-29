@@ -57,6 +57,20 @@
 		</div>
 
 		<div class="content">
+			<!-- What is this section -->
+			<div class="intro-section">
+				<p>
+					<strong>Cellular automata</strong> are discrete computational systems where cells on a grid 
+					evolve based on simple rules about their neighbors. Despite their simplicity, they can produce 
+					remarkably complex and beautiful patterns.
+				</p>
+				<p>
+					<strong>Conway's Game of Life</strong> (1970) is the most famous example: cells are born with 
+					exactly 3 neighbors and survive with 2 or 3. This app lets you explore Life and many other 
+					rule variants, all running on your GPU for smooth, real-time simulation.
+				</p>
+			</div>
+
 			<div class="columns">
 				<!-- Left column -->
 				<div class="column">
@@ -68,9 +82,9 @@
 							Technology
 						</h3>
 						<ul>
-							<li><strong>WebGPU</strong> — GPU compute shaders</li>
-							<li><strong>Svelte 5</strong> — Reactive UI</li>
-							<li><strong>SvelteKit</strong> — Static generation</li>
+							<li><strong>WebGPU</strong> — GPU compute shaders for parallel simulation</li>
+							<li><strong>Svelte 5</strong> — Reactive UI with runes</li>
+							<li><strong>SvelteKit</strong> — Static site generation</li>
 						</ul>
 					</div>
 
@@ -83,10 +97,11 @@
 							Features
 						</h3>
 						<ul>
-							<li>Conway's Life, HighLife, Day & Night...</li>
-							<li>Custom rule editor + live preview</li>
-							<li>Multi-state cellular automata</li>
-							<li>Interactive painting & patterns</li>
+							<li>Multiple rule presets (Life, HighLife, Day & Night...)</li>
+							<li>Custom rule editor with live preview</li>
+							<li>Multi-state cellular automata (Brian's Brain, etc.)</li>
+							<li>Interactive painting and pattern placement</li>
+							<li>Zoom, pan, and configurable grid sizes</li>
 						</ul>
 					</div>
 				</div>
@@ -101,10 +116,11 @@
 							Quick Start
 						</h3>
 						<ul>
-							<li><kbd>Space</kbd> Play / Pause</li>
-							<li><kbd>Click</kbd> Draw · <kbd>Right-click</kbd> Erase</li>
-							<li><kbd>Scroll</kbd> Zoom · <kbd>Shift+Drag</kbd> Pan</li>
-							<li><kbd>E</kbd> Rules · <kbd>I</kbd> Initialize</li>
+							<li><kbd>Space</kbd> Play / Pause simulation</li>
+							<li><kbd>Click</kbd> Draw cells · <kbd>Right-click</kbd> Erase</li>
+							<li><kbd>Scroll</kbd> Zoom in/out · <kbd>Shift+Drag</kbd> Pan</li>
+							<li><kbd>E</kbd> Edit rules · <kbd>I</kbd> Initialize grid</li>
+							<li><kbd>R</kbd> Reinitialize · <kbd>C</kbd> Clear grid</li>
 							<li><kbd>[ ]</kbd> Brush size · <kbd>, .</kbd> Speed</li>
 						</ul>
 					</div>
@@ -113,7 +129,7 @@
 
 			<div class="footer">
 				<div class="author">
-					by <strong>Neo Mohsenvand</strong>
+					Developed by <strong>Neo Mohsenvand</strong>
 				</div>
 				<a 
 					href="https://github.com/NeoVand/games-of-life" 
@@ -124,7 +140,7 @@
 					<svg viewBox="0 0 24 24" fill="currentColor">
 						<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
 					</svg>
-					GitHub
+					View on GitHub
 				</a>
 			</div>
 		</div>
@@ -145,9 +161,9 @@
 		background: var(--ui-bg, rgba(12, 12, 18, 0.9));
 		backdrop-filter: blur(16px);
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
-		border-radius: 10px;
-		padding: 0.8rem;
-		max-width: 480px;
+		border-radius: 12px;
+		padding: 1.2rem;
+		max-width: 580px;
 		box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
 	}
 
@@ -155,20 +171,20 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 0.6rem;
-		padding-bottom: 0.5rem;
+		margin-bottom: 0.8rem;
+		padding-bottom: 0.7rem;
 		border-bottom: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
 	}
 
 	.logo {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.7rem;
 	}
 
 	.heart-icon {
-		width: 24px;
-		height: 24px;
+		width: 32px;
+		height: 32px;
 	}
 
 	.heart-icon .heart-bright {
@@ -183,32 +199,32 @@
 	.title-group {
 		display: flex;
 		flex-direction: column;
-		gap: 0.1rem;
+		gap: 0.15rem;
 	}
 
 	.title {
-		font-size: 0.85rem;
+		font-size: 1.1rem;
 		font-weight: 700;
 		color: var(--ui-text-hover, #fff);
 		letter-spacing: -0.02em;
 	}
 
 	.tagline {
-		font-size: 0.55rem;
+		font-size: 0.7rem;
 		color: var(--ui-text, #888);
 		font-style: italic;
 	}
 
 	.close-btn {
-		width: 20px;
-		height: 20px;
+		width: 26px;
+		height: 26px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: transparent;
 		border: none;
 		color: var(--ui-text, #666);
-		font-size: 0.75rem;
+		font-size: 0.9rem;
 		cursor: pointer;
 		border-radius: 4px;
 	}
@@ -221,33 +237,54 @@
 	.content {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.8rem;
+	}
+
+	.intro-section {
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.2));
+		border-radius: 8px;
+		padding: 0.8rem;
+	}
+
+	.intro-section p {
+		margin: 0;
+		font-size: 0.75rem;
+		color: var(--ui-text-hover, #ccc);
+		line-height: 1.5;
+	}
+
+	.intro-section p + p {
+		margin-top: 0.5rem;
+	}
+
+	.intro-section strong {
+		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.columns {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.5rem;
+		gap: 0.7rem;
 	}
 
 	.column {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.7rem;
 	}
 
 	.section {
 		background: var(--ui-input-bg, rgba(0, 0, 0, 0.2));
-		border-radius: 6px;
-		padding: 0.5rem;
+		border-radius: 8px;
+		padding: 0.7rem;
 	}
 
 	.section h3 {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
-		margin: 0 0 0.35rem;
-		font-size: 0.55rem;
+		gap: 0.4rem;
+		margin: 0 0 0.5rem;
+		font-size: 0.7rem;
 		font-weight: 600;
 		color: var(--ui-accent, #2dd4bf);
 		text-transform: uppercase;
@@ -255,8 +292,8 @@
 	}
 
 	.section h3 svg {
-		width: 10px;
-		height: 10px;
+		width: 14px;
+		height: 14px;
 	}
 
 	.section ul {
@@ -266,12 +303,12 @@
 	}
 
 	.section li {
-		font-size: 0.55rem;
+		font-size: 0.7rem;
 		color: var(--ui-text-hover, #ccc);
-		padding: 0.15rem 0;
-		padding-left: 0.6rem;
+		padding: 0.2rem 0;
+		padding-left: 0.8rem;
 		position: relative;
-		line-height: 1.3;
+		line-height: 1.4;
 	}
 
 	.section li::before {
@@ -287,12 +324,12 @@
 
 	kbd {
 		display: inline-block;
-		padding: 0.05rem 0.2rem;
+		padding: 0.1rem 0.3rem;
 		background: var(--ui-border, rgba(255, 255, 255, 0.1));
 		border: 1px solid var(--ui-border-hover, rgba(255, 255, 255, 0.15));
-		border-radius: 2px;
+		border-radius: 3px;
 		font-family: 'SF Mono', Monaco, monospace;
-		font-size: 0.5rem;
+		font-size: 0.6rem;
 		color: var(--ui-text-hover, #ccc);
 	}
 
@@ -300,12 +337,12 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding-top: 0.5rem;
+		padding-top: 0.7rem;
 		border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
 	}
 
 	.author {
-		font-size: 0.55rem;
+		font-size: 0.7rem;
 		color: var(--ui-text, #888);
 	}
 
@@ -316,13 +353,13 @@
 	.github-link {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
-		padding: 0.3rem 0.5rem;
+		gap: 0.4rem;
+		padding: 0.4rem 0.7rem;
 		background: var(--ui-border, rgba(255, 255, 255, 0.08));
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
-		border-radius: 5px;
+		border-radius: 6px;
 		color: var(--ui-text-hover, #e0e0e0);
-		font-size: 0.55rem;
+		font-size: 0.7rem;
 		font-weight: 500;
 		text-decoration: none;
 		transition: all 0.15s;
@@ -335,7 +372,7 @@
 	}
 
 	.github-link svg {
-		width: 12px;
-		height: 12px;
+		width: 16px;
+		height: 16px;
 	}
 </style>
