@@ -408,6 +408,46 @@
 	.slider-popup input[type='range'] {
 		width: 100%;
 		accent-color: var(--ui-accent, #2dd4bf);
+		-webkit-appearance: none;
+		appearance: none;
+		height: 4px;
+		background: var(--ui-input-bg, rgba(255, 255, 255, 0.1));
+		border-radius: 2px;
+		outline: none;
+	}
+
+	.slider-popup input[type='range']::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 16px;
+		height: 16px;
+		background: var(--ui-accent, #2dd4bf);
+		border-radius: 50%;
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+	}
+
+	.slider-popup input[type='range']::-moz-range-thumb {
+		width: 16px;
+		height: 16px;
+		background: var(--ui-accent, #2dd4bf);
+		border-radius: 50%;
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+	}
+
+	.slider-popup input[type='range']::-webkit-slider-runnable-track {
+		height: 4px;
+		background: var(--ui-input-bg, rgba(255, 255, 255, 0.1));
+		border-radius: 2px;
+	}
+
+	.slider-popup input[type='range']::-moz-range-track {
+		height: 4px;
+		background: var(--ui-input-bg, rgba(255, 255, 255, 0.1));
+		border-radius: 2px;
 	}
 
 	/* Brush popup with mode toggle */
