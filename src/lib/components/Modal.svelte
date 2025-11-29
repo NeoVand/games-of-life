@@ -106,5 +106,29 @@
 		padding: 1.25rem;
 		overflow-y: auto;
 	}
+
+	/* Mobile adjustments */
+	@media (max-width: 768px) {
+		.modal-backdrop {
+			padding: 0.5rem;
+		}
+
+		.modal {
+			max-height: 90vh;
+			border-radius: 10px;
+		}
+
+		.modal-header {
+			padding: 0.75rem 1rem;
+		}
+
+		.modal-header h2 {
+			font-size: 1rem;
+		}
+
+		.modal-content {
+			padding: 1rem;
+		}
+	}
 </style>
 

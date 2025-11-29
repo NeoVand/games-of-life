@@ -308,4 +308,12 @@
 	.info-value.alive {
 		color: var(--ui-accent, #2dd4bf);
 	}
+
+	/* Hide on mobile */
+	@media (max-width: 768px) {
+		.info-icon,
+		.info-panel {
+			display: none;
+		}
+	}
 </style>

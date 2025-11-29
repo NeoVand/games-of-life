@@ -25,8 +25,15 @@ export const GRID_SCALES: { name: GridScale; label: string; baseCells: number }[
 	{ name: 'huge', label: 'Huge', baseCells: 2048 }
 ];
 
+// Detect if we're on mobile (will be checked at runtime)
+function isMobileDevice(): boolean {
+	if (typeof window === 'undefined') return false;
+	return window.innerWidth <= 768;
+}
+
 // Grid configuration - now calculated from scale
-let gridScale = $state<GridScale>('small');
+// Default to 'tiny' on mobile, 'small' on desktop
+let gridScale = $state<GridScale>(isMobileDevice() ? 'tiny' : 'small');
 let gridWidth = $state(256);
 let gridHeight = $state(256);
 

@@ -623,4 +623,45 @@
 	}
 
 	.btn.apply:hover { filter: brightness(1.15); }
+
+	/* Mobile adjustments */
+	@media (max-width: 768px) {
+		.modal {
+			max-width: 95vw;
+			padding: 0.8rem;
+		}
+
+		.main-content {
+			flex-direction: column;
+		}
+
+		.rules-section,
+		.preview-section {
+			min-width: unset;
+		}
+
+		.preview-section {
+			flex-direction: row;
+			align-items: center;
+			gap: 0.5rem;
+		}
+
+		.preview-canvas {
+			width: 80px;
+			height: 80px;
+		}
+
+		.preview-controls {
+			flex-direction: column;
+		}
+
+		.neighbor-grids {
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+
+		.header h2 {
+			font-size: 0.9rem;
+		}
+	}
 </style>

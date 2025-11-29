@@ -928,4 +928,49 @@
 		flex-shrink: 0;
 	}
 
+	/* Mobile adjustments */
+	@media (max-width: 768px) {
+		.modal {
+			max-width: 95vw;
+			min-width: unset;
+			padding: 0.8rem;
+		}
+
+		.main-content {
+			flex-direction: column;
+		}
+
+		.patterns-section {
+			min-width: unset;
+		}
+
+		.preview-section {
+			flex-direction: row;
+			align-items: center;
+			gap: 0.5rem;
+		}
+
+		.preview-canvas {
+			width: 80px;
+			height: 80px;
+		}
+
+		.preview-controls {
+			flex-direction: column;
+		}
+
+		.tabs {
+			flex-wrap: wrap;
+		}
+
+		.tab {
+			padding: 0.35rem 0.6rem;
+			font-size: 0.6rem;
+		}
+
+		.header h2 {
+			font-size: 0.9rem;
+		}
+	}
+
 </style>

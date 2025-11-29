@@ -180,4 +180,11 @@
 		min-width: 1.1rem;
 		text-align: center;
 	}
+
+	/* Hide on mobile - keyboard shortcuts aren't useful on touch devices */
+	@media (max-width: 768px) {
+		.help-overlay {
+			display: none;
+		}
+	}
 </style>

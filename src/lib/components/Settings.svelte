@@ -559,4 +559,34 @@
 	.btn.primary:hover {
 		filter: brightness(1.1);
 	}
+
+	/* Mobile adjustments */
+	@media (max-width: 768px) {
+		.modal {
+			max-width: 95vw;
+			padding: 0.8rem;
+		}
+
+		.colors-grid {
+			gap: 0.4rem;
+		}
+
+		.color-btn {
+			width: 28px;
+			height: 28px;
+		}
+
+		.scale-options {
+			flex-wrap: wrap;
+		}
+
+		.scale-btn {
+			padding: 0.4rem 0.6rem;
+			font-size: 0.65rem;
+		}
+
+		.header h2 {
+			font-size: 0.9rem;
+		}
+	}
 </style>

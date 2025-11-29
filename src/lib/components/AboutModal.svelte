@@ -375,4 +375,39 @@
 		width: 16px;
 		height: 16px;
 	}
+
+	/* Mobile adjustments */
+	@media (max-width: 768px) {
+		.modal {
+			max-width: 95vw;
+			padding: 1rem;
+			max-height: 85vh;
+			overflow-y: auto;
+		}
+
+		.columns {
+			grid-template-columns: 1fr;
+		}
+
+		.title {
+			font-size: 1rem;
+		}
+
+		.intro-section p {
+			font-size: 0.7rem;
+		}
+
+		.section li {
+			font-size: 0.65rem;
+		}
+
+		.section h3 {
+			font-size: 0.65rem;
+		}
+
+		/* Hide keyboard shortcuts section on mobile since touch doesn't use them */
+		.column:last-child .section:has(kbd) {
+			display: none;
+		}
+	}
 </style>

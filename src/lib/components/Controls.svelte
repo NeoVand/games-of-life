@@ -61,15 +61,7 @@
 </script>
 
 <div class="controls" class:collapsed>
-	{#if collapsed}
-		<!-- Collapsed state - just show expand button -->
-		<button class="control-btn" onclick={() => (collapsed = false)} data-tooltip="Expand toolbar">
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M15 19l-7-7 7-7" />
-			</svg>
-		</button>
-	{:else}
-		<!-- Play/Pause -->
+	<!-- Play/Pause -->
 		<button
 			class="control-btn primary"
 			onclick={() => simState.togglePlay()}
@@ -240,13 +232,12 @@
 
 		<div class="sep"></div>
 
-		<!-- Collapse -->
-		<button class="control-btn collapse-btn" onclick={() => (collapsed = true)} data-tooltip="Collapse">
+		<!-- Collapse/Expand toggle -->
+		<button class="control-btn collapse-btn" onclick={() => (collapsed = !collapsed)} data-tooltip={collapsed ? "Expand" : "Collapse"}>
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M9 5l7 7-7 7" />
 			</svg>
 		</button>
-	{/if}
 </div>
 
 
@@ -264,16 +255,41 @@
 		border-radius: 10px;
 		border: 1px solid rgba(255, 255, 255, 0.06);
 		z-index: 100;
+		transition: gap 0.2s ease, padding 0.2s ease;
 	}
 
 	.controls.collapsed {
 		padding: 0.3rem;
+		gap: 0;
+	}
+
+	/* Hide all buttons except collapse when collapsed */
+	.controls.collapsed .control-btn:not(.collapse-btn),
+	.controls.collapsed .control-group,
+	.controls.collapsed .sep {
+		opacity: 0;
+		max-width: 0;
+		max-height: 0;
+		padding: 0;
+		margin: 0;
+		overflow: hidden;
+		pointer-events: none;
+	}
+
+	/* Animate buttons appearing/disappearing */
+	.control-btn:not(.collapse-btn),
+	.control-group,
+	.sep {
+		transition: opacity 0.2s ease, max-width 0.2s ease, max-height 0.2s ease;
+		max-width: 50px;
+		max-height: 50px;
 	}
 
 	.control-btn {
 		width: 34px;
 		height: 34px;
 		border: none;
+		outline: none;
 		background: transparent;
 		color: var(--ui-text, #888);
 		cursor: pointer;
@@ -282,6 +298,15 @@
 		align-items: center;
 		justify-content: center;
 		transition: all 0.15s;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.control-btn:focus {
+		outline: none;
+	}
+
+	.control-btn:focus-visible {
+		outline: none;
 	}
 
 	.control-btn:hover:not(:disabled) {
@@ -320,6 +345,15 @@
 
 	.collapse-btn:hover {
 		opacity: 1;
+	}
+
+	.collapse-btn svg {
+		transition: transform 0.2s ease;
+	}
+
+	/* Desktop: arrow points left when collapsed (expand to left), right when expanded */
+	.controls.collapsed .collapse-btn svg {
+		transform: rotate(180deg);
 	}
 
 	.sep {
@@ -434,6 +468,72 @@
 
 	.logo-btn:hover .heart-icon .heart-dim {
 		opacity: 0.6;
+	}
+
+	/* Mobile: vertical toolbar anchored to bottom-right */
+	@media (max-width: 768px) {
+		.controls {
+			top: auto;
+			bottom: 1rem;
+			right: 1rem;
+			flex-direction: column;
+			padding: 0.35rem;
+		}
+
+		.controls.collapsed {
+			padding: 0.25rem;
+		}
+
+		/* Collapse button at bottom - arrow points down (click to collapse) */
+		.collapse-btn {
+			order: 100; /* Push to end (bottom) */
+		}
+
+		.collapse-btn svg {
+			transform: rotate(90deg); /* Arrow pointing down */
+		}
+
+		/* Expand button arrow points up when collapsed (click to expand upward) */
+		.controls.collapsed .collapse-btn svg {
+			transform: rotate(-90deg); /* Arrow pointing up */
+		}
+
+		/* Mobile collapsed state - hide width/height for vertical layout */
+		.controls.collapsed .control-btn:not(.collapse-btn),
+		.controls.collapsed .control-group,
+		.controls.collapsed .sep {
+			width: 0;
+			height: 0;
+		}
+
+		.sep {
+			width: 20px;
+			height: 1px;
+			margin: 0.1rem 0;
+		}
+
+		.control-btn {
+			width: 40px;
+			height: 40px;
+		}
+
+		.control-btn svg {
+			width: 20px;
+			height: 20px;
+		}
+
+		/* Slider popups appear to the left on mobile */
+		.slider-popup {
+			top: 50%;
+			right: calc(100% + 0.4rem);
+			transform: translateY(-50%);
+		}
+
+		/* Hide tooltips on mobile (touch devices don't have hover) */
+		.control-btn[data-tooltip]::after,
+		.control-btn[data-tooltip]::before {
+			display: none;
+		}
 	}
 
 </style>
