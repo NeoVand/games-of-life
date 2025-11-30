@@ -132,7 +132,7 @@
 							<h3>Grid</h3>
 							<div class="shortcut"><kbd>I</kbd><span>Initialize (modal)</span></div>
 							<div class="shortcut"><kbd>R</kbd><span>Reinitialize</span></div>
-							<div class="shortcut"><kbd>C</kbd><span>Clear grid</span></div>
+							<div class="shortcut"><kbd>D</kbd><span>Delete / Clear grid</span></div>
 						</section>
 
 						<section class="shortcut-group">
@@ -151,6 +151,12 @@
 							<div class="shortcut"><kbd>Shift</kbd>+<kbd>Drag</kbd><span>Pan</span></div>
 							<div class="shortcut"><kbd>F</kbd><span>Fit to screen</span></div>
 							<div class="shortcut"><kbd>G</kbd><span>Toggle grid lines</span></div>
+						</section>
+
+						<section class="shortcut-group">
+							<h3>Visual</h3>
+							<div class="shortcut"><kbd>T</kbd><span>Toggle theme</span></div>
+							<div class="shortcut"><kbd>C</kbd><span>Cycle colors</span></div>
 						</section>
 
 						<section class="shortcut-group">

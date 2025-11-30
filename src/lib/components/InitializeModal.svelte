@@ -23,6 +23,14 @@
 	let tilingEnabled = $state(simState.lastInitTiling);
 	let tilingSpacing = $state(simState.lastInitSpacing); // 30-200 cells apart on main grid
 
+	// Seeding rate as percentage (1-100) for UI, maps to 0.01-1.0 for simState
+	let seedingRatePercent = $state(Math.round(simState.seedingRate * 100));
+	
+	// Sync seeding rate to simState when slider changes
+	$effect(() => {
+		simState.seedingRate = seedingRatePercent / 100;
+	});
+
 	// Get rule's recommended density (or default)
 	const ruleDensity = $derived(simState.currentRule.density ?? 0.25);
 	const hasRuleDensity = $derived(simState.currentRule.density !== undefined);
@@ -642,6 +650,25 @@
 							{/if}
 						</div>
 					{/if}
+
+					<!-- Continuous seeding option -->
+					<div class="seeding-row">
+						<label class="seed-checkbox">
+							<input type="checkbox" bind:checked={simState.seedingEnabled} />
+							<span>Auto-seed</span>
+						</label>
+						{#if simState.seedingEnabled}
+							<input 
+								type="range" 
+								min="1" 
+								max="100" 
+								step="1" 
+								bind:value={seedingRatePercent}
+								class="seeding-slider" 
+							/>
+							<span class="seeding-val">{seedingRatePercent}%</span>
+						{/if}
+					</div>
 				</div>
 
 				<!-- Right side: preview -->
@@ -1093,6 +1120,93 @@
 		font-size: 0.6rem;
 		color: var(--ui-accent, #2dd4bf);
 		min-width: 24px;
+		text-align: right;
+		font-family: 'SF Mono', Monaco, monospace;
+	}
+
+	/* Seeding row - similar to tiling row */
+	.seeding-row {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 0.5rem;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.2));
+		border-radius: 5px;
+		margin-top: 0.3rem;
+	}
+
+	.seed-checkbox {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.65rem;
+		color: var(--ui-text-hover, #e0e0e0);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.seed-checkbox input {
+		accent-color: var(--ui-accent, #2dd4bf);
+		width: 12px;
+		height: 12px;
+	}
+
+	.seeding-slider {
+		flex: 1;
+		height: 6px;
+		min-width: 60px;
+		-webkit-appearance: none;
+		appearance: none;
+		background: transparent;
+		cursor: pointer;
+		outline: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.seeding-slider::-webkit-slider-runnable-track {
+		width: 100%;
+		height: 6px;
+		background: var(--slider-track-bg, rgba(255, 255, 255, 0.25));
+		border-radius: 3px;
+		border: 1px solid var(--slider-track-border, rgba(255, 255, 255, 0.1));
+	}
+
+	.seeding-slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 14px;
+		height: 14px;
+		background: var(--ui-accent, #2dd4bf);
+		border-radius: 50%;
+		cursor: pointer;
+		border: 2px solid rgba(255, 255, 255, 0.9);
+		margin-top: -5px;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+	}
+
+	.seeding-slider::-moz-range-track {
+		width: 100%;
+		height: 6px;
+		background: var(--slider-track-bg, rgba(255, 255, 255, 0.25));
+		border-radius: 3px;
+		border: 1px solid var(--slider-track-border, rgba(255, 255, 255, 0.1));
+	}
+
+	.seeding-slider::-moz-range-thumb {
+		width: 14px;
+		height: 14px;
+		background: var(--ui-accent, #2dd4bf);
+		border-radius: 50%;
+		cursor: pointer;
+		border: 2px solid rgba(255, 255, 255, 0.9);
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+	}
+
+	.seeding-val {
+		font-size: 0.6rem;
+		color: var(--ui-accent, #2dd4bf);
+		min-width: 28px;
 		text-align: right;
 		font-family: 'SF Mono', Monaco, monospace;
 	}

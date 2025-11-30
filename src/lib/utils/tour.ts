@@ -8,27 +8,40 @@ let miniSimInterval: number | null = null;
 let miniSimCanvas: HTMLCanvasElement | null = null;
 let miniSimCtx: CanvasRenderingContext2D | null = null;
 let miniSimGrid: Uint8Array | null = null;
-const MINI_SIM_SIZE = 32;
-const MINI_SIM_CELL_SIZE = 4;
+let miniSimGeneration = 0;
+const MINI_SIM_SIZE = 40;
+const MINI_SIM_CELL_SIZE = 3;
+
+// Star Wars rule: B2/S345/C4 with continuous seeding to keep it alive
+const TOUR_RULE = {
+	birthMask: 0b000000100,   // B2
+	surviveMask: 0b000111000, // S345
+	numStates: 4
+};
+
+// Seeding rate: probability per cell per frame of spawning a new cell
+const SEED_RATE = 0.002; // ~0.2% chance per dead cell per frame
 
 function initMiniSim(accentColor: string): void {
-	// Create grid with a glider gun pattern
 	miniSimGrid = new Uint8Array(MINI_SIM_SIZE * MINI_SIM_SIZE);
+	miniSimGeneration = 0;
 	
-	// Seed with random cells and a glider
+	// Star Wars needs ~35% density and continuous activity
+	// Seed with random cells at optimal density
 	for (let i = 0; i < miniSimGrid.length; i++) {
-		miniSimGrid[i] = Math.random() < 0.15 ? 1 : 0;
+		miniSimGrid[i] = Math.random() < 0.35 ? 1 : 0;
 	}
+}
+
+// Continuous seeding - each dead cell has a small chance to become alive each frame
+function continuousSeed(): void {
+	if (!miniSimGrid) return;
 	
-	// Add a glider in the corner
-	const glider = [
-		[0, 1, 0],
-		[0, 0, 1],
-		[1, 1, 1]
-	];
-	for (let y = 0; y < 3; y++) {
-		for (let x = 0; x < 3; x++) {
-			miniSimGrid[(y + 2) * MINI_SIM_SIZE + (x + 2)] = glider[y][x];
+	// Each dead cell has SEED_RATE probability of becoming alive
+	// This creates natural, distributed seeding without discrete bursts
+	for (let i = 0; i < miniSimGrid.length; i++) {
+		if (miniSimGrid[i] === 0 && Math.random() < SEED_RATE) {
+			miniSimGrid[i] = 1;
 		}
 	}
 }
@@ -36,29 +49,49 @@ function initMiniSim(accentColor: string): void {
 function stepMiniSim(): void {
 	if (!miniSimGrid) return;
 	
+	miniSimGeneration++;
+	
+	// Continuous seeding - natural, distributed new cells each frame
+	continuousSeed();
+	
 	const newGrid = new Uint8Array(MINI_SIM_SIZE * MINI_SIM_SIZE);
+	const { birthMask, surviveMask, numStates } = TOUR_RULE;
 	
 	for (let y = 0; y < MINI_SIM_SIZE; y++) {
 		for (let x = 0; x < MINI_SIM_SIZE; x++) {
 			let neighbors = 0;
 			
+			// Count alive neighbors (state === 1)
 			for (let dy = -1; dy <= 1; dy++) {
 				for (let dx = -1; dx <= 1; dx++) {
 					if (dx === 0 && dy === 0) continue;
 					const nx = (x + dx + MINI_SIM_SIZE) % MINI_SIM_SIZE;
 					const ny = (y + dy + MINI_SIM_SIZE) % MINI_SIM_SIZE;
-					neighbors += miniSimGrid[ny * MINI_SIM_SIZE + nx];
+					if (miniSimGrid[ny * MINI_SIM_SIZE + nx] === 1) {
+						neighbors++;
+					}
 				}
 			}
 			
 			const idx = y * MINI_SIM_SIZE + x;
-			const alive = miniSimGrid[idx];
+			const state = miniSimGrid[idx];
 			
-			// Conway's Game of Life rules
-			if (alive && (neighbors === 2 || neighbors === 3)) {
-				newGrid[idx] = 1;
-			} else if (!alive && neighbors === 3) {
-				newGrid[idx] = 1;
+			// Generations rule logic
+			if (state === 0) {
+				// Dead cell - check birth
+				if ((birthMask & (1 << neighbors)) !== 0) {
+					newGrid[idx] = 1; // Born
+				}
+			} else if (state === 1) {
+				// Alive cell - check survival
+				if ((surviveMask & (1 << neighbors)) !== 0) {
+					newGrid[idx] = 1; // Survives
+				} else {
+					newGrid[idx] = numStates > 2 ? 2 : 0; // Start dying or die
+				}
+			} else {
+				// Dying cell - continue decay
+				newGrid[idx] = state < numStates - 1 ? state + 1 : 0;
 			}
 		}
 	}
@@ -66,36 +99,98 @@ function stepMiniSim(): void {
 	miniSimGrid = newGrid;
 }
 
+// Parse accent color to RGB
+function parseColor(color: string): [number, number, number] {
+	// Handle rgb() format
+	const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+	if (rgbMatch) {
+		return [parseInt(rgbMatch[1]) / 255, parseInt(rgbMatch[2]) / 255, parseInt(rgbMatch[3]) / 255];
+	}
+	// Handle hex format
+	const hex = color.replace('#', '');
+	if (hex.length === 6) {
+		return [
+			parseInt(hex.slice(0, 2), 16) / 255,
+			parseInt(hex.slice(2, 4), 16) / 255,
+			parseInt(hex.slice(4, 6), 16) / 255
+		];
+	}
+	return [0.2, 0.9, 0.95]; // Default cyan
+}
+
+// HSL conversion for color interpolation (matches main shader)
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+	const max = Math.max(r, g, b);
+	const min = Math.min(r, g, b);
+	const l = (max + min) / 2;
+	if (max === min) return [0, 0, l];
+	const d = max - min;
+	const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+	let h = 0;
+	if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+	else if (max === g) h = (b - r) / d + 2;
+	else h = (r - g) / d + 4;
+	return [h / 6, s, l];
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+	if (s === 0) return [l, l, l];
+	const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+	const p = 2 * l - q;
+	const hue2rgb = (t: number) => {
+		if (t < 0) t += 1;
+		if (t > 1) t -= 1;
+		if (t < 1/6) return p + (q - p) * 6 * t;
+		if (t < 1/2) return q;
+		if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+		return p;
+	};
+	return [hue2rgb(h + 1/3), hue2rgb(h), hue2rgb(h - 1/3)];
+}
+
+function getStateColor(state: number, numStates: number, accentRgb: [number, number, number], isLight: boolean): string {
+	if (state === 0) return 'transparent';
+	if (state === 1) {
+		return `rgb(${Math.round(accentRgb[0] * 255)}, ${Math.round(accentRgb[1] * 255)}, ${Math.round(accentRgb[2] * 255)})`;
+	}
+	
+	// Dying states - shift hue and fade
+	const progress = (state - 1) / (numStates - 1);
+	const [h, s, l] = rgbToHsl(accentRgb[0], accentRgb[1], accentRgb[2]);
+	
+	const hueShift = progress * 0.25;
+	const newHue = (h + hueShift) % 1;
+	const newSat = s * (1 - progress * 0.5);
+	const targetL = isLight ? 0.85 : 0.15;
+	const newLight = l + (targetL - l) * progress * 0.7;
+	
+	const [r, g, b] = hslToRgb(newHue, newSat, newLight);
+	return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+}
+
 function renderMiniSim(accentColor: string, isLight: boolean): void {
 	if (!miniSimCanvas || !miniSimCtx || !miniSimGrid) return;
 	
 	const ctx = miniSimCtx;
 	const cellSize = MINI_SIM_CELL_SIZE;
+	const accentRgb = parseColor(accentColor);
+	const { numStates } = TOUR_RULE;
+	
+	// Disable image smoothing for crisp pixels
+	ctx.imageSmoothingEnabled = false;
 	
 	// Clear with background
 	ctx.fillStyle = isLight ? '#e8e8ec' : '#0a0a0f';
 	ctx.fillRect(0, 0, miniSimCanvas.width, miniSimCanvas.height);
 	
-	// Draw grid lines (subtle)
-	ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-	ctx.lineWidth = 0.5;
-	for (let i = 0; i <= MINI_SIM_SIZE; i++) {
-		ctx.beginPath();
-		ctx.moveTo(i * cellSize, 0);
-		ctx.lineTo(i * cellSize, miniSimCanvas.height);
-		ctx.stroke();
-		ctx.beginPath();
-		ctx.moveTo(0, i * cellSize);
-		ctx.lineTo(miniSimCanvas.width, i * cellSize);
-		ctx.stroke();
-	}
-	
-	// Draw cells
-	ctx.fillStyle = accentColor;
+	// Draw cells with state-based coloring - use integer coordinates for sharpness
 	for (let y = 0; y < MINI_SIM_SIZE; y++) {
 		for (let x = 0; x < MINI_SIM_SIZE; x++) {
-			if (miniSimGrid[y * MINI_SIM_SIZE + x]) {
-				ctx.fillRect(x * cellSize + 0.5, y * cellSize + 0.5, cellSize - 1, cellSize - 1);
+			const state = miniSimGrid[y * MINI_SIM_SIZE + x];
+			if (state > 0) {
+				ctx.fillStyle = getStateColor(state, numStates, accentRgb, isLight);
+				// Use Math.floor and integer sizes for pixel-perfect rendering
+				ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
 			}
 		}
 	}
@@ -652,9 +747,11 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		}
 		
 		.tour-mini-canvas {
-			border-radius: 8px !important;
+			border-radius: 6px !important;
 			border: 1px solid ${borderColor} !important;
 			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+			image-rendering: pixelated !important;
+			image-rendering: crisp-edges !important;
 		}
 		
 		/* Mobile adjustments */

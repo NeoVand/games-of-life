@@ -435,6 +435,30 @@ export class Simulation {
 	}
 
 	/**
+	 * Continuous seeding - add random live cells to keep simulation active
+	 * @param rate - Seeds per 1000 cells per call (0.01 - 1.0)
+	 */
+	continuousSeed(rate: number): void {
+		// Calculate probability per cell based on rate
+		// rate of 0.1 = 0.1 seeds per 1000 cells = 0.0001 probability per cell
+		const probability = rate / 10000;
+		
+		// Randomly seed some cells
+		const cellCount = this.width * this.height;
+		for (let i = 0; i < cellCount; i++) {
+			if (Math.random() < probability) {
+				const x = i % this.width;
+				const y = Math.floor(i / this.width);
+				// Use pendingPaints to add new cells (only if dead)
+				const key = y * this.width + x;
+				if (!this.pendingPaints.has(key)) {
+					this.pendingPaints.set(key, 1); // Set to alive
+				}
+			}
+		}
+	}
+
+	/**
 	 * Update the rule
 	 */
 	setRule(rule: CARule): void {

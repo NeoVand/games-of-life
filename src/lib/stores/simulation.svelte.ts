@@ -41,11 +41,34 @@ let gridHeight = $state(256);
 let isLightTheme = $state(false);
 let aliveColor = $state<[number, number, number]>([0.2, 0.9, 0.95]); // Cyan default
 
+// Color palettes for dark and light themes
+export const DARK_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
+	{ name: 'White', color: [1.0, 1.0, 1.0], hex: '#ffffff' },
+	{ name: 'Cyan', color: [0.2, 0.9, 0.95], hex: '#33e6f2' },
+	{ name: 'Green', color: [0.3, 0.95, 0.5], hex: '#4df280' },
+	{ name: 'Purple', color: [0.7, 0.5, 1.0], hex: '#b380ff' },
+	{ name: 'Orange', color: [1.0, 0.65, 0.2], hex: '#ffa633' },
+	{ name: 'Pink', color: [1.0, 0.45, 0.65], hex: '#ff73a6' }
+];
+
+export const LIGHT_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
+	{ name: 'Black', color: [0.1, 0.1, 0.12], hex: '#1a1a1f' },
+	{ name: 'Teal', color: [0.0, 0.5, 0.55], hex: '#00808c' },
+	{ name: 'Green', color: [0.1, 0.55, 0.25], hex: '#1a8c40' },
+	{ name: 'Purple', color: [0.45, 0.2, 0.7], hex: '#7333b3' },
+	{ name: 'Orange', color: [0.85, 0.4, 0.1], hex: '#d9661a' },
+	{ name: 'Rose', color: [0.75, 0.2, 0.4], hex: '#bf3366' }
+];
+
 // Last initialization settings
 let lastInitPattern = $state('random-medium');
 let lastInitCategory = $state('random');
 let lastInitTiling = $state(true);
 let lastInitSpacing = $state(50); // Actual cell spacing on main grid
+
+// Continuous seeding settings
+let seedingEnabled = $state(true); // Whether continuous seeding is active
+let seedingRate = $state(0.1); // Seeds per 1000 cells per frame (0.01 - 1.0)
 
 // Boundary mode
 let wrapBoundary = $state(true); // true = toroidal wrap, false = fixed edges
@@ -172,6 +195,20 @@ export function getSimulationState() {
 		},
 		set wrapBoundary(value: boolean) {
 			wrapBoundary = value;
+		},
+
+		get seedingEnabled() {
+			return seedingEnabled;
+		},
+		set seedingEnabled(value: boolean) {
+			seedingEnabled = value;
+		},
+
+		get seedingRate() {
+			return seedingRate;
+		},
+		set seedingRate(value: number) {
+			seedingRate = Math.max(0.01, Math.min(1.0, value));
 		},
 
 		get aliveCells() {

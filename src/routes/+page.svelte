@@ -8,7 +8,7 @@
 	import InitializeModal from '$lib/components/InitializeModal.svelte';
 	import InfoOverlay from '$lib/components/InfoOverlay.svelte';
 	import AboutModal from '$lib/components/AboutModal.svelte';
-	import { getSimulationState, getUIState, type GridScale } from '$lib/stores/simulation.svelte.js';
+	import { getSimulationState, getUIState, DARK_THEME_COLORS, LIGHT_THEME_COLORS, type GridScale } from '$lib/stores/simulation.svelte.js';
 	import { hasTourBeenCompleted, startTour, getTourStyles } from '$lib/utils/tour.js';
 	import 'driver.js/dist/driver.css';
 
@@ -175,6 +175,37 @@
 		canvas.screenshot();
 	}
 
+	function cycleColorScheme() {
+		const palette = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
+		const [r, g, b] = simState.aliveColor;
+		
+		// Find current color index
+		let currentIndex = palette.findIndex(
+			(p) => Math.abs(p.color[0] - r) < 0.15 && Math.abs(p.color[1] - g) < 0.15 && Math.abs(p.color[2] - b) < 0.15
+		);
+		
+		// Cycle to next color
+		const nextIndex = (currentIndex + 1) % palette.length;
+		simState.aliveColor = palette[nextIndex].color;
+	}
+
+	function toggleTheme() {
+		// Get current color index before switching
+		const currentPalette = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
+		const [r, g, b] = simState.aliveColor;
+		let currentIndex = currentPalette.findIndex(
+			(p) => Math.abs(p.color[0] - r) < 0.15 && Math.abs(p.color[1] - g) < 0.15 && Math.abs(p.color[2] - b) < 0.15
+		);
+		const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+		
+		// Toggle theme
+		simState.isLightTheme = !simState.isLightTheme;
+		
+		// Keep the same index in the new palette
+		const newPalette = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
+		simState.aliveColor = newPalette[safeIndex].color;
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		// Ignore if typing in an input
 		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -188,7 +219,17 @@
 				break;
 			case 'KeyC':
 				if (!e.ctrlKey && !e.metaKey) {
+					cycleColorScheme();
+				}
+				break;
+			case 'KeyD':
+				if (!e.ctrlKey && !e.metaKey) {
 					handleClear();
+				}
+				break;
+			case 'KeyT':
+				if (!e.ctrlKey && !e.metaKey) {
+					toggleTheme();
 				}
 				break;
 			case 'KeyR':

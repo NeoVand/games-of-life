@@ -38,6 +38,10 @@
 	let dropdownOpen = $state(false);
 	let categoryDropdownOpen = $state(false);
 	let neighborhoodDropdownOpen = $state(false);
+	let ruleSearchQuery = $state('');
+	let ruleSearchMode = $state(false);
+	let ruleSearchInput: HTMLInputElement;
+	const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 	let ruleString = $state(simState.currentRule.ruleString);
 	let numStates = $state(simState.currentRule.numStates);
 	let neighborhood = $state<NeighborhoodType>(simState.currentRule.neighborhood ?? 'moore');
@@ -50,10 +54,10 @@
 	let error = $state('');
 
 	let birthToggles = $state(
-		Array.from({ length: 9 }, (_, i) => !!(simState.currentRule.birthMask & (1 << i)))
+		Array.from({ length: 25 }, (_, i) => !!(simState.currentRule.birthMask & (1 << i)))
 	);
 	let surviveToggles = $state(
-		Array.from({ length: 9 }, (_, i) => !!(simState.currentRule.surviveMask & (1 << i)))
+		Array.from({ length: 25 }, (_, i) => !!(simState.currentRule.surviveMask & (1 << i)))
 	);
 
 	// Get max neighbors based on neighborhood type
@@ -61,34 +65,50 @@
 
 	// Filter presets by category, neighborhood, or state count
 	const filteredPresets = $derived.by(() => {
-		if (selectedFilter === 'all') {
-			return RULE_PRESETS;
-		}
-		if (selectedFilter.startsWith('nh:')) {
-			const nhType = selectedFilter.slice(3) as NeighborhoodType;
-			if (nhType === 'moore') {
-				// Moore is default, so include rules without neighborhood set
-				return RULE_PRESETS.filter(r => !r.neighborhood || r.neighborhood === 'moore');
+		let presets = RULE_PRESETS;
+		
+		// First apply category/neighborhood/state filter
+		if (selectedFilter !== 'all') {
+			if (selectedFilter.startsWith('nh:')) {
+				const nhType = selectedFilter.slice(3) as NeighborhoodType;
+				if (nhType === 'moore') {
+					presets = presets.filter(r => !r.neighborhood || r.neighborhood === 'moore');
+				} else {
+					presets = presets.filter(r => r.neighborhood === nhType);
+				}
+			} else if (selectedFilter.startsWith('states:')) {
+				const stateFilter = selectedFilter.slice(7);
+				switch (stateFilter) {
+					case '2':
+						presets = presets.filter(r => r.numStates === 2);
+						break;
+					case '3-4':
+						presets = presets.filter(r => r.numStates >= 3 && r.numStates <= 4);
+						break;
+					case '5-8':
+						presets = presets.filter(r => r.numStates >= 5 && r.numStates <= 8);
+						break;
+					case '9+':
+						presets = presets.filter(r => r.numStates >= 9);
+						break;
+				}
+			} else {
+				presets = presets.filter(r => r.category === selectedFilter);
 			}
-			return RULE_PRESETS.filter(r => r.neighborhood === nhType);
 		}
-		if (selectedFilter.startsWith('states:')) {
-			const stateFilter = selectedFilter.slice(7);
-			switch (stateFilter) {
-				case '2': // Binary (2 states)
-					return RULE_PRESETS.filter(r => r.numStates === 2);
-				case '3-4': // Short trails (3-4 states)
-					return RULE_PRESETS.filter(r => r.numStates >= 3 && r.numStates <= 4);
-				case '5-8': // Medium trails (5-8 states)
-					return RULE_PRESETS.filter(r => r.numStates >= 5 && r.numStates <= 8);
-				case '9+': // Long trails (9+ states)
-					return RULE_PRESETS.filter(r => r.numStates >= 9);
-				default:
-					return RULE_PRESETS;
-			}
+		
+		// Then apply search query if active
+		if (ruleSearchQuery.trim()) {
+			const query = ruleSearchQuery.toLowerCase().trim();
+			presets = presets.filter(r => 
+				r.name.toLowerCase().includes(query) ||
+				r.ruleString.toLowerCase().includes(query) ||
+				(r.description?.toLowerCase().includes(query))
+			);
 		}
-		// Filter by category
-		return RULE_PRESETS.filter(r => r.category === selectedFilter);
+		
+		// Sort alphabetically by name
+		return [...presets].sort((a, b) => a.name.localeCompare(b.name));
 	});
 
 	// Get display name for current filter
@@ -449,6 +469,8 @@
 		dropdownOpen = false;
 		categoryDropdownOpen = false;
 		neighborhoodDropdownOpen = false;
+		ruleSearchQuery = '';
+		ruleSearchMode = false;
 	}
 
 	const currentPresetName = $derived(selectedPreset >= 0 ? RULE_PRESETS[selectedPreset].name : 'Custom');
@@ -568,17 +590,71 @@
 				{#if dropdownOpen}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="dropdown-backdrop" onclick={() => (dropdownOpen = false)} onkeydown={() => {}}></div>
-					<div class="dropdown-menu preset-menu">
-						{#each filteredPresets as preset}
-							{@const presetIndex = RULE_PRESETS.indexOf(preset)}
-							<button class="dropdown-item" class:selected={selectedPreset === presetIndex} onclick={() => selectPreset(presetIndex)}>
-								<span class="item-name">{preset.name}</span>
-								<span class="item-code">{preset.ruleString}</span>
-								{#if preset.description}
-									<span class="item-desc">{preset.description}</span>
+					<div class="dropdown-menu preset-menu" onkeydown={(e) => {
+						// On desktop, typing filters results
+						if (!isMobile && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+							ruleSearchMode = true;
+							ruleSearchQuery += e.key;
+							e.preventDefault();
+						} else if (e.key === 'Backspace' && ruleSearchMode) {
+							ruleSearchQuery = ruleSearchQuery.slice(0, -1);
+							if (!ruleSearchQuery) ruleSearchMode = false;
+							e.preventDefault();
+						} else if (e.key === 'Escape') {
+							if (ruleSearchMode) {
+								ruleSearchQuery = '';
+								ruleSearchMode = false;
+								e.preventDefault();
+								e.stopPropagation();
+							}
+						}
+					}}>
+						<!-- Search bar -->
+						<div class="search-bar" class:active={ruleSearchMode || ruleSearchQuery}>
+							{#if isMobile && !ruleSearchMode}
+								<button class="search-toggle" onclick={() => { ruleSearchMode = true; setTimeout(() => ruleSearchInput?.focus(), 50); }}>
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<circle cx="11" cy="11" r="8" />
+										<path d="M21 21l-4.35-4.35" />
+									</svg>
+								</button>
+							{:else}
+								<svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8" />
+									<path d="M21 21l-4.35-4.35" />
+								</svg>
+								<input 
+									bind:this={ruleSearchInput}
+									type="text" 
+									class="search-input" 
+									placeholder="Search rules..."
+									bind:value={ruleSearchQuery}
+									onfocus={() => ruleSearchMode = true}
+								/>
+								{#if ruleSearchQuery}
+									<button class="search-clear" onclick={() => { ruleSearchQuery = ''; ruleSearchInput?.focus(); }}>
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M18 6L6 18M6 6l12 12" />
+										</svg>
+									</button>
 								{/if}
-							</button>
-						{/each}
+							{/if}
+						</div>
+						
+						<div class="preset-list">
+							{#each filteredPresets as preset}
+								{@const presetIndex = RULE_PRESETS.indexOf(preset)}
+								<button class="dropdown-item" class:selected={selectedPreset === presetIndex} onclick={() => selectPreset(presetIndex)}>
+									<span class="item-name">{preset.name}</span>
+									<span class="item-code">{preset.ruleString}</span>
+									{#if preset.description}
+										<span class="item-desc">{preset.description}</span>
+									{/if}
+								</button>
+							{:else}
+								<div class="no-results">No rules found</div>
+							{/each}
+						</div>
 					</div>
 				{/if}
 			</div>
@@ -859,6 +935,104 @@
 
 	.preset-menu {
 		min-width: 280px;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.search-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.4rem 0.5rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		background: rgba(0, 0, 0, 0.2);
+	}
+
+	.search-bar.active {
+		background: rgba(0, 0, 0, 0.3);
+	}
+
+	.search-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		background: rgba(255, 255, 255, 0.08);
+		border: none;
+		border-radius: 4px;
+		color: var(--ui-text, #888);
+		cursor: pointer;
+		margin: 0 auto;
+	}
+
+	.search-toggle:hover {
+		background: rgba(255, 255, 255, 0.12);
+		color: var(--ui-accent, #2dd4bf);
+	}
+
+	.search-toggle svg {
+		width: 16px;
+		height: 16px;
+	}
+
+	.search-icon {
+		width: 14px;
+		height: 14px;
+		color: var(--ui-text, #888);
+		flex-shrink: 0;
+	}
+
+	.search-input {
+		flex: 1;
+		background: transparent;
+		border: none;
+		outline: none;
+		color: #fff;
+		font-size: 0.75rem;
+		padding: 0.2rem 0;
+		min-width: 0;
+	}
+
+	.search-input::placeholder {
+		color: var(--ui-text, #666);
+	}
+
+	.search-clear {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		background: rgba(255, 255, 255, 0.1);
+		border: none;
+		border-radius: 50%;
+		color: var(--ui-text, #888);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.search-clear:hover {
+		background: rgba(255, 255, 255, 0.2);
+		color: #fff;
+	}
+
+	.search-clear svg {
+		width: 10px;
+		height: 10px;
+	}
+
+	.preset-list {
+		overflow-y: auto;
+		max-height: 180px;
+	}
+
+	.no-results {
+		padding: 1rem;
+		text-align: center;
+		color: var(--ui-text, #666);
+		font-size: 0.75rem;
 	}
 
 	.filter-menu {

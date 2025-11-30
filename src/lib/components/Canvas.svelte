@@ -210,6 +210,11 @@
 		if (simState.isPlaying) {
 			const stepInterval = 1000 / simState.speed;
 			if (timestamp - lastStepTime >= stepInterval) {
+				// Apply continuous seeding if enabled
+				if (simState.seedingEnabled && simState.seedingRate > 0) {
+					simulation.continuousSeed(simState.seedingRate);
+				}
+				
 				simulation.step();
 				simState.incrementGeneration();
 				lastStepTime = timestamp;

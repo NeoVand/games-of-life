@@ -613,6 +613,39 @@ export const RULE_PRESETS: CARule[] = [
 		description: 'Smooth, organic blobs with extended range'
 	},
 	{
+		name: 'LtL Trails',
+		birthMask: 0b11100000000000, // 11-13 (narrow birth range prevents flashing)
+		surviveMask: 0b1111111111100000000, // 9-18 (broad survival)
+		numStates: 6,
+		ruleString: 'B11-13/S9-18/C6',
+		neighborhood: 'extendedMoore',
+		category: 'artistic',
+		description: 'Larger than Life with colorful decay trails',
+		density: 0.45
+	},
+	{
+		name: 'Blob Waves',
+		birthMask: 0b111100000000000, // 11-14 (narrow birth)
+		surviveMask: 0b11111111111100000000, // 10-20 (broad survival)
+		numStates: 8,
+		ruleString: 'B11-14/S10-20/C8',
+		neighborhood: 'extendedMoore',
+		category: 'artistic',
+		description: 'Smooth blobs with rainbow wave trails',
+		density: 0.5
+	},
+	{
+		name: 'Organic Flow',
+		birthMask: 0b1110000000000, // 10-12 (very narrow birth)
+		surviveMask: 0b111111111110000000, // 9-17
+		numStates: 10,
+		ruleString: 'B10-12/S9-17/C10',
+		neighborhood: 'extendedMoore',
+		category: 'artistic',
+		description: 'Flowing organic shapes with long rainbow trails',
+		density: 0.5
+	},
+	{
 		name: 'Bugs',
 		birthMask: 0b111111111111000000000000, // 11-23
 		surviveMask: 0b111111111111000000000000, // 11-23

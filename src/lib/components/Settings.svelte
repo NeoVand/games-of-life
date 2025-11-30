@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getSimulationState, GRID_SCALES, type GridScale } from '../stores/simulation.svelte.js';
+	import { getSimulationState, GRID_SCALES, DARK_THEME_COLORS, LIGHT_THEME_COLORS, type GridScale } from '../stores/simulation.svelte.js';
 
 	interface Props {
 		onclose: () => void;
@@ -10,31 +10,11 @@
 
 	const simState = getSimulationState();
 
-
-	// Different palettes for dark and light themes
-	const darkThemeColors: { name: string; color: [number, number, number]; hex: string }[] = [
-		{ name: 'White', color: [1.0, 1.0, 1.0], hex: '#ffffff' },
-		{ name: 'Cyan', color: [0.2, 0.9, 0.95], hex: '#33e6f2' },
-		{ name: 'Green', color: [0.3, 0.95, 0.5], hex: '#4df280' },
-		{ name: 'Purple', color: [0.7, 0.5, 1.0], hex: '#b380ff' },
-		{ name: 'Orange', color: [1.0, 0.65, 0.2], hex: '#ffa633' },
-		{ name: 'Pink', color: [1.0, 0.45, 0.65], hex: '#ff73a6' }
-	];
-
-	const lightThemeColors: { name: string; color: [number, number, number]; hex: string }[] = [
-		{ name: 'Black', color: [0.1, 0.1, 0.12], hex: '#1a1a1f' },
-		{ name: 'Teal', color: [0.0, 0.5, 0.55], hex: '#00808c' },
-		{ name: 'Green', color: [0.1, 0.55, 0.25], hex: '#1a8c40' },
-		{ name: 'Purple', color: [0.45, 0.2, 0.7], hex: '#7333b3' },
-		{ name: 'Orange', color: [0.85, 0.4, 0.1], hex: '#d9661a' },
-		{ name: 'Rose', color: [0.75, 0.2, 0.4], hex: '#bf3366' }
-	];
-
-	const colorPalettes = $derived(simState.isLightTheme ? lightThemeColors : darkThemeColors);
+	const colorPalettes = $derived(simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS);
 
 	function getSelectedColorIndex(): number {
 		const [r, g, b] = simState.aliveColor;
-		const palettes = simState.isLightTheme ? lightThemeColors : darkThemeColors;
+		const palettes = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
 		return palettes.findIndex(
 			(p) => Math.abs(p.color[0] - r) < 0.15 && Math.abs(p.color[1] - g) < 0.15 && Math.abs(p.color[2] - b) < 0.15
 		);
@@ -51,7 +31,7 @@
 		
 		simState.isLightTheme = isLight;
 		// Keep the same index in the new palette
-		const newPalette = isLight ? lightThemeColors : darkThemeColors;
+		const newPalette = isLight ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
 		simState.aliveColor = newPalette[safeIndex].color;
 	}
 

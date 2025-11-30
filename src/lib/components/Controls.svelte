@@ -384,15 +384,26 @@
 		position: absolute;
 		top: calc(100% + 0.4rem);
 		right: 0;
-		background: var(--toolbar-bg, rgba(12, 12, 18, 0.7));
-		backdrop-filter: blur(12px);
+		background: var(--ui-bg, rgba(12, 12, 18, 0.95));
+		-webkit-backdrop-filter: blur(16px);
+		backdrop-filter: blur(16px);
 		padding: 0.5rem 0.7rem;
 		border-radius: 6px;
-		border: 1px solid var(--toolbar-border, rgba(255, 255, 255, 0.08));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
 		min-width: 120px;
 		display: flex;
 		flex-direction: column;
 		gap: 0.4rem;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+	}
+
+	/* Make popup more opaque for readability */
+	:global(.app) .slider-popup {
+		background: rgba(12, 12, 18, 0.95);
+	}
+
+	:global(.app.light-theme) .slider-popup {
+		background: rgba(255, 255, 255, 0.95);
 	}
 
 	.slider-popup span {
