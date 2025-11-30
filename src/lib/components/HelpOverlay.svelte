@@ -36,29 +36,62 @@
 				<div class="touch-controls">
 					<section class="shortcut-group">
 						<h3>Drawing</h3>
-						<div class="shortcut">
-							<span class="gesture">👆 Tap / Drag</span>
-							<span>Draw or erase cells</span>
+						<div class="shortcut-row">
+							<span class="gesture-icon">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M12 19V5M5 12l7-7 7 7" />
+								</svg>
+							</span>
+							<span class="gesture-label">Tap / Drag</span>
+							<span class="gesture-desc">Draw or erase cells</span>
 						</div>
-						<div class="shortcut">
-							<span class="gesture">🖌️ Brush menu</span>
-							<span>Toggle draw/erase mode</span>
+						<div class="shortcut-row">
+							<span class="gesture-icon">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="12" r="6" fill="currentColor" />
+								</svg>
+							</span>
+							<span class="gesture-label">Brush menu</span>
+							<span class="gesture-desc">Toggle draw/erase</span>
 						</div>
 					</section>
 
 					<section class="shortcut-group">
 						<h3>Navigation</h3>
-						<div class="shortcut">
-							<span class="gesture">🤏 Pinch</span>
-							<span>Zoom in/out</span>
+						<div class="shortcut-row">
+							<span class="gesture-icon">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 21l-6-6M9 3v6M3 9h6M15 3v6M21 9h-6M9 21v-6M3 15h6M15 21v-6M21 15h-6" />
+								</svg>
+							</span>
+							<span class="gesture-label">Pinch</span>
+							<span class="gesture-desc">Zoom in/out</span>
 						</div>
-						<div class="shortcut">
-							<span class="gesture">✌️ Two-finger drag</span>
-							<span>Pan around</span>
+						<div class="shortcut-row">
+							<span class="gesture-icon">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l3 3 3-3M19 9l3 3-3 3" />
+									<path d="M2 12h20M12 2v20" />
+								</svg>
+							</span>
+							<span class="gesture-label">Two-finger drag</span>
+							<span class="gesture-desc">Pan around</span>
 						</div>
-						<div class="shortcut">
-							<span class="gesture">🏠 Home button</span>
-							<span>Reset view</span>
+						<div class="shortcut-row">
+							<span class="gesture-icon">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M4 14v4a2 2 0 002 2h4" />
+									<path d="M20 14v4a2 2 0 01-2 2h-4" />
+									<path d="M4 10V6a2 2 0 012-2h4" />
+									<path d="M20 10V6a2 2 0 00-2-2h-4" />
+									<path d="M9 9L4 4m0 0v3m0-3h3" />
+									<path d="M15 9l5-5m0 0v3m0-3h-3" />
+									<path d="M9 15l-5 5m0 0v-3m0 3h3" />
+									<path d="M15 15l5 5m0 0v-3m0 3h-3" />
+								</svg>
+							</span>
+							<span class="gesture-label">Fit button</span>
+							<span class="gesture-desc">Reset view</span>
 						</div>
 					</section>
 
@@ -233,19 +266,39 @@
 		gap: 0.5rem;
 	}
 
-	.touch-controls .shortcut {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 0.15rem;
+	.shortcut-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.35rem;
 	}
 
-	.touch-controls .shortcut span {
-		margin-left: 0;
+	.gesture-icon {
+		width: 20px;
+		height: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--ui-accent, #2dd4bf);
+		flex-shrink: 0;
 	}
 
-	.gesture {
-		font-size: 0.75rem;
+	.gesture-icon svg {
+		width: 16px;
+		height: 16px;
+	}
+
+	.gesture-label {
+		font-size: 0.7rem;
+		font-weight: 500;
 		color: var(--ui-text-hover, #e0e0e0);
+		min-width: 90px;
+	}
+
+	.gesture-desc {
+		font-size: 0.65rem;
+		color: var(--ui-text, #888);
+		margin-left: auto;
 	}
 
 	.tip {
