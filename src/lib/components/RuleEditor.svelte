@@ -1,6 +1,20 @@
+<script lang="ts" module>
+	// Module-level state persists across component mounts
+	let persistedFilter = 'all';
+</script>
+
 <script lang="ts">
 	import { getSimulationState } from '../stores/simulation.svelte.js';
-	import { RULE_PRESETS, parseRule, type CARule } from '../utils/rules.js';
+	import { 
+		RULE_PRESETS, 
+		RULE_CATEGORIES, 
+		NEIGHBORHOODS,
+		parseRule, 
+		getNeighborDescription,
+		type CARule, 
+		type RuleCategory,
+		type NeighborhoodType 
+	} from '../utils/rules.js';
 	import { onMount, onDestroy } from 'svelte';
 
 	interface Props {
@@ -22,11 +36,17 @@
 	let lastPreviewStep = 0;
 
 	let dropdownOpen = $state(false);
+	let categoryDropdownOpen = $state(false);
+	let neighborhoodDropdownOpen = $state(false);
 	let ruleString = $state(simState.currentRule.ruleString);
 	let numStates = $state(simState.currentRule.numStates);
+	let neighborhood = $state<NeighborhoodType>(simState.currentRule.neighborhood ?? 'moore');
 	let selectedPreset = $state(
 		RULE_PRESETS.findIndex((r) => r.ruleString === simState.currentRule.ruleString)
 	);
+	// Filter type: 'all', category name, or neighborhood type prefixed with 'nh:'
+	// Use persisted value from module scope
+	let selectedFilter = $state<string>(persistedFilter);
 	let error = $state('');
 
 	let birthToggles = $state(
@@ -35,6 +55,82 @@
 	let surviveToggles = $state(
 		Array.from({ length: 9 }, (_, i) => !!(simState.currentRule.surviveMask & (1 << i)))
 	);
+
+	// Get max neighbors based on neighborhood type
+	const maxNeighbors = $derived(NEIGHBORHOODS[neighborhood].maxNeighbors);
+
+	// Filter presets by category, neighborhood, or state count
+	const filteredPresets = $derived.by(() => {
+		if (selectedFilter === 'all') {
+			return RULE_PRESETS;
+		}
+		if (selectedFilter.startsWith('nh:')) {
+			const nhType = selectedFilter.slice(3) as NeighborhoodType;
+			if (nhType === 'moore') {
+				// Moore is default, so include rules without neighborhood set
+				return RULE_PRESETS.filter(r => !r.neighborhood || r.neighborhood === 'moore');
+			}
+			return RULE_PRESETS.filter(r => r.neighborhood === nhType);
+		}
+		if (selectedFilter.startsWith('states:')) {
+			const stateFilter = selectedFilter.slice(7);
+			switch (stateFilter) {
+				case '2': // Binary (2 states)
+					return RULE_PRESETS.filter(r => r.numStates === 2);
+				case '3-4': // Short trails (3-4 states)
+					return RULE_PRESETS.filter(r => r.numStates >= 3 && r.numStates <= 4);
+				case '5-8': // Medium trails (5-8 states)
+					return RULE_PRESETS.filter(r => r.numStates >= 5 && r.numStates <= 8);
+				case '9+': // Long trails (9+ states)
+					return RULE_PRESETS.filter(r => r.numStates >= 9);
+				default:
+					return RULE_PRESETS;
+			}
+		}
+		// Filter by category
+		return RULE_PRESETS.filter(r => r.category === selectedFilter);
+	});
+
+	// Get display name for current filter
+	const currentFilterName = $derived.by(() => {
+		if (selectedFilter === 'all') return 'All';
+		if (selectedFilter.startsWith('nh:')) {
+			const nhType = selectedFilter.slice(3) as NeighborhoodType;
+			return NEIGHBORHOODS[nhType]?.name ?? 'Unknown';
+		}
+		if (selectedFilter.startsWith('states:')) {
+			const stateFilter = selectedFilter.slice(7);
+			switch (stateFilter) {
+				case '2': return 'Binary';
+				case '3-4': return 'Short Trails';
+				case '5-8': return 'Medium Trails';
+				case '9+': return 'Long Trails';
+				default: return 'All';
+			}
+		}
+		return RULE_CATEGORIES.find(c => c.id === selectedFilter)?.name ?? 'All';
+	});
+
+	// Count rules for each filter (for display in dropdown)
+	function getFilterCount(filter: string): number {
+		return getFilteredRules(filter).length;
+	}
+
+	// Precompute counts for all filters
+	const filterCounts = $derived.by(() => ({
+		all: RULE_PRESETS.length,
+		// Categories
+		...Object.fromEntries(RULE_CATEGORIES.map(c => [c.id, getFilterCount(c.id)])),
+		// Neighborhoods
+		'nh:moore': getFilterCount('nh:moore'),
+		'nh:vonNeumann': getFilterCount('nh:vonNeumann'),
+		'nh:extendedMoore': getFilterCount('nh:extendedMoore'),
+		// States
+		'states:2': getFilterCount('states:2'),
+		'states:3-4': getFilterCount('states:3-4'),
+		'states:5-8': getFilterCount('states:5-8'),
+		'states:9+': getFilterCount('states:9+'),
+	}));
 
 	function getBirthMask(): number {
 		return birthToggles.reduce((mask, on, i) => (on ? mask | (1 << i) : mask), 0);
@@ -63,6 +159,43 @@
 		renderPreview();
 	}
 
+	// Count neighbors based on neighborhood type
+	function countNeighbors(x: number, y: number): number {
+		let count = 0;
+		
+		if (neighborhood === 'vonNeumann') {
+			// 4 orthogonal neighbors
+			const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+			for (const [dx, dy] of dirs) {
+				const nx = (x + dx + PREVIEW_SIZE) % PREVIEW_SIZE;
+				const ny = (y + dy + PREVIEW_SIZE) % PREVIEW_SIZE;
+				if (previewGrid[ny * PREVIEW_SIZE + nx] === 1) count++;
+			}
+		} else if (neighborhood === 'extendedMoore') {
+			// 24 neighbors (5x5 minus center)
+			for (let dy = -2; dy <= 2; dy++) {
+				for (let dx = -2; dx <= 2; dx++) {
+					if (dx === 0 && dy === 0) continue;
+					const nx = (x + dx + PREVIEW_SIZE) % PREVIEW_SIZE;
+					const ny = (y + dy + PREVIEW_SIZE) % PREVIEW_SIZE;
+					if (previewGrid[ny * PREVIEW_SIZE + nx] === 1) count++;
+				}
+			}
+		} else {
+			// Moore: 8 neighbors
+			for (let dy = -1; dy <= 1; dy++) {
+				for (let dx = -1; dx <= 1; dx++) {
+					if (dx === 0 && dy === 0) continue;
+					const nx = (x + dx + PREVIEW_SIZE) % PREVIEW_SIZE;
+					const ny = (y + dy + PREVIEW_SIZE) % PREVIEW_SIZE;
+					if (previewGrid[ny * PREVIEW_SIZE + nx] === 1) count++;
+				}
+			}
+		}
+		
+		return count;
+	}
+
 	function stepPreview() {
 		const birthMask = getBirthMask();
 		const surviveMask = getSurviveMask();
@@ -71,16 +204,7 @@
 			for (let x = 0; x < PREVIEW_SIZE; x++) {
 				const idx = y * PREVIEW_SIZE + x;
 				const state = previewGrid[idx];
-				let neighbors = 0;
-				
-				for (let dy = -1; dy <= 1; dy++) {
-					for (let dx = -1; dx <= 1; dx++) {
-						if (dx === 0 && dy === 0) continue;
-						const nx = (x + dx + PREVIEW_SIZE) % PREVIEW_SIZE;
-						const ny = (y + dy + PREVIEW_SIZE) % PREVIEW_SIZE;
-						if (previewGrid[ny * PREVIEW_SIZE + nx] === 1) neighbors++;
-					}
-				}
+				const neighbors = countNeighbors(x, y);
 
 				if (state === 0) {
 					previewNextGrid[idx] = (birthMask & (1 << neighbors)) !== 0 ? 1 : 0;
@@ -103,7 +227,6 @@
 	function renderPreview() {
 		if (!previewCtx) return;
 		const cellSize = previewCanvas.width / PREVIEW_SIZE;
-		// Use theme-aware background
 		previewCtx.fillStyle = simState.isLightTheme ? '#f0f0f3' : '#0a0a0f';
 		previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
 
@@ -118,22 +241,83 @@
 		}
 	}
 
+	// RGB to HSL conversion (matches shader)
+	function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+		const maxC = Math.max(r, g, b);
+		const minC = Math.min(r, g, b);
+		const l = (maxC + minC) / 2;
+		
+		if (maxC === minC) return [0, 0, l];
+		
+		const d = maxC - minC;
+		const s = l > 0.5 ? d / (2 - maxC - minC) : d / (maxC + minC);
+		
+		let h: number;
+		if (maxC === r) {
+			h = (g - b) / d + (g < b ? 6 : 0);
+		} else if (maxC === g) {
+			h = (b - r) / d + 2;
+		} else {
+			h = (r - g) / d + 4;
+		}
+		h /= 6;
+		
+		return [h, s, l];
+	}
+	
+	function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+		if (s === 0) return [l, l, l];
+		
+		const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		const p = 2 * l - q;
+		
+		const hueToRgb = (t: number): number => {
+			if (t < 0) t += 1;
+			if (t > 1) t -= 1;
+			if (t < 1/6) return p + (q - p) * 6 * t;
+			if (t < 1/2) return q;
+			if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+			return p;
+		};
+		
+		return [hueToRgb(h + 1/3), hueToRgb(h), hueToRgb(h - 1/3)];
+	}
+
 	function getStateColor(state: number): string {
-		// Use the current alive color from simState
 		const [r, g, b] = simState.aliveColor;
-		const aliveColor = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+		const isLight = simState.isLightTheme;
+		const bg = isLight ? [0.95, 0.95, 0.97] : [0.05, 0.05, 0.08];
 		
-		if (state === 1) return aliveColor;
-		if (numStates === 2) return aliveColor;
+		if (state === 0) {
+			return `rgb(${Math.round(bg[0] * 255)}, ${Math.round(bg[1] * 255)}, ${Math.round(bg[2] * 255)})`;
+		}
 		
-		// For dying states, fade toward gray
-		const progress = (state - 1) / (numStates - 2);
-		const fade = 1 - progress * 0.7;
-		const grayBlend = progress * 0.5;
-		const gray = 80;
-		const finalR = Math.round(r * 255 * fade + gray * grayBlend);
-		const finalG = Math.round(g * 255 * fade + gray * grayBlend);
-		const finalB = Math.round(b * 255 * fade + gray * grayBlend);
+		if (state === 1 || numStates === 2) {
+			return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+		}
+		
+		const dyingProgress = (state - 1) / (numStates - 1);
+		const aliveHsl = rgbToHsl(r, g, b);
+		
+		let dyingHue = aliveHsl[0] + 0.25 * dyingProgress;
+		if (dyingHue > 1) dyingHue -= 1;
+		
+		const satCurve = 1 - dyingProgress * dyingProgress;
+		const dyingSat = aliveHsl[1] * Math.max(satCurve, 0.2);
+		
+		let dyingLight: number;
+		if (isLight) {
+			dyingLight = aliveHsl[2] + (0.35 - aliveHsl[2]) * dyingProgress * 0.8;
+		} else {
+			dyingLight = aliveHsl[2] + (0.15 - aliveHsl[2]) * dyingProgress * dyingProgress;
+		}
+		
+		const dyingRgb = hslToRgb(dyingHue, dyingSat, dyingLight);
+		const bgBlend = dyingProgress * dyingProgress * dyingProgress * 0.6;
+		const finalR = Math.round((dyingRgb[0] * (1 - bgBlend) + bg[0] * bgBlend) * 255);
+		const finalG = Math.round((dyingRgb[1] * (1 - bgBlend) + bg[1] * bgBlend) * 255);
+		const finalB = Math.round((dyingRgb[2] * (1 - bgBlend) + bg[2] * bgBlend) * 255);
+		
 		return `rgb(${finalR}, ${finalG}, ${finalB})`;
 	}
 
@@ -155,7 +339,7 @@
 	function updateRuleString() {
 		let birthStr = 'B';
 		let surviveStr = 'S';
-		for (let i = 0; i <= 8; i++) {
+		for (let i = 0; i <= maxNeighbors; i++) {
 			if (birthToggles[i]) birthStr += i;
 			if (surviveToggles[i]) surviveStr += i;
 		}
@@ -166,17 +350,67 @@
 	}
 
 	function selectPreset(index: number) {
-		if (index >= 0 && index < RULE_PRESETS.length) {
-			const preset = RULE_PRESETS[index];
-			ruleString = preset.ruleString;
-			numStates = preset.numStates;
-			birthToggles = Array.from({ length: 9 }, (_, i) => !!(preset.birthMask & (1 << i)));
-			surviveToggles = Array.from({ length: 9 }, (_, i) => !!(preset.surviveMask & (1 << i)));
-			selectedPreset = index;
-			error = '';
-			randomizePreview();
-		}
+		const preset = RULE_PRESETS[index];
+		if (!preset) return;
+		
+		ruleString = preset.ruleString;
+		numStates = preset.numStates;
+		neighborhood = preset.neighborhood ?? 'moore';
+		birthToggles = Array.from({ length: 25 }, (_, i) => !!(preset.birthMask & (1 << i)));
+		surviveToggles = Array.from({ length: 25 }, (_, i) => !!(preset.surviveMask & (1 << i)));
+		selectedPreset = index;
+		error = '';
+		randomizePreview();
 		dropdownOpen = false;
+	}
+
+	function getFilteredRules(filter: string) {
+		if (filter === 'all') return RULE_PRESETS;
+		if (filter.startsWith('nh:')) {
+			const nhType = filter.slice(3);
+			if (nhType === 'moore') {
+				return RULE_PRESETS.filter(r => !r.neighborhood || r.neighborhood === 'moore');
+			}
+			return RULE_PRESETS.filter(r => r.neighborhood === nhType);
+		}
+		if (filter.startsWith('states:')) {
+			const stateFilter = filter.slice(7);
+			switch (stateFilter) {
+				case '2': return RULE_PRESETS.filter(r => r.numStates === 2);
+				case '3-4': return RULE_PRESETS.filter(r => r.numStates >= 3 && r.numStates <= 4);
+				case '5-8': return RULE_PRESETS.filter(r => r.numStates >= 5 && r.numStates <= 8);
+				case '9+': return RULE_PRESETS.filter(r => r.numStates >= 9);
+				default: return RULE_PRESETS;
+			}
+		}
+		return RULE_PRESETS.filter(r => r.category === filter);
+	}
+
+	function selectFilter(filter: string) {
+		selectedFilter = filter;
+		persistedFilter = filter; // Persist across modal opens
+		categoryDropdownOpen = false;
+		
+		// If current rule is not in filtered list, select the first filtered rule
+		const filtered = getFilteredRules(filter);
+		
+		const currentRuleInFiltered = filtered.some(r => 
+			RULE_PRESETS.indexOf(r) === selectedPreset
+		);
+		
+		if (!currentRuleInFiltered && filtered.length > 0) {
+			selectPreset(RULE_PRESETS.indexOf(filtered[0]));
+		}
+	}
+
+	function selectNeighborhood(nh: NeighborhoodType) {
+		neighborhood = nh;
+		// Clear toggles beyond new max
+		const newMax = NEIGHBORHOODS[nh].maxNeighbors;
+		birthToggles = birthToggles.map((v, i) => i <= newMax ? v : false);
+		surviveToggles = surviveToggles.map((v, i) => i <= newMax ? v : false);
+		updateRuleString();
+		neighborhoodDropdownOpen = false;
 	}
 
 	function handleRuleStringChange(e: Event) {
@@ -184,8 +418,8 @@
 		ruleString = input.value;
 		const parsed = parseRule(ruleString);
 		if (parsed) {
-			birthToggles = Array.from({ length: 9 }, (_, i) => !!(parsed.birthMask & (1 << i)));
-			surviveToggles = Array.from({ length: 9 }, (_, i) => !!(parsed.surviveMask & (1 << i)));
+			birthToggles = Array.from({ length: 25 }, (_, i) => !!(parsed.birthMask & (1 << i)));
+			surviveToggles = Array.from({ length: 25 }, (_, i) => !!(parsed.surviveMask & (1 << i)));
 			numStates = parsed.numStates;
 			selectedPreset = RULE_PRESETS.findIndex((r) => r.ruleString === parsed.ruleString);
 			error = '';
@@ -198,13 +432,41 @@
 		const parsed = parseRule(ruleString);
 		if (!parsed) { error = 'Invalid rule'; return; }
 		const preset = RULE_PRESETS.find((r) => r.ruleString === parsed.ruleString);
-		const rule: CARule = { ...parsed, name: preset?.name ?? 'Custom' };
+		const rule: CARule = { 
+			...parsed, 
+			name: preset?.name ?? 'Custom',
+			neighborhood,
+			category: preset?.category,
+			description: preset?.description,
+			density: preset?.density
+		};
 		simState.currentRule = rule;
 		onrulechange();
 		onclose();
 	}
 
+	function closeAllDropdowns() {
+		dropdownOpen = false;
+		categoryDropdownOpen = false;
+		neighborhoodDropdownOpen = false;
+	}
+
 	const currentPresetName = $derived(selectedPreset >= 0 ? RULE_PRESETS[selectedPreset].name : 'Custom');
+	const currentNeighborhoodInfo = $derived(NEIGHBORHOODS[neighborhood]);
+	
+	// Short names for neighborhood display
+	const neighborhoodShortName = $derived.by(() => {
+		switch (neighborhood) {
+			case 'moore': return 'Moore';
+			case 'vonNeumann': return 'VN';
+			case 'extendedMoore': return 'Ext';
+			default: return 'Moore';
+		}
+	});
+
+	// Calculate grid columns based on max neighbors
+	const gridCols = $derived(neighborhood === 'extendedMoore' ? 5 : 3);
+	const neighborNumbers = $derived(Array.from({ length: maxNeighbors + 1 }, (_, i) => i));
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
@@ -212,28 +474,135 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && onclose()}>
 	<div class="editor">
-		<!-- Compact header -->
+		<!-- Row 1: Title + Close -->
 		<div class="header">
-			<span class="title">Rule Editor</span>
-			<div class="preset-dropdown">
-				<button class="dropdown-btn" onclick={() => (dropdownOpen = !dropdownOpen)}>
-					{currentPresetName}
-					<span class="code">{ruleString}</span>
+			<span class="title">
+				<svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<!-- 3x3 grid outline -->
+					<rect x="4" y="4" width="16" height="16" rx="1" />
+					<!-- Grid lines -->
+					<line x1="4" y1="9.33" x2="20" y2="9.33" />
+					<line x1="4" y1="14.66" x2="20" y2="14.66" />
+					<line x1="9.33" y1="4" x2="9.33" y2="20" />
+					<line x1="14.66" y1="4" x2="14.66" y2="20" />
+					<!-- A few filled cells - like a glider pattern -->
+					<rect x="10.33" y="5" width="3.33" height="3.33" fill="currentColor" stroke="none" />
+					<rect x="15.66" y="10.33" width="3.33" height="3.33" fill="currentColor" stroke="none" />
+					<rect x="5" y="15.66" width="3.33" height="3.33" fill="currentColor" stroke="none" />
+				</svg>
+				Rule Editor
+			</span>
+			<button class="close-btn" onclick={onclose} aria-label="Close">✕</button>
+		</div>
+
+		<!-- Row 2: Category, Preset, Neighborhood dropdowns -->
+		<div class="selectors-row">
+			<!-- Category/Filter dropdown -->
+			<div class="dropdown-wrapper">
+				<button class="select-btn" onclick={() => { closeAllDropdowns(); categoryDropdownOpen = true; }}>
+					<span class="select-label">Type</span>
+					<span class="select-value">{currentFilterName}</span>
+					<svg class="chevron" class:open={categoryDropdownOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" /></svg>
+				</button>
+				{#if categoryDropdownOpen}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="dropdown-backdrop" onclick={() => (categoryDropdownOpen = false)} onkeydown={() => {}}></div>
+					<div class="dropdown-menu filter-menu">
+						<button class="dropdown-item" class:selected={selectedFilter === 'all'} onclick={() => selectFilter('all')}>
+							<span class="item-name">All Rules <span class="filter-count">[{filterCounts.all}]</span></span>
+						</button>
+						
+						<div class="dropdown-divider"></div>
+						<div class="dropdown-section">By Category</div>
+						{#each RULE_CATEGORIES as cat}
+							<button class="dropdown-item" class:selected={selectedFilter === cat.id} onclick={() => selectFilter(cat.id)}>
+								<span class="item-name">{cat.name} <span class="filter-count">[{filterCounts[cat.id]}]</span></span>
+								<span class="item-desc">{cat.description}</span>
+							</button>
+						{/each}
+						
+						<div class="dropdown-divider"></div>
+						<div class="dropdown-section">By Neighborhood</div>
+						<button class="dropdown-item" class:selected={selectedFilter === 'nh:moore'} onclick={() => selectFilter('nh:moore')}>
+							<span class="item-name">Moore (8) <span class="filter-count">[{filterCounts['nh:moore']}]</span></span>
+							<span class="item-desc">Standard 8-neighbor rules</span>
+						</button>
+						<button class="dropdown-item" class:selected={selectedFilter === 'nh:vonNeumann'} onclick={() => selectFilter('nh:vonNeumann')}>
+							<span class="item-name">Von Neumann (4) <span class="filter-count">[{filterCounts['nh:vonNeumann']}]</span></span>
+							<span class="item-desc">Orthogonal 4-neighbor rules</span>
+						</button>
+						<button class="dropdown-item" class:selected={selectedFilter === 'nh:extendedMoore'} onclick={() => selectFilter('nh:extendedMoore')}>
+							<span class="item-name">Extended (24) <span class="filter-count">[{filterCounts['nh:extendedMoore']}]</span></span>
+							<span class="item-desc">Large radius 24-neighbor rules</span>
+						</button>
+						
+						<div class="dropdown-divider"></div>
+						<div class="dropdown-section">By Trail Length</div>
+						<button class="dropdown-item" class:selected={selectedFilter === 'states:2'} onclick={() => selectFilter('states:2')}>
+							<span class="item-name">Binary (2) <span class="filter-count">[{filterCounts['states:2']}]</span></span>
+							<span class="item-desc">Classic on/off, no trails</span>
+						</button>
+						<button class="dropdown-item" class:selected={selectedFilter === 'states:3-4'} onclick={() => selectFilter('states:3-4')}>
+							<span class="item-name">Short (3-4) <span class="filter-count">[{filterCounts['states:3-4']}]</span></span>
+							<span class="item-desc">Brief fading trails</span>
+						</button>
+						<button class="dropdown-item" class:selected={selectedFilter === 'states:5-8'} onclick={() => selectFilter('states:5-8')}>
+							<span class="item-name">Medium (5-8) <span class="filter-count">[{filterCounts['states:5-8']}]</span></span>
+							<span class="item-desc">Visible colorful trails</span>
+						</button>
+						<button class="dropdown-item" class:selected={selectedFilter === 'states:9+'} onclick={() => selectFilter('states:9+')}>
+							<span class="item-name">Long (9+) <span class="filter-count">[{filterCounts['states:9+']}]</span></span>
+							<span class="item-desc">Extended rainbow trails</span>
+						</button>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Preset dropdown -->
+			<div class="dropdown-wrapper flex-1">
+				<button class="select-btn" onclick={() => { closeAllDropdowns(); dropdownOpen = true; }}>
+					<span class="select-label">Rule</span>
+					<span class="select-value">{currentPresetName}</span>
 					<svg class="chevron" class:open={dropdownOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" /></svg>
 				</button>
 				{#if dropdownOpen}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="dropdown-backdrop" onclick={() => (dropdownOpen = false)} onkeydown={() => {}}></div>
-					<div class="dropdown-menu">
-						{#each RULE_PRESETS as preset, i}
-							<button class="dropdown-item" class:selected={selectedPreset === i} onclick={() => selectPreset(i)}>
-								{preset.name}<span class="item-code">{preset.ruleString}</span>
+					<div class="dropdown-menu preset-menu">
+						{#each filteredPresets as preset}
+							{@const presetIndex = RULE_PRESETS.indexOf(preset)}
+							<button class="dropdown-item" class:selected={selectedPreset === presetIndex} onclick={() => selectPreset(presetIndex)}>
+								<span class="item-name">{preset.name}</span>
+								<span class="item-code">{preset.ruleString}</span>
+								{#if preset.description}
+									<span class="item-desc">{preset.description}</span>
+								{/if}
 							</button>
 						{/each}
 					</div>
 				{/if}
 			</div>
-			<button class="close-btn" onclick={onclose} aria-label="Close">✕</button>
+
+			<!-- Neighborhood dropdown -->
+			<div class="dropdown-wrapper">
+				<button class="select-btn compact" onclick={() => { closeAllDropdowns(); neighborhoodDropdownOpen = true; }}>
+					<span class="select-value">{neighborhoodShortName}</span>
+					<span class="select-num">{currentNeighborhoodInfo.maxNeighbors}</span>
+					<svg class="chevron" class:open={neighborhoodDropdownOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" /></svg>
+				</button>
+				{#if neighborhoodDropdownOpen}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="dropdown-backdrop" onclick={() => (neighborhoodDropdownOpen = false)} onkeydown={() => {}}></div>
+					<div class="dropdown-menu neighborhood-menu">
+						{#each Object.values(NEIGHBORHOODS) as nh}
+							<button class="dropdown-item" class:selected={neighborhood === nh.type} onclick={() => selectNeighborhood(nh.type)}>
+								<span class="item-name">{nh.name} ({nh.maxNeighbors})</span>
+								<span class="item-desc">{nh.description}</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
 		</div>
 
 		<!-- Main content: Birth + Survive + Preview -->
@@ -241,9 +610,13 @@
 			<div class="grid-col">
 				<span class="label birth">Birth</span>
 				<span class="hint">Dead → Alive</span>
-				<div class="grid">
-					{#each [0,1,2,3,4,5,6,7,8] as i}
-						<label class="cell" class:on={birthToggles[i]}>
+				<div class="grid grid-{neighborhood}">
+					{#each neighborNumbers as i}
+						<label 
+							class="cell" 
+							class:on={birthToggles[i]}
+							title={getNeighborDescription(i, true)}
+						>
 							<input type="checkbox" bind:checked={birthToggles[i]} onchange={updateRuleString} />
 							{i}
 						</label>
@@ -254,9 +627,13 @@
 			<div class="grid-col">
 				<span class="label survive">Survive</span>
 				<span class="hint">Alive → Alive</span>
-				<div class="grid">
-					{#each [0,1,2,3,4,5,6,7,8] as i}
-						<label class="cell" class:on={surviveToggles[i]}>
+				<div class="grid grid-{neighborhood}">
+					{#each neighborNumbers as i}
+						<label 
+							class="cell" 
+							class:on={surviveToggles[i]}
+							title={getNeighborDescription(i, false)}
+						>
 							<input type="checkbox" bind:checked={surviveToggles[i]} onchange={updateRuleString} />
 							{i}
 						</label>
@@ -292,7 +669,7 @@
 		<div class="footer">
 			<div class="states">
 				<span class="foot-label">States</span>
-				<input type="range" min="2" max="16" bind:value={numStates} oninput={updateRuleString} />
+				<input type="range" min="2" max="32" bind:value={numStates} oninput={updateRuleString} />
 				<span class="states-val">{numStates}</span>
 			</div>
 			<div class="rule-input">
@@ -318,108 +695,39 @@
 	}
 
 	.editor {
-		background: var(--ui-bg, rgba(12, 12, 18, 0.8));
+		background: var(--ui-bg, rgba(12, 12, 18, 0.9));
 		backdrop-filter: blur(16px);
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
 		border-radius: 12px;
 		padding: 0.8rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.8rem;
+		gap: 0.6rem;
 		box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+		max-width: 520px;
 	}
 
 	/* Header */
 	.header {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		justify-content: space-between;
 	}
 
 	.title {
-		font-size: 0.85rem;
+		font-size: 0.9rem;
 		font-weight: 600;
 		color: var(--ui-text-hover, #e0e0e0);
-	}
-
-	.preset-dropdown {
-		flex: 1;
-		position: relative;
-	}
-
-	.dropdown-btn {
-		width: 100%;
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
-		padding: 0.35rem 0.6rem;
-		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
-		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
-		border-radius: 5px;
-		color: var(--ui-text-hover, #ccc);
-		font-size: 0.75rem;
-		cursor: pointer;
 	}
 
-	.dropdown-btn:hover { border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.2)); }
-
-	.dropdown-btn .code {
-		margin-left: auto;
-		color: var(--ui-accent, #2dd4bf);
-		font-family: 'SF Mono', Monaco, monospace;
-		font-size: 0.7rem;
-	}
-
-	.chevron {
-		width: 12px;
-		height: 12px;
-		color: var(--ui-text, #666);
-		transition: transform 0.15s;
-	}
-
-	.chevron.open { transform: rotate(180deg); }
-
-	.dropdown-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 10;
-	}
-
-	.dropdown-menu {
-		position: absolute;
-		top: calc(100% + 3px);
-		left: 0;
-		right: 0;
-		background: rgba(16, 16, 24, 0.95);
-		backdrop-filter: blur(12px);
-		-webkit-backdrop-filter: blur(12px);
-		border: 1px solid rgba(255, 255, 255, 0.15);
-		border-radius: 5px;
-		max-height: 180px;
-		overflow-y: auto;
-		z-index: 20;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-	}
-
-	.dropdown-item {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		padding: 0.4rem 0.6rem;
-		background: transparent;
-		border: none;
-		color: #d0d0d0;
-		font-size: 0.7rem;
-		cursor: pointer;
-	}
-
-	.dropdown-item:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
-	.dropdown-item.selected { background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2)); color: var(--ui-accent, #2dd4bf); }
-
-	.item-code {
-		font-family: 'SF Mono', Monaco, monospace;
-		font-size: 0.6rem;
-		color: #888;
+	.header-icon {
+		width: 18px;
+		height: 18px;
+		color: var(--ui-accent, #33e6f2);
+		flex-shrink: 0;
 	}
 
 	.close-btn {
@@ -436,24 +744,216 @@
 		border-radius: 4px;
 	}
 
-	.close-btn:hover { background: var(--ui-border, rgba(255,255,255,0.1)); color: var(--ui-text-hover, #fff); }
+	.close-btn:hover { 
+		background: var(--ui-border, rgba(255,255,255,0.1)); 
+		color: var(--ui-text-hover, #fff); 
+	}
+
+	/* Selectors row */
+	.selectors-row {
+		display: flex;
+		align-items: stretch;
+		gap: 0.5rem;
+	}
+
+	.dropdown-wrapper {
+		position: relative;
+		display: flex;
+	}
+
+	.dropdown-wrapper.flex-1 {
+		flex: 1;
+	}
+
+	.select-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.4rem 0.6rem;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 5px;
+		color: var(--ui-text-hover, #ccc);
+		font-size: 0.7rem;
+		cursor: pointer;
+		width: 100%;
+		text-align: left;
+	}
+
+	.select-btn .select-value {
+		flex: 1;
+	}
+
+	.select-btn:hover { 
+		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.2)); 
+	}
+
+	.select-btn.compact {
+		padding: 0.4rem 0.5rem;
+		gap: 0.3rem;
+	}
+
+	.select-num {
+		color: var(--ui-accent, #2dd4bf);
+		font-family: 'SF Mono', Monaco, monospace;
+		font-size: 0.65rem;
+	}
+
+	.select-label {
+		font-size: 0.55rem;
+		color: var(--ui-text, #666);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.select-value {
+		color: var(--ui-text-hover, #e0e0e0);
+		font-weight: 500;
+	}
+
+	.select-code {
+		margin-left: auto;
+		color: var(--ui-accent, #2dd4bf);
+		font-family: 'SF Mono', Monaco, monospace;
+		font-size: 0.65rem;
+	}
+
+	.chevron {
+		width: 12px;
+		height: 12px;
+		color: var(--ui-text, #666);
+		transition: transform 0.15s;
+		flex-shrink: 0;
+	}
+
+	.chevron.open { transform: rotate(180deg); }
+
+	.dropdown-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 10;
+	}
+
+	.dropdown-menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		left: 0;
+		min-width: 100%;
+		background: rgba(16, 16, 24, 0.98);
+		backdrop-filter: blur(12px);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 6px;
+		max-height: 220px;
+		overflow-y: auto;
+		z-index: 20;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+	}
+
+	.preset-menu {
+		min-width: 280px;
+	}
+
+	.filter-menu {
+		min-width: 180px;
+	}
+
+	.neighborhood-menu {
+		min-width: 200px;
+		right: 0;
+		left: auto;
+	}
+
+	.dropdown-divider {
+		height: 1px;
+		background: rgba(255, 255, 255, 0.1);
+		margin: 0.3rem 0;
+	}
+
+	.dropdown-section {
+		padding: 0.3rem 0.7rem;
+		font-size: 0.55rem;
+		color: var(--ui-text, #666);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.filter-count {
+		color: var(--ui-accent, #2dd4bf);
+		font-weight: 500;
+		margin-left: 0.2rem;
+	}
+
+	.dropdown-item {
+		width: 100%;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.5rem 0.7rem;
+		background: transparent;
+		border: none;
+		color: #d0d0d0;
+		font-size: 0.7rem;
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.dropdown-item:hover { 
+		background: rgba(255, 255, 255, 0.08); 
+		color: #fff; 
+	}
+
+	.dropdown-item.selected { 
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15)); 
+		color: var(--ui-accent, #2dd4bf); 
+	}
+
+	.item-name {
+		font-weight: 500;
+	}
+
+	.item-code {
+		margin-left: auto;
+		font-family: 'SF Mono', Monaco, monospace;
+		font-size: 0.6rem;
+		color: #888;
+	}
+
+	.dropdown-item.selected .item-code {
+		color: var(--ui-accent, #2dd4bf);
+		opacity: 0.8;
+	}
+
+	.item-desc {
+		width: 100%;
+		font-size: 0.55rem;
+		color: #666;
+		margin-top: 0.1rem;
+		text-align: left;
+	}
+
+	.dropdown-item.selected .item-desc {
+		color: var(--ui-accent, #2dd4bf);
+		opacity: 0.6;
+	}
 
 	/* Main row */
 	.main-row {
 		display: flex;
 		justify-content: center;
-		gap: 1.2rem;
+		gap: 1rem;
+		padding: 0.3rem 0;
 	}
 
 	.grid-col, .preview-col {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.2rem;
 	}
 
 	.label {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		font-weight: 600;
 	}
 
@@ -462,36 +962,63 @@
 	.label.preview { color: var(--ui-accent, #f472b6); }
 
 	.hint {
-		font-size: 0.55rem;
+		font-size: 0.5rem;
 		color: var(--ui-text, #555);
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
-		margin-bottom: 0.2rem;
+		margin-bottom: 0.15rem;
 	}
 
+	/* Grid - fixed 108px height to match preview canvas */
 	.grid {
 		display: grid;
+		gap: 2px;
+		width: 108px;
+		height: 108px;
+	}
+
+	/* Moore: 9 cells in 3x3, each ~35px */
+	.grid.grid-moore {
 		grid-template-columns: repeat(3, 1fr);
-		gap: 3px;
+		grid-template-rows: repeat(3, 1fr);
+	}
+
+	/* Von Neumann: 5 cells - 3 on top row, 2 on bottom */
+	.grid.grid-vonNeumann {
+		grid-template-columns: repeat(3, 1fr);
+		grid-template-rows: repeat(2, 1fr);
+	}
+
+	/* Extended Moore: 25 cells in 5x5, each ~20px */
+	.grid.grid-extendedMoore {
+		grid-template-columns: repeat(5, 1fr);
+		grid-template-rows: repeat(5, 1fr);
 	}
 
 	.cell {
-		width: 34px;
-		height: 34px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: var(--ui-border, rgba(255, 255, 255, 0.04));
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
-		border-radius: 5px;
+		border-radius: 4px;
 		color: var(--ui-text, #555);
-		font-size: 0.85rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.1s;
 	}
 
-	.cell:hover { background: var(--ui-border-hover, rgba(255, 255, 255, 0.08)); }
+	/* Smaller font for extended moore */
+	.grid.grid-extendedMoore .cell {
+		font-size: 0.6rem;
+		border-radius: 3px;
+	}
+
+	.cell:hover { 
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08)); 
+	}
+
 	.cell.on {
 		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
 		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.5));
@@ -507,11 +1034,13 @@
 	/* Preview */
 	.preview-area {
 		display: flex;
-		gap: 0.5rem;
-		align-items: center;
+		gap: 0.4rem;
+		align-items: stretch;
 	}
 
 	.canvas {
+		width: 108px;
+		height: 108px;
 		border-radius: 5px;
 		background: var(--ui-canvas-bg, #0a0a0f);
 	}
@@ -519,16 +1048,17 @@
 	.preview-btns {
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
+		justify-content: space-between;
+		height: 108px;
 	}
 
 	.pbtn {
-		width: 32px;
-		height: 32px;
+		width: 28px;
+		height: 28px;
 		border: none;
 		background: var(--ui-border, rgba(255, 255, 255, 0.06));
 		color: var(--ui-text, #666);
-		border-radius: 5px;
+		border-radius: 4px;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
@@ -536,9 +1066,17 @@
 		transition: all 0.15s;
 	}
 
-	.pbtn:hover { background: var(--ui-border-hover, rgba(255, 255, 255, 0.12)); color: var(--ui-text-hover, #fff); }
-	.pbtn.active { background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2)); color: var(--ui-accent, #2dd4bf); }
-	.pbtn svg { width: 14px; height: 14px; }
+	.pbtn:hover { 
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.12)); 
+		color: var(--ui-text-hover, #fff); 
+	}
+
+	.pbtn.active { 
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2)); 
+		color: var(--ui-accent, #2dd4bf); 
+	}
+
+	.pbtn svg { width: 12px; height: 12px; }
 
 	/* Footer */
 	.footer {
@@ -550,29 +1088,29 @@
 	}
 
 	.foot-label {
-		font-size: 0.6rem;
+		font-size: 0.55rem;
 		color: var(--ui-text, #555);
 		text-transform: uppercase;
-		margin-right: 0.3rem;
+		margin-right: 0.25rem;
 	}
 
 	.states {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
+		gap: 0.25rem;
 	}
 
 	.states input[type='range'] {
-		width: 60px;
+		width: 50px;
 		height: 3px;
 		accent-color: var(--ui-accent, #2dd4bf);
 	}
 
 	.states-val {
-		font-size: 0.7rem;
+		font-size: 0.65rem;
 		color: var(--ui-accent, #2dd4bf);
 		font-family: 'SF Mono', Monaco, monospace;
-		min-width: 1.2rem;
+		min-width: 1rem;
 	}
 
 	.rule-input {
@@ -581,14 +1119,19 @@
 	}
 
 	.rule-input input {
-		width: 80px;
-		padding: 0.3rem 0.5rem;
+		width: 90px;
+		padding: 0.25rem 0.4rem;
 		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
 		border-radius: 4px;
 		color: var(--ui-accent, #2dd4bf);
 		font-family: 'SF Mono', Monaco, monospace;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
+		outline: none;
+	}
+
+	.rule-input input:focus {
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.5));
 	}
 
 	.rule-input input.error { border-color: #ef4444; }
@@ -600,9 +1143,9 @@
 	}
 
 	.btn {
-		padding: 0.35rem 0.8rem;
+		padding: 0.35rem 0.7rem;
 		border-radius: 5px;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.15s;
@@ -614,7 +1157,10 @@
 		color: var(--ui-text, #888);
 	}
 
-	.btn.cancel:hover { background: var(--ui-border, rgba(255, 255, 255, 0.05)); color: var(--ui-text-hover, #e0e0e0); }
+	.btn.cancel:hover { 
+		background: var(--ui-border, rgba(255, 255, 255, 0.05)); 
+		color: var(--ui-text-hover, #e0e0e0); 
+	}
 
 	.btn.apply {
 		background: var(--ui-accent, #2dd4bf);
@@ -625,43 +1171,34 @@
 	.btn.apply:hover { filter: brightness(1.15); }
 
 	/* Mobile adjustments */
-	@media (max-width: 768px) {
-		.modal {
+	@media (max-width: 540px) {
+		.editor {
 			max-width: 95vw;
-			padding: 0.8rem;
+			padding: 0.6rem;
 		}
 
-		.main-content {
-			flex-direction: column;
+		.selectors-row {
+			flex-wrap: wrap;
 		}
 
-		.rules-section,
-		.preview-section {
-			min-width: unset;
+		.dropdown-wrapper.flex-1 {
+			flex: 1 1 100%;
+			order: -1;
 		}
 
-		.preview-section {
-			flex-direction: row;
-			align-items: center;
+		.main-row {
+			flex-wrap: wrap;
+			gap: 0.8rem;
+		}
+
+		.footer {
+			flex-wrap: wrap;
 			gap: 0.5rem;
 		}
 
-		.preview-canvas {
-			width: 80px;
-			height: 80px;
-		}
-
-		.preview-controls {
-			flex-direction: column;
-		}
-
-		.neighbor-grids {
-			flex-direction: column;
-			gap: 0.5rem;
-		}
-
-		.header h2 {
-			font-size: 0.9rem;
+		.actions {
+			width: 100%;
+			justify-content: flex-end;
 		}
 	}
 </style>

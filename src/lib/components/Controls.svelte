@@ -11,9 +11,11 @@
 		onhelp: () => void;
 		onabout: () => void;
 		showHelp?: boolean;
+		showInitialize?: boolean;
+		showAbout?: boolean;
 	}
 
-	let { onclear, oninitialize, onstep, onresetview, onscreenshot, onhelp, onabout, showHelp = false }: Props = $props();
+	let { onclear, oninitialize, onstep, onresetview, onscreenshot, onhelp, onabout, showHelp = false, showInitialize = false, showAbout = false }: Props = $props();
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
@@ -111,7 +113,7 @@
 		</div>
 
 		<!-- Rules - Grid with a few alive cells -->
-		<button id="tour-rules-btn" class="control-btn" onclick={openRules} data-tooltip="Edit Rules (E)">
+		<button id="tour-rules-btn" class="control-btn" class:active={uiState.showRuleEditor} onclick={openRules} data-tooltip="Edit Rules (E)">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<!-- 3x3 grid outline -->
 				<rect x="4" y="4" width="16" height="16" rx="1" />
@@ -188,14 +190,14 @@
 		</button>
 
 		<!-- Initialize -->
-		<button id="tour-init-btn" class="control-btn" onclick={openInitialize} data-tooltip="Initialize (I)">
+		<button id="tour-init-btn" class="control-btn" class:active={showInitialize} onclick={openInitialize} data-tooltip="Initialize (I)">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
 			</svg>
 		</button>
 
 		<!-- Reset View / Zoom to Fit -->
-		<button id="tour-fit-btn" class="control-btn" onclick={onresetview} data-tooltip="Fit to Screen (H)">
+		<button id="tour-fit-btn" class="control-btn" onclick={onresetview} data-tooltip="Fit to Screen (F)">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<!-- Zoom to fit / fullscreen corners -->
 				<path d="M4 14v4a2 2 0 002 2h4" />
@@ -228,7 +230,7 @@
 		</button>
 
 		<!-- Settings -->
-		<button id="tour-settings-btn" class="control-btn" onclick={openSettings} data-tooltip="Settings">
+		<button id="tour-settings-btn" class="control-btn" class:active={uiState.showSettings} onclick={openSettings} data-tooltip="Settings">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<!-- Sliders/tuner icon -->
 				<line x1="4" y1="6" x2="20" y2="6" />
@@ -241,7 +243,7 @@
 		</button>
 
 		<!-- About / Logo -->
-		<button id="tour-about-btn" class="control-btn logo-btn" onclick={onabout} data-tooltip="About">
+		<button id="tour-about-btn" class="control-btn logo-btn" class:active={showAbout} onclick={onabout} data-tooltip="About">
 			<HeartIcon size={18} animated={true} />
 		</button>
 
@@ -341,8 +343,13 @@
 	}
 
 	.control-btn.active {
-		background: var(--btn-bg-active, rgba(255, 255, 255, 0.12));
-		color: var(--ui-text-hover, #fff);
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
+		color: var(--ui-accent, #2dd4bf);
+	}
+
+	.control-btn.active:hover:not(:disabled) {
+		background: var(--ui-accent-bg-hover, rgba(45, 212, 191, 0.25));
+		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.control-btn svg {

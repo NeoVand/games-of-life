@@ -4,7 +4,7 @@
  */
 
 import type { WebGPUContext } from './context.js';
-import type { CARule } from '../utils/rules.js';
+import type { CARule, NeighborhoodType } from '../utils/rules.js';
 import { getDefaultRule } from '../utils/rules.js';
 
 // Import shaders as raw text
@@ -75,11 +75,17 @@ export class Simulation {
 		this.height = config.height;
 		this.rule = config.rule;
 
-		// Initialize view centered on grid
+		// Initialize view to show entire grid filling the canvas
+		// zoom = cells visible across canvas width
+		// For grid to fill canvas exactly:
+		// - If grid aspect >= canvas aspect: zoom = grid_width (fit to width)
+		// - If grid aspect < canvas aspect: zoom = grid_height * canvas_aspect (fit to height)
+		// Since we create the grid with the same aspect ratio as the canvas,
+		// zoom should equal grid_width to fill horizontally
 		this.view = {
 			offsetX: 0,
 			offsetY: 0,
-			zoom: Math.min(config.width, config.height),
+			zoom: config.width, // Grid width = cells visible across canvas width = perfect fit
 			showGrid: true,
 			isLightTheme: false,
 			aliveColor: [0.2, 0.9, 0.95], // Default cyan
@@ -262,6 +268,15 @@ export class Simulation {
 		];
 	}
 
+	private getNeighborhoodIndex(): number {
+		const nh = this.rule.neighborhood ?? 'moore';
+		switch (nh) {
+			case 'vonNeumann': return 1;
+			case 'extendedMoore': return 2;
+			default: return 0; // moore
+		}
+	}
+
 	private updateComputeParams(): void {
 		const params = new Uint32Array([
 			this.width,
@@ -269,7 +284,9 @@ export class Simulation {
 			this.rule.birthMask,
 			this.rule.surviveMask,
 			this.rule.numStates,
-			this.view.wrapBoundary ? 1 : 0
+			this.view.wrapBoundary ? 1 : 0,
+			this.getNeighborhoodIndex(),
+			0 // padding for 16-byte alignment
 		]);
 		this.device.queue.writeBuffer(this.computeParamsBuffer, 0, params);
 	}
@@ -611,8 +628,8 @@ export class Simulation {
 	 * @param canvasHeight - Canvas height in pixels (optional, uses stored value if not provided)
 	 */
 	resetView(canvasWidth?: number, canvasHeight?: number): void {
-		// Calculate zoom to fit entire grid in view with some padding
-		// zoom represents cells visible across the screen width
+		// Calculate zoom to fit entire grid in view (no padding)
+		// zoom = cells visible across the canvas width
 		// We need to ensure both dimensions fit
 		
 		let zoom: number;
@@ -623,15 +640,13 @@ export class Simulation {
 			const canvasAspect = canvasWidth / canvasHeight;
 			const gridAspect = this.width / this.height;
 			
-			// Add 5% padding
-			const paddingFactor = 1.05;
-			
 			if (gridAspect >= canvasAspect) {
-				// Grid is wider than canvas - fit to width
-				zoom = this.width * paddingFactor;
+				// Grid is wider than canvas (relative to aspect) - fit to width
+				zoom = this.width;
 			} else {
-				// Grid is taller than canvas - fit to height
-				zoom = this.height * canvasAspect * paddingFactor;
+				// Grid is taller than canvas (relative to aspect) - fit to height
+				// zoom / canvasAspect = this.height => zoom = this.height * canvasAspect
+				zoom = this.height * canvasAspect;
 			}
 			
 			// Calculate cells visible in each dimension
@@ -642,8 +657,8 @@ export class Simulation {
 			offsetX = (this.width - cellsVisibleX) / 2;
 			offsetY = (this.height - cellsVisibleY) / 2;
 		} else {
-			// Fallback to minimum dimension (old behavior)
-			zoom = Math.min(this.width, this.height);
+			// Fallback: assume grid matches canvas aspect, so zoom = width
+			zoom = this.width;
 		}
 		
 		this.view = {

@@ -105,7 +105,18 @@
 		<!-- Settings Panel -->
 		<div class="panel">
 			<div class="header">
-				<span class="title">Settings</span>
+				<span class="title">
+					<svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<!-- Sliders/tuner icon -->
+						<line x1="4" y1="6" x2="20" y2="6" />
+						<line x1="4" y1="12" x2="20" y2="12" />
+						<line x1="4" y1="18" x2="20" y2="18" />
+						<circle cx="8" cy="6" r="2" fill="currentColor" />
+						<circle cx="16" cy="12" r="2" fill="currentColor" />
+						<circle cx="10" cy="18" r="2" fill="currentColor" />
+					</svg>
+					Settings
+				</span>
 				<button class="close-btn" onclick={onclose} aria-label="Close">✕</button>
 			</div>
 
@@ -251,6 +262,16 @@
 		font-size: 0.8rem;
 		font-weight: 600;
 		color: var(--ui-text-hover, #e0e0e0);
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.header-icon {
+		width: 16px;
+		height: 16px;
+		color: var(--ui-accent, #33e6f2);
+		flex-shrink: 0;
 	}
 
 	.close-btn {

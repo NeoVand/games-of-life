@@ -24,6 +24,8 @@
 	let gridMouseY = $state(0);
 	let lastMouseX = 0;
 	let lastMouseY = 0;
+	let drawingState = 1; // 1 = draw, 0 = erase
+	let continuousDrawInterval: ReturnType<typeof setInterval> | null = null;
 
 	// Touch state
 	let touchMode: 'none' | 'draw' | 'pan' | 'pinch' = 'none';
@@ -74,11 +76,11 @@
 		function handleOrientationChange() {
 			// Small delay to let browser update dimensions
 			setTimeout(() => {
-				if (!simulation || !ctx || !lastOrientation) return;
+				if (!simulation || !ctx || !lastOrientation || !container) return;
 				
-				const screenWidth = window.innerWidth;
-				const screenHeight = window.innerHeight;
-				const currentOrientation = screenWidth >= screenHeight ? 'landscape' : 'portrait';
+				const containerWidth = container.clientWidth || window.innerWidth;
+				const containerHeight = container.clientHeight || window.innerHeight;
+				const currentOrientation = containerWidth >= containerHeight ? 'landscape' : 'portrait';
 				
 				// Only transpose if orientation actually changed
 				if (currentOrientation !== lastOrientation) {
@@ -102,6 +104,8 @@
 			if (animationId !== null) {
 				cancelAnimationFrame(animationId);
 			}
+			// Stop continuous drawing if active
+			stopContinuousDrawing();
 			// Remove touch event listeners
 			canvas.removeEventListener('touchstart', handleTouchStart);
 			canvas.removeEventListener('touchmove', handleTouchMove);
@@ -121,14 +125,15 @@
 
 		ctx = result.value;
 		
-		// Calculate initial grid size based on screen dimensions and scale
-		const screenWidth = window.innerWidth;
-		const screenHeight = window.innerHeight;
+		// Calculate initial grid size based on CONTAINER dimensions (not window)
+		// The container is the actual visible canvas area, excluding toolbar etc.
+		const containerWidth = container.clientWidth || window.innerWidth;
+		const containerHeight = container.clientHeight || window.innerHeight;
 		
 		// Remember current orientation
-		lastOrientation = screenWidth >= screenHeight ? 'landscape' : 'portrait';
+		lastOrientation = containerWidth >= containerHeight ? 'landscape' : 'portrait';
 		
-		const { width, height } = calculateGridDimensions(simState.gridScale, screenWidth, screenHeight);
+		const { width, height } = calculateGridDimensions(simState.gridScale, containerWidth, containerHeight);
 		simState.gridWidth = width;
 		simState.gridHeight = height;
 		
@@ -141,11 +146,11 @@
 		// Initial randomization for visual appeal
 		simulation.randomize(0.15);
 		
-		// Reset view to fit grid (will use canvas dimensions once available)
-		// The first render will update canvas dimensions, then we can reset properly
-		requestAnimationFrame(() => {
-			simulation?.resetView(canvasWidth, canvasHeight);
-		});
+		// Note: We don't call resetView here because the grid was created with
+		// dimensions matching the container aspect ratio. The initial view state
+		// in Simulation constructor (zoom = min(width, height), offset = 0,0)
+		// already shows the grid filling the canvas correctly.
+		// Calling resetView would add unnecessary padding.
 
 		// Start animation loop
 		animationLoop(performance.now());
@@ -235,6 +240,24 @@
 		}
 	}
 
+	// Start continuous drawing interval
+	function startContinuousDrawing() {
+		if (continuousDrawInterval) return;
+		
+		continuousDrawInterval = setInterval(() => {
+			if (!simulation || !isDrawing) return;
+			simulation.paintBrush(gridMouseX, gridMouseY, simState.brushSize, drawingState);
+		}, 50); // Draw every 50ms (20 times per second)
+	}
+
+	// Stop continuous drawing interval
+	function stopContinuousDrawing() {
+		if (continuousDrawInterval) {
+			clearInterval(continuousDrawInterval);
+			continuousDrawInterval = null;
+		}
+	}
+
 	// Mouse event handlers
 	function handleMouseDown(e: MouseEvent) {
 		if (!simulation) return;
@@ -256,9 +279,14 @@
 		// Left click = draw, right click = erase
 		if (e.button === 0 || e.button === 2) {
 			isDrawing = true;
-			const state = e.button === 0 ? simState.brushState : 0;
+			drawingState = e.button === 0 ? simState.brushState : 0;
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
-			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, state);
+			gridMouseX = gridPos.x;
+			gridMouseY = gridPos.y;
+			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, drawingState);
+			
+			// Start continuous drawing for hold-to-draw
+			startContinuousDrawing();
 		}
 	}
 
@@ -284,12 +312,14 @@
 		}
 
 		if (isDrawing) {
-			const state = e.buttons === 1 ? simState.brushState : 0;
-			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, state);
+			// Paint immediately on move (in addition to continuous interval)
+			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, drawingState);
 		}
 	}
 
 	function handleMouseUp() {
+		stopContinuousDrawing();
+		
 		if (isDrawing && simulation && !simState.isPlaying) {
 			// After painting while paused, update the count
 			simulation.countAliveCellsAsync().then(count => {
@@ -306,6 +336,7 @@
 
 	function handleMouseLeave() {
 		mouseInCanvas = false;
+		stopContinuousDrawing();
 		isDrawing = false;
 		isPanning = false;
 	}
@@ -366,9 +397,14 @@
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
 			gridMouseX = gridPos.x;
 			gridMouseY = gridPos.y;
-			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, simState.brushState);
+			drawingState = simState.brushState; // Use current brush state for touch
+			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, drawingState);
+			
+			// Start continuous drawing for hold-to-draw on touch
+			startContinuousDrawing();
 		} else if (touches.length === 2) {
-			// Two fingers - start pinch/pan
+			// Two fingers - start pinch/pan, stop drawing
+			stopContinuousDrawing();
 			touchMode = 'pinch';
 			lastPinchDistance = getTouchDistance(touches);
 			const center = getTouchCenter(touches);
@@ -443,6 +479,7 @@
 
 		if (touches.length === 0) {
 			// All fingers lifted
+			stopContinuousDrawing();
 			if (touchMode === 'draw' && !simState.isPlaying) {
 				// After drawing while paused, update the count
 				simulation.countAliveCellsAsync().then(count => {
@@ -705,10 +742,10 @@
 	export function setScale(scale: GridScale) {
 		if (!ctx || !simulation) return;
 		
-		// Calculate new dimensions based on current screen size
-		const screenWidth = window.innerWidth;
-		const screenHeight = window.innerHeight;
-		const { width, height } = calculateGridDimensions(scale, screenWidth, screenHeight);
+		// Calculate new dimensions based on container size (not window)
+		const containerWidth = container.clientWidth || window.innerWidth;
+		const containerHeight = container.clientHeight || window.innerHeight;
+		const { width, height } = calculateGridDimensions(scale, containerWidth, containerHeight);
 		
 		// Update store
 		simState.gridScale = scale;

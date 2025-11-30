@@ -211,7 +211,7 @@
 				// Toggle initialize modal
 				showInitialize = !showInitialize;
 				break;
-			case 'KeyH':
+			case 'KeyF':
 			case 'Home':
 				handleResetView();
 				break;
@@ -268,6 +268,8 @@
 		onhelp={() => (showHelp = !showHelp)}
 		onabout={() => (showAbout = !showAbout)}
 		{showHelp}
+		{showInitialize}
+		{showAbout}
 	/>
 
 	{#if showHelp}

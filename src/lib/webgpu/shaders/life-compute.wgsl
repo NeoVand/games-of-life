@@ -1,5 +1,6 @@
 // Cellular Automaton Compute Shader
 // Supports Life-like (B/S) and Generations rules
+// Supports multiple neighborhood types
 
 struct Params {
     width: u32,
@@ -8,6 +9,8 @@ struct Params {
     survive_mask: u32,    // Bit i = 1 means survive with i neighbors
     num_states: u32,      // 2 for Life-like, 3+ for Generations
     wrap_boundary: u32,   // 1 = toroidal wrap, 0 = fixed edges (cells outside are dead)
+    neighborhood: u32,    // 0 = Moore (8), 1 = Von Neumann (4), 2 = Extended Moore (24)
+    _padding: u32,        // Padding for 16-byte alignment
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -37,11 +40,10 @@ fn is_alive(state: u32) -> bool {
     return state == 1u;
 }
 
-// Count living neighbors (Moore neighborhood)
-fn count_neighbors(x: i32, y: i32) -> u32 {
+// Count living neighbors - Moore neighborhood (8 cells)
+fn count_neighbors_moore(x: i32, y: i32) -> u32 {
     var count: u32 = 0u;
     
-    // Check all 8 neighbors
     for (var dy: i32 = -1; dy <= 1; dy++) {
         for (var dx: i32 = -1; dx <= 1; dx++) {
             if (dx == 0 && dy == 0) {
@@ -54,6 +56,46 @@ fn count_neighbors(x: i32, y: i32) -> u32 {
     }
     
     return count;
+}
+
+// Count living neighbors - Von Neumann neighborhood (4 cells)
+fn count_neighbors_von_neumann(x: i32, y: i32) -> u32 {
+    var count: u32 = 0u;
+    
+    // Only orthogonal neighbors (N, S, E, W)
+    if (is_alive(get_cell(x, y - 1))) { count++; } // North
+    if (is_alive(get_cell(x, y + 1))) { count++; } // South
+    if (is_alive(get_cell(x - 1, y))) { count++; } // West
+    if (is_alive(get_cell(x + 1, y))) { count++; } // East
+    
+    return count;
+}
+
+// Count living neighbors - Extended Moore neighborhood (24 cells, radius 2)
+fn count_neighbors_extended(x: i32, y: i32) -> u32 {
+    var count: u32 = 0u;
+    
+    for (var dy: i32 = -2; dy <= 2; dy++) {
+        for (var dx: i32 = -2; dx <= 2; dx++) {
+            if (dx == 0 && dy == 0) {
+                continue;
+            }
+            if (is_alive(get_cell(x + dx, y + dy))) {
+                count++;
+            }
+        }
+    }
+    
+    return count;
+}
+
+// Count neighbors based on neighborhood type
+fn count_neighbors(x: i32, y: i32) -> u32 {
+    switch (params.neighborhood) {
+        case 1u: { return count_neighbors_von_neumann(x, y); }
+        case 2u: { return count_neighbors_extended(x, y); }
+        default: { return count_neighbors_moore(x, y); }
+    }
 }
 
 @compute @workgroup_size(8, 8)

@@ -29,7 +29,14 @@
 <div class="help-overlay" role="dialog" aria-modal="true" onclick={handleBackdropClick}>
 	<div class="help-panel">
 		<div class="help-header">
-			<h2>{isMobile ? 'Touch Controls' : 'Keyboard Shortcuts'}</h2>
+			<h2>
+				<svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="12" cy="12" r="10" />
+					<path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+					<circle cx="12" cy="17" r="0.5" fill="currentColor" />
+				</svg>
+				{isMobile ? 'Touch Controls' : 'Keyboard Shortcuts'}
+			</h2>
 			<button class="close-btn" onclick={onclose} aria-label="Close">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M18 6L6 18M6 6l12 12" />
@@ -142,7 +149,7 @@
 							<h3>Navigation</h3>
 							<div class="shortcut"><kbd>Scroll</kbd><span>Zoom in/out</span></div>
 							<div class="shortcut"><kbd>Shift</kbd>+<kbd>Drag</kbd><span>Pan</span></div>
-							<div class="shortcut"><kbd>H</kbd><span>Reset view</span></div>
+							<div class="shortcut"><kbd>F</kbd><span>Fit to screen</span></div>
 							<div class="shortcut"><kbd>G</kbd><span>Toggle grid lines</span></div>
 						</section>
 
@@ -205,6 +212,16 @@
 		font-size: 0.8rem;
 		font-weight: 600;
 		color: var(--ui-text-hover, #e0e0e0);
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.header-icon {
+		width: 16px;
+		height: 16px;
+		color: var(--ui-accent, #33e6f2);
+		flex-shrink: 0;
 	}
 
 	.close-btn {
