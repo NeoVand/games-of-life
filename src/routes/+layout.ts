@@ -4,3 +4,4 @@ export const prerender = true;
 // This ensures trailing slashes are handled correctly
 export const trailingSlash = 'always';
 
+

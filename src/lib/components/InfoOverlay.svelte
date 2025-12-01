@@ -151,9 +151,10 @@
 		left: 1rem;
 		width: 32px;
 		height: 32px;
-		background: rgba(12, 12, 18, 0.4);
+		background: var(--toolbar-bg, rgba(12, 12, 18, 0.4));
 		backdrop-filter: blur(8px);
-		border: 1px solid rgba(255, 255, 255, 0.06);
+		-webkit-backdrop-filter: blur(8px);
+		border: 1px solid var(--toolbar-border, rgba(255, 255, 255, 0.06));
 		border-radius: 8px;
 		color: var(--ui-accent, #2dd4bf);
 		cursor: pointer;
@@ -165,8 +166,8 @@
 	}
 
 	.info-icon:hover {
-		background: rgba(20, 20, 30, 0.5);
-		border-color: rgba(255, 255, 255, 0.12);
+		background: var(--btn-bg-hover, rgba(20, 20, 30, 0.5));
+		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.12));
 	}
 
 	.i-icon {
@@ -186,9 +187,10 @@
 		position: fixed;
 		bottom: 1rem;
 		left: 1rem;
-		background: rgba(12, 12, 18, 0.45);
+		background: var(--toolbar-bg, rgba(12, 12, 18, 0.45));
 		backdrop-filter: blur(8px);
-		border: 1px solid rgba(255, 255, 255, 0.06);
+		-webkit-backdrop-filter: blur(8px);
+		border: 1px solid var(--toolbar-border, rgba(255, 255, 255, 0.06));
 		border-radius: 10px;
 		min-width: 170px;
 		z-index: 100;
@@ -200,7 +202,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0.35rem 0.5rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+		border-bottom: 1px solid var(--ui-border, rgba(255, 255, 255, 0.05));
 	}
 
 	.header-left {
@@ -232,7 +234,7 @@
 	}
 
 	.collapse-btn:hover {
-		background: var(--ui-border, rgba(255, 255, 255, 0.1));
+		background: var(--btn-bg-hover, rgba(255, 255, 255, 0.1));
 		color: var(--ui-text-hover, #fff);
 	}
 
