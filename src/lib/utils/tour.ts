@@ -747,7 +747,6 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		
 		.tour-icon-heart .heart-dim {
 			fill: ${accentColor} !important;
-			opacity: 0.4 !important;
 		}
 		
 		/* Welcome mini canvas */
