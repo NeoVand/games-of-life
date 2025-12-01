@@ -100,14 +100,41 @@
 		// Then apply search query if active
 		if (ruleSearchQuery.trim()) {
 			const query = ruleSearchQuery.toLowerCase().trim();
-			presets = presets.filter(r => 
-				r.name.toLowerCase().includes(query) ||
-				r.ruleString.toLowerCase().includes(query) ||
-				(r.description?.toLowerCase().includes(query))
-			);
+			
+			// Filter and score by relevance
+			const scored = presets
+				.map(r => {
+					const nameLower = r.name.toLowerCase();
+					const ruleLower = r.ruleString.toLowerCase();
+					const descLower = r.description?.toLowerCase() || '';
+					
+					let score = 0;
+					
+					// Exact name match - highest priority
+					if (nameLower === query) score += 1000;
+					// Name starts with query - very high priority
+					else if (nameLower.startsWith(query)) score += 500;
+					// Name contains query as word boundary
+					else if (nameLower.includes(' ' + query) || nameLower.includes(query + ' ')) score += 200;
+					// Name contains query anywhere
+					else if (nameLower.includes(query)) score += 100;
+					
+					// Rule string matches
+					if (ruleLower.startsWith(query)) score += 50;
+					else if (ruleLower.includes(query)) score += 25;
+					
+					// Description contains query
+					if (descLower.includes(query)) score += 10;
+					
+					return { preset: r, score };
+				})
+				.filter(item => item.score > 0)
+				.sort((a, b) => b.score - a.score || a.preset.name.localeCompare(b.preset.name));
+			
+			return scored.map(item => item.preset);
 		}
 		
-		// Sort alphabetically by name
+		// Sort alphabetically by name when not searching
 		return [...presets].sort((a, b) => a.name.localeCompare(b.name));
 	});
 
@@ -368,13 +395,27 @@
 	}
 
 	function updateRuleString() {
-		let birthStr = 'B';
-		let surviveStr = 'S';
+		// Collect active neighbor counts
+		const birthNums: number[] = [];
+		const surviveNums: number[] = [];
 		for (let i = 0; i <= maxNeighbors; i++) {
-			if (birthToggles[i]) birthStr += i;
-			if (surviveToggles[i]) surviveStr += i;
+			if (birthToggles[i]) birthNums.push(i);
+			if (surviveToggles[i]) surviveNums.push(i);
 		}
-		ruleString = `${birthStr}/${surviveStr}`;
+		
+		// Format neighbor specs - use comma separation if any number >= 10
+		const formatSpec = (nums: number[]): string => {
+			if (nums.length === 0) return '';
+			// Check if we need comma separation (any double-digit numbers)
+			const needsCommas = nums.some(n => n >= 10);
+			if (needsCommas) {
+				return nums.join(',');
+			}
+			// Simple concatenation for single digits
+			return nums.join('');
+		};
+		
+		ruleString = `B${formatSpec(birthNums)}/S${formatSpec(surviveNums)}`;
 		if (numStates > 2) ruleString += `/C${numStates}`;
 		selectedPreset = RULE_PRESETS.findIndex((r) => r.ruleString === ruleString);
 		error = '';
