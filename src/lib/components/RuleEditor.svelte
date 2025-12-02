@@ -1418,75 +1418,101 @@
 	        1   2
 	      3   0   4
 	        5   6
-	   Using absolute positioning for precise honeycomb layout
+	   
+	   For uniform spacing in a honeycomb:
+	   - Horizontal distance between adjacent hex centers = hex_width
+	   - Vertical distance between row centers = hex_width * sqrt(3)/2 ≈ hex_width * 0.866
+	   - Staggered rows are offset by hex_width / 2
 	*/
 	.grid.grid-hexagonal {
+		/* Hex dimensions: width is the flat-to-flat distance for pointy-top */
+		--hex-w: 28px;
+		/* Gap between hexagons (edge to edge) */
+		--hex-gap: 4px;
+		/* Center-to-center horizontal distance */
+		--hex-dx: calc(var(--hex-w) + var(--hex-gap));
+		/* Center-to-center vertical distance (sqrt(3)/2 of dx for equilateral spacing) */
+		--hex-dy: calc(var(--hex-dx) * 0.866);
+		/* Pointy-top hex height = width * 2/sqrt(3) ≈ width * 1.1547 */
+		--hex-h: calc(var(--hex-w) * 1.1547);
+		
 		display: block;
 		position: relative;
-		width: 108px;
-		height: 108px;
+		/* Container: 3 columns wide, 3 rows tall */
+		width: calc(var(--hex-dx) * 2 + var(--hex-w));
+		height: calc(var(--hex-dy) * 2 + var(--hex-h));
 	}
 
-	/* Hexagonal cells - smaller with rounded hexagon shape */
+	/* Hexagonal cells - pointy-top hexagon shape */
 	.grid.grid-hexagonal .cell {
 		position: absolute;
-		width: 28px;
-		height: 32px;
-		/* Rounded pointy-top hexagon using clip-path with inset corners */
+		width: var(--hex-w);
+		height: var(--hex-h);
+		/* Pointy-top hexagon clip-path */
 		clip-path: polygon(
-			50% 2px,           /* top - slightly inset for rounding effect */
-			calc(100% - 2px) 27%,   /* top-right */
-			calc(100% - 2px) 73%,   /* bottom-right */
-			50% calc(100% - 2px),   /* bottom */
-			2px 73%,           /* bottom-left */
-			2px 27%            /* top-left */
+			50% 0%,
+			100% 25%,
+			100% 75%,
+			50% 100%,
+			0% 75%,
+			0% 25%
 		);
 		border-radius: 0;
 		border: none;
+		/* Remove transform - use direct positioning */
 	}
 
-	/* Honeycomb positioning - tightly packed with equal spacing
-	   Cell size: 28x32, spacing: ~4px between cells
-	   Horizontal offset for odd rows: 16px (half cell width)
+	/* Honeycomb positioning with mathematically uniform spacing
+	   All adjacent hexagons have the same center-to-center distance
+	   
+	   Neighbor count layout (clockwise from top-right, 0 in center):
+	        6   1
+	      5   0   2
+	        4   3
+	   
+	   This mirrors how numbers increase clockwise starting from top-right,
+	   similar to a clock face, with 0 (no neighbors) at the center.
+	   
+	   Grid coordinates (col, row) where center is (1, 1):
+	   Row 0 (top):    (0.5, 0) and (1.5, 0) - half-offset
+	   Row 1 (middle): (0, 1), (1, 1), (2, 1)
+	   Row 2 (bottom): (0.5, 2) and (1.5, 2) - half-offset
 	*/
-	/* Center cell (0) */
+	
+	/* 0 (center) - no neighbors */
 	.grid.grid-hexagonal .cell:nth-child(1) {
-		left: 50%;
-		top: 50%;
-		transform: translate(-50%, -50%);
+		left: calc(var(--hex-dx) * 1);
+		top: calc(var(--hex-dy) * 1);
 	}
-	/* Top row: 1 (left) and 2 (right) */
+	/* 1 (top-right) - 1 neighbor */
 	.grid.grid-hexagonal .cell:nth-child(2) {
-		left: calc(50% - 18px);
-		top: 10px;
-		transform: translateX(-50%);
+		left: calc(var(--hex-dx) * 1.5);
+		top: calc(var(--hex-dy) * 0);
 	}
+	/* 2 (right) - 2 neighbors */
 	.grid.grid-hexagonal .cell:nth-child(3) {
-		left: calc(50% + 18px);
-		top: 10px;
-		transform: translateX(-50%);
+		left: calc(var(--hex-dx) * 2);
+		top: calc(var(--hex-dy) * 1);
 	}
-	/* Middle row: 3 (left) and 4 (right) */
+	/* 3 (bottom-right) - 3 neighbors */
 	.grid.grid-hexagonal .cell:nth-child(4) {
-		left: 8px;
-		top: 50%;
-		transform: translateY(-50%);
+		left: calc(var(--hex-dx) * 1.5);
+		top: calc(var(--hex-dy) * 2);
 	}
+	/* 4 (bottom-left) - 4 neighbors */
 	.grid.grid-hexagonal .cell:nth-child(5) {
-		right: 8px;
-		top: 50%;
-		transform: translateY(-50%);
+		left: calc(var(--hex-dx) * 0.5);
+		top: calc(var(--hex-dy) * 2);
 	}
-	/* Bottom row: 5 (left) and 6 (right) */
+	/* 5 (left) - 5 neighbors */
 	.grid.grid-hexagonal .cell:nth-child(6) {
-		left: calc(50% - 18px);
-		bottom: 10px;
-		transform: translateX(-50%);
+		left: calc(var(--hex-dx) * 0);
+		top: calc(var(--hex-dy) * 1);
 	}
+	/* 6 (top-left) - 6 neighbors (all) */
 	.grid.grid-hexagonal .cell:nth-child(7) {
-		left: calc(50% + 18px);
-		bottom: 10px;
-		transform: translateX(-50%);
+		left: calc(var(--hex-dx) * 0.5);
+		top: calc(var(--hex-dy) * 0);
 	}
 
 	.cell {
@@ -1745,42 +1771,10 @@
 			gap: 1px;
 		}
 
+		/* Mobile hex grid - just override the CSS variables */
 		.grid.grid-hexagonal {
-			width: 80px;
-			height: 80px;
-		}
-
-		.grid.grid-hexagonal .cell {
-			width: 21px;
-			height: 24px;
-		}
-
-		/* Adjust honeycomb positions for mobile */
-		.grid.grid-hexagonal .cell:nth-child(2),
-		.grid.grid-hexagonal .cell:nth-child(3) {
-			top: 8px;
-		}
-		.grid.grid-hexagonal .cell:nth-child(2) {
-			left: calc(50% - 14px);
-		}
-		.grid.grid-hexagonal .cell:nth-child(3) {
-			left: calc(50% + 14px);
-		}
-		.grid.grid-hexagonal .cell:nth-child(4) {
-			left: 6px;
-		}
-		.grid.grid-hexagonal .cell:nth-child(5) {
-			right: 6px;
-		}
-		.grid.grid-hexagonal .cell:nth-child(6),
-		.grid.grid-hexagonal .cell:nth-child(7) {
-			bottom: 8px;
-		}
-		.grid.grid-hexagonal .cell:nth-child(6) {
-			left: calc(50% - 14px);
-		}
-		.grid.grid-hexagonal .cell:nth-child(7) {
-			left: calc(50% + 14px);
+			--hex-w: 21px;
+			--hex-gap: 3px;
 		}
 
 		.canvas {

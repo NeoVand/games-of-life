@@ -304,13 +304,12 @@
 		background: var(--group-bg, rgba(255, 255, 255, 0.04));
 		padding: 0.2rem 0.35rem;
 		border-radius: 9999px;
-		border: 1px solid var(--group-border, rgba(255, 255, 255, 0.06));
-		transition: background 0.15s, border-color 0.15s;
+		border: none;
+		transition: background 0.15s;
 	}
 
 	.button-group:hover {
 		background: var(--group-bg-hover, rgba(255, 255, 255, 0.06));
-		border-color: var(--group-border-hover, rgba(255, 255, 255, 0.1));
 	}
 
 	/* Hide all button groups except collapse-group when collapsed */
@@ -320,14 +319,13 @@
 		max-height: 0;
 		padding: 0;
 		margin: 0;
-		border-width: 0;
 		overflow: hidden;
 		pointer-events: none;
 	}
 
 	/* Animate button groups appearing/disappearing */
 	.button-group {
-		transition: opacity 0.2s ease, max-width 0.2s ease, max-height 0.2s ease, padding 0.2s ease, margin 0.2s ease, border-width 0.2s ease, background 0.15s;
+		transition: opacity 0.2s ease, max-width 0.2s ease, max-height 0.2s ease, padding 0.2s ease, margin 0.2s ease, background 0.15s;
 		max-width: 200px;
 		max-height: 50px;
 	}
@@ -395,7 +393,6 @@
 	/* Collapse group - same as button-group but invisible and square */
 	.button-group.collapse-group {
 		background: transparent;
-		border-color: transparent;
 		/* Make it square */
 		padding: 0.25rem;
 		width: 36px;
@@ -406,7 +403,6 @@
 
 	.button-group.collapse-group:hover {
 		background: transparent;
-		border-color: transparent;
 	}
 
 	/* Larger icon for collapse button */
@@ -680,7 +676,6 @@
 			max-height: 0;
 			padding: 0;
 			margin: 0;
-			border-width: 0;
 			overflow: hidden;
 			pointer-events: none;
 		}
