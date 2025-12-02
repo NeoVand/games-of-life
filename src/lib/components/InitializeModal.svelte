@@ -1,15 +1,31 @@
 <script lang="ts">
-	import { getSimulationState, SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId } from '../stores/simulation.svelte.js';
+	import { getSimulationState, SEED_PATTERNS, SEED_PATTERNS_HEX, GRID_SCALES, type SeedPatternId, type GridScale } from '../stores/simulation.svelte.js';
 	import { onMount, onDestroy } from 'svelte';
 
 	interface Props {
 		onclose: () => void;
 		oninitialize: (type: string, options?: { density?: number; tiled?: boolean; spacing?: number }) => void;
+		onscalechange: (scale: GridScale) => void;
 	}
 
-	let { onclose, oninitialize }: Props = $props();
+	let { onclose, oninitialize, onscalechange }: Props = $props();
 
 	const simState = getSimulationState();
+	
+	// Grid scale
+	const currentDimensions = $derived(`${simState.gridWidth}×${simState.gridHeight}`);
+	
+	function changeScale(scale: GridScale) {
+		if (scale === simState.gridScale) return;
+		
+		// Pause if playing
+		if (simState.isPlaying) {
+			simState.pause();
+		}
+		
+		// Apply immediately
+		onscalechange(scale);
+	}
 	
 	// Seed pattern dropdown state
 	let seedPatternDropdownOpen = $state(false);
@@ -1025,6 +1041,25 @@
 					</div>
 				{/if}
 			</div>
+			
+			<!-- Grid Scale -->
+			<div class="scale-row">
+				<div class="scale-header">
+					<span class="scale-label">Grid Scale</span>
+					<span class="scale-dims">{currentDimensions}</span>
+				</div>
+				<div class="scale-btns">
+					{#each GRID_SCALES as scale}
+						<button
+							class="scale-btn"
+							class:selected={simState.gridScale === scale.name}
+							onclick={() => changeScale(scale.name)}
+						>
+							{scale.label}
+						</button>
+					{/each}
+				</div>
+			</div>
 
 			{#if selectedCategory !== 'random' && !selectedPattern.startsWith('random')}
 				{@const selectedPatternData = [...currentPatterns.structures, ...currentPatterns.oscillators, ...currentPatterns.still].find(p => p.id === selectedPattern)}
@@ -1467,6 +1502,61 @@
 		padding: 0.4rem 0.5rem;
 		background: var(--ui-input-bg, rgba(0, 0, 0, 0.2));
 		border-radius: 5px;
+	}
+	
+	/* Grid Scale row */
+	.scale-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		padding: 0.4rem 0.5rem;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.2));
+		border-radius: 5px;
+	}
+	
+	.scale-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	
+	.scale-label {
+		font-size: 0.65rem;
+		color: var(--ui-text-hover, #e0e0e0);
+	}
+	
+	.scale-dims {
+		font-size: 0.6rem;
+		color: var(--ui-text, #888);
+		font-family: 'SF Mono', Monaco, monospace;
+	}
+	
+	.scale-btns {
+		display: flex;
+		gap: 0.25rem;
+	}
+	
+	.scale-btn {
+		flex: 1;
+		padding: 0.3rem 0.4rem;
+		background: var(--ui-border, rgba(255, 255, 255, 0.05));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
+		border-radius: 4px;
+		color: var(--ui-text, #888);
+		font-size: 0.6rem;
+		cursor: pointer;
+		transition: all 0.1s;
+	}
+	
+	.scale-btn:hover {
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
+		color: var(--ui-text-hover, #fff);
+	}
+	
+	.scale-btn.selected {
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
+		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.seed-checkbox {

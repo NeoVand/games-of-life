@@ -4,7 +4,7 @@
 </script>
 
 <script lang="ts">
-	import { getSimulationState } from '../stores/simulation.svelte.js';
+	import { getSimulationState, BOUNDARY_MODES, type BoundaryMode } from '../stores/simulation.svelte.js';
 	import { 
 		RULE_PRESETS, 
 		RULE_CATEGORIES, 
@@ -15,6 +15,7 @@
 		type RuleCategory,
 		type NeighborhoodType 
 	} from '../utils/rules.js';
+	import BoundaryIcon from './BoundaryIcon.svelte';
 	import { onMount, onDestroy } from 'svelte';
 
 	interface Props {
@@ -29,6 +30,16 @@
 	// Store the original rule when editor opens, for reverting on cancel
 	const originalRule: CARule = { ...simState.currentRule };
 	const originalNeighborhood: NeighborhoodType = originalRule.neighborhood ?? 'moore';
+	const originalBoundaryMode: BoundaryMode = simState.boundaryMode;
+	
+	// Get current boundary mode name
+	const currentBoundaryName = $derived(
+		BOUNDARY_MODES.find(m => m.id === simState.boundaryMode)?.name ?? 'Torus'
+	);
+	
+	function selectBoundaryMode(mode: BoundaryMode) {
+		simState.boundaryMode = mode;
+	}
 
 	const PREVIEW_SIZE_X = 20;
 	// For hexagonal grids, rows are visually compressed by sqrt(3)/2
@@ -789,6 +800,8 @@
 	function cancelAndClose() {
 		// Revert to the original rule
 		simState.currentRule = originalRule;
+		// Revert boundary mode
+		simState.boundaryMode = originalBoundaryMode;
 		// If neighborhood changed during editing, need to reset canvas back
 		if (neighborhood !== originalNeighborhood) {
 			onrulechange();
@@ -1092,6 +1105,27 @@
 			<div class="rule-input">
 				<span class="foot-label">Rule</span>
 				<input type="text" value={ruleString} oninput={handleRuleStringChange} class:error={!!error} />
+			</div>
+		</div>
+		
+		<!-- Boundary Mode -->
+		<div class="boundary-section">
+			<div class="boundary-header">
+				<span class="boundary-label">Boundary</span>
+				<span class="boundary-name">{currentBoundaryName}</span>
+			</div>
+			<div class="boundary-grid">
+				{#each BOUNDARY_MODES as mode}
+					<button 
+						class="boundary-btn" 
+						class:active={simState.boundaryMode === mode.id}
+						onclick={() => selectBoundaryMode(mode.id)}
+						title={mode.description}
+						aria-label={mode.name}
+					>
+						<BoundaryIcon mode={mode.id} size={22} />
+					</button>
+				{/each}
 			</div>
 		</div>
 	</div>
@@ -1889,6 +1923,65 @@
 		gap: 0.8rem;
 		padding-top: 0.5rem;
 		border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.06));
+	}
+	
+	/* Boundary Section */
+	.boundary-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		padding-top: 0.5rem;
+		border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.06));
+	}
+	
+	.boundary-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	
+	.boundary-label {
+		font-size: 0.6rem;
+		color: var(--ui-text, #555);
+		text-transform: uppercase;
+	}
+	
+	.boundary-name {
+		font-size: 0.6rem;
+		color: var(--ui-text-hover, #aaa);
+	}
+	
+	.boundary-grid {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.25rem;
+	}
+	
+	.boundary-btn {
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 0.1s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--ui-text, #666);
+	}
+	
+	.boundary-btn:hover {
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
+		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.15));
+		color: var(--ui-text-hover, #fff);
+	}
+	
+	.boundary-btn.active {
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
+		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.foot-label {

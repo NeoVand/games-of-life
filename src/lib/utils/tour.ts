@@ -337,14 +337,13 @@ const icons = {
 	rules: `<svg viewBox="0 0 24 24" fill="currentColor" class="tour-icon">
 		<path d="M16.5 3C14 3 12.5 4.5 11.8 7L10.5 11H7.5C7 11 6.5 11.4 6.5 12s.5 1 1 1h2.3l-1.6 5.5C7.7 20 6.8 21 5.5 21c-.5 0-.9-.1-1.2-.3-.4-.2-.9-.1-1.1.3-.2.4-.1.9.3 1.1.6.3 1.3.5 2 .5 2.5 0 4-1.5 4.8-4.2L12 13h3.5c.5 0 1-.4 1-1s-.5-1-1-1h-2.8l1.1-3.5C14.3 5.8 15.2 5 16.5 5c.4 0 .8.1 1.1.2.4.2.9 0 1.1-.4.2-.4 0-.9-.4-1.1-.6-.4-1.4-.7-2.3-.7z"/>
 	</svg>`,
-	// Settings/tuner icon
-	settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
-		<line x1="4" y1="6" x2="20" y2="6"/>
-		<line x1="4" y1="12" x2="20" y2="12"/>
-		<line x1="4" y1="18" x2="20" y2="18"/>
-		<circle cx="8" cy="6" r="2" fill="currentColor"/>
-		<circle cx="16" cy="12" r="2" fill="currentColor"/>
-		<circle cx="10" cy="18" r="2" fill="currentColor"/>
+	// Theme/palette icon
+	theme: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
+		<circle cx="13.5" cy="6.5" r="2.5"/>
+		<circle cx="17.5" cy="10.5" r="2.5"/>
+		<circle cx="8.5" cy="7.5" r="2.5"/>
+		<circle cx="6.5" cy="12.5" r="2.5"/>
+		<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2Z"/>
 	</svg>`,
 	// Help icon
 	help: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
@@ -492,10 +491,10 @@ function getTourSteps(): DriveStep[] {
 		{
 			element: '#tour-info-group',
 			popover: {
-				title: titleWithIcon(icons.settings, 'Settings & Help'),
+				title: titleWithIcon(icons.theme, 'Theme & Help'),
 				description: createGroupDescription([
 					{ icon: icons.help, label: 'Help & shortcuts', shortcut: '?' },
-					{ icon: icons.settings, label: 'Settings', shortcut: 'T for theme' },
+					{ icon: icons.theme, label: 'Theme & colors', shortcut: 'T for theme' },
 					{ icon: icons.heart, label: 'About' }
 				], 'Customize appearance and get help.', mobile),
 				side: popoverSide,

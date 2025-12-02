@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { getSimulationState, GRID_SCALES, DARK_THEME_COLORS, LIGHT_THEME_COLORS, SPECTRUM_MODES, BOUNDARY_MODES, type GridScale, type SpectrumMode, type BoundaryMode } from '../stores/simulation.svelte.js';
-	import BoundaryIcon from './BoundaryIcon.svelte';
+	import { getSimulationState, DARK_THEME_COLORS, LIGHT_THEME_COLORS, SPECTRUM_MODES, type SpectrumMode } from '../stores/simulation.svelte.js';
 
 	interface Props {
 		onclose: () => void;
-		onscalechange: (scale: GridScale) => void;
 	}
 
-	let { onclose, onscalechange }: Props = $props();
+	let { onclose }: Props = $props();
 
 	const simState = getSimulationState();
 
@@ -35,30 +33,6 @@
 		const newPalette = isLight ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
 		simState.aliveColor = newPalette[safeIndex].color;
 	}
-
-	function changeScale(scale: GridScale) {
-		if (scale === simState.gridScale) return;
-		
-		// Pause if playing
-		if (simState.isPlaying) {
-			simState.pause();
-		}
-		
-		// Apply immediately
-		onscalechange(scale);
-	}
-	
-	function selectBoundaryMode(mode: BoundaryMode) {
-		simState.boundaryMode = mode;
-	}
-	
-	// Get current dimensions for display
-	const currentDimensions = $derived(`${simState.gridWidth}×${simState.gridHeight}`);
-	
-	// Get current boundary mode name
-	const currentBoundaryName = $derived(
-		BOUNDARY_MODES.find(m => m.id === simState.boundaryMode)?.name ?? 'Torus'
-	);
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
@@ -80,20 +54,19 @@
 		}));
 	}
 }}>
-	<!-- Settings Panel -->
+	<!-- Theme Panel -->
 		<div class="panel">
 			<div class="header">
 				<span class="title">
 					<svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<!-- Sliders/tuner icon -->
-						<line x1="4" y1="6" x2="20" y2="6" />
-						<line x1="4" y1="12" x2="20" y2="12" />
-						<line x1="4" y1="18" x2="20" y2="18" />
-						<circle cx="8" cy="6" r="2" fill="currentColor" />
-						<circle cx="16" cy="12" r="2" fill="currentColor" />
-						<circle cx="10" cy="18" r="2" fill="currentColor" />
+						<!-- Color palette icon -->
+						<circle cx="13.5" cy="6.5" r="2.5"/>
+						<circle cx="17.5" cy="10.5" r="2.5"/>
+						<circle cx="8.5" cy="7.5" r="2.5"/>
+						<circle cx="6.5" cy="12.5" r="2.5"/>
+						<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2Z"/>
 					</svg>
-					Settings
+					Theme
 				</span>
 				<button class="close-btn" onclick={onclose} aria-label="Close">✕</button>
 			</div>
@@ -114,7 +87,7 @@
 
 				<!-- Theme -->
 				<div class="row">
-					<span class="label">Theme</span>
+					<span class="label">Mode</span>
 					<div class="theme-btns">
 						<button 
 							class="theme-btn" 
@@ -192,46 +165,6 @@
 							class:active={simState.neighborShading === 'vitality'}
 							onclick={() => simState.neighborShading = 'vitality'}
 						>Vitality</button>
-					</div>
-				</div>
-
-				<!-- Boundary Mode -->
-				<div class="row col">
-					<div class="label-row">
-						<span class="label">Boundary</span>
-						<span class="dim-hint">{currentBoundaryName}</span>
-					</div>
-					<div class="boundary-grid">
-						{#each BOUNDARY_MODES as mode}
-							<button 
-								class="boundary-btn" 
-								class:active={simState.boundaryMode === mode.id}
-								onclick={() => selectBoundaryMode(mode.id)}
-								title={mode.description}
-								aria-label={mode.name}
-							>
-								<BoundaryIcon mode={mode.id} size={26} />
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<!-- Grid Scale -->
-				<div class="row col">
-					<div class="label-row">
-						<span class="label">Grid Scale</span>
-						<span class="dim-hint">{currentDimensions}</span>
-					</div>
-					<div class="sizes">
-						{#each GRID_SCALES as scale}
-							<button
-								class="size"
-								class:selected={simState.gridScale === scale.name}
-								onclick={() => changeScale(scale.name)}
-							>
-								{scale.label}
-							</button>
-						{/each}
 					</div>
 				</div>
 			</div>
@@ -315,27 +248,9 @@
 		gap: 0.5rem;
 	}
 
-	.row.col {
-		flex-direction: column;
-		align-items: flex-start;
-	}
-
 	.label {
 		font-size: 0.7rem;
 		color: var(--ui-text, #888);
-	}
-
-	.label-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		width: 100%;
-	}
-
-	.dim-hint {
-		font-size: 0.6rem;
-		color: var(--ui-text, #555);
-		font-family: 'SF Mono', Monaco, monospace;
 	}
 
 	/* Toggle */
@@ -476,40 +391,6 @@
 		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
 	}
 
-	/* Boundary grid - 9 topology icons */
-	.boundary-grid {
-		display: flex;
-		justify-content: space-between;
-		width: 100%;
-	}
-
-	.boundary-btn {
-		width: 28px;
-		height: 28px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: var(--ui-border, rgba(255, 255, 255, 0.05));
-		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
-		border-radius: 4px;
-		color: var(--ui-text, #666);
-		cursor: pointer;
-		transition: all 0.1s;
-		padding: 0;
-	}
-
-	.boundary-btn:hover {
-		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
-		color: var(--ui-text-hover, #fff);
-	}
-
-	.boundary-btn.active {
-		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
-		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
-		color: var(--ui-accent, #2dd4bf);
-	}
-
 	/* Color swatches */
 	.colors {
 		display: grid;
@@ -536,35 +417,6 @@
 		box-shadow: 0 0 6px var(--c);
 	}
 
-	/* Grid sizes */
-	.sizes {
-		display: flex;
-		gap: 0.3rem;
-		width: 100%;
-	}
-
-	.size {
-		flex: 1;
-		padding: 0.35rem 0.4rem;
-		background: var(--ui-border, rgba(255, 255, 255, 0.05));
-		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
-		border-radius: 4px;
-		color: var(--ui-text, #666);
-		font-size: 0.65rem;
-		cursor: pointer;
-		transition: all 0.1s;
-	}
-
-	.size:hover {
-		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
-	}
-
-	.size.selected {
-		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
-		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
-		color: var(--ui-accent, #2dd4bf);
-	}
-
 	/* Mobile adjustments */
 	@media (max-width: 768px) {
 		.panel {
@@ -579,15 +431,6 @@
 		.swatch {
 			width: 24px;
 			height: 24px;
-		}
-
-		.sizes {
-			flex-wrap: wrap;
-		}
-
-		.size {
-			padding: 0.4rem 0.6rem;
-			font-size: 0.65rem;
 		}
 
 		.title {

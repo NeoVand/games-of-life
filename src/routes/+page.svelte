@@ -357,6 +357,7 @@
 		<InitializeModal
 			onclose={() => (showInitialize = false)}
 			oninitialize={handleInitialize}
+			onscalechange={handleScaleChange}
 		/>
 	{/if}
 
@@ -370,7 +371,6 @@
 	{#if uiState.showSettings}
 		<Settings
 			onclose={() => (uiState.showSettings = false)}
-			onscalechange={handleScaleChange}
 		/>
 	{/if}
 

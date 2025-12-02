@@ -188,10 +188,8 @@
 			rule: simState.currentRule
 		});
 
-		// Only randomize if not set to blank
-		if (simState.lastInitPattern !== 'blank') {
-			simulation.randomize(0.15);
-		}
+		// Apply the selected initialization method
+		applyLastInitialization();
 		
 		// Note: We don't call resetView here because the grid was created with
 		// dimensions matching the container aspect ratio. The initial view state
@@ -575,6 +573,41 @@
 		});
 	}
 
+	// Apply the last selected initialization method
+	function applyLastInitialization() {
+		if (!simulation) return;
+		
+		const pattern = simState.lastInitPattern;
+		
+		// Handle blank - just clear
+		if (pattern === 'blank') {
+			simulation.clear();
+			simState.resetGeneration();
+			simState.aliveCells = 0;
+			return;
+		}
+		
+		// Handle random types - use appropriate density
+		if (pattern.startsWith('random')) {
+			let density = 0.15;
+			if (pattern === 'random-sparse') density = 0.15;
+			else if (pattern === 'random-medium') density = 0.3;
+			else if (pattern === 'random-dense') density = 0.5;
+			simulation.randomize(density);
+			simState.resetGeneration();
+			simulation.countAliveCellsAsync().then(count => {
+				simState.aliveCells = count;
+			});
+			return;
+		}
+		
+		// For structured patterns, use the initialize function with tiling settings
+		initialize(pattern, {
+			tiled: simState.lastInitTiling,
+			spacing: simState.lastInitSpacing
+		});
+	}
+
 	export function initialize(type: string, options?: { density?: number; tiled?: boolean; spacing?: number }) {
 		if (!simulation) return;
 		
@@ -787,16 +820,10 @@
 				height,
 				rule: simState.currentRule
 			});
-			simulation.randomize(0.15);
-			simState.resetGeneration();
+			applyLastInitialization();
 			
 			// Reset view to fit the new grid
 			simulation.resetView(canvasWidth, canvasHeight);
-			
-			// Update alive cells count
-			simulation.countAliveCellsAsync().then(count => {
-				simState.aliveCells = count;
-			});
 		} else {
 			// Same neighborhood type, just update the rule
 			simulation.setRule(simState.currentRule);
@@ -863,13 +890,7 @@
 			height,
 			rule: simState.currentRule
 		});
-		simulation.randomize(0.15);
-		simState.resetGeneration();
-		
-		// Update alive cells count
-		simulation.countAliveCellsAsync().then(count => {
-			simState.aliveCells = count;
-		});
+		applyLastInitialization();
 	}
 	
 	export function setScale(scale: GridScale) {
@@ -892,16 +913,10 @@
 			height,
 			rule: simState.currentRule
 		});
-		simulation.randomize(0.15);
-		simState.resetGeneration();
+		applyLastInitialization();
 		
 		// Reset view to fit the new grid
 		simulation.resetView(canvasWidth, canvasHeight);
-		
-		// Update alive cells count
-		simulation.countAliveCellsAsync().then(count => {
-			simState.aliveCells = count;
-		});
 	}
 </script>
 
