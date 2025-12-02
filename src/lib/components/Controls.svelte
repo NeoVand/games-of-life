@@ -645,43 +645,60 @@
 			bottom: 1rem;
 			right: 1rem;
 			flex-direction: column;
-			padding: 0.25rem;
+			padding: 0.35rem;
+			gap: 0.35rem;
 		}
 
 		.controls.collapsed {
-			padding: 0.2rem;
+			padding: 0.35rem;
+			gap: 0;
 		}
 
 		/* Button groups stack vertically on mobile */
 		.button-group {
 			flex-direction: column;
+			padding: 0.25rem; /* Equal padding all around */
+			gap: 0.1rem; /* Small gap between buttons vertically */
+			max-height: none; /* Allow vertical expansion */
+			max-width: 50px; /* Constrain width instead */
 		}
 
 		/* Collapse group at bottom */
 		.button-group.collapse-group {
 			order: 100; /* Push to end (bottom) */
+			width: 40px;
+			height: 40px;
+			padding: 0.25rem;
+			gap: 0;
 		}
 
-		/* Mobile collapsed state - hide width/height for vertical layout */
-		.controls.collapsed .button-group,
-		.controls.collapsed .control-btn:not(.collapse-btn),
-		.controls.collapsed .control-group {
-			width: 0;
-			height: 0;
+		/* Mobile collapsed state */
+		.controls.collapsed .button-group:not(.collapse-group) {
+			opacity: 0;
+			max-width: 0;
+			max-height: 0;
+			padding: 0;
+			margin: 0;
+			border-width: 0;
+			overflow: hidden;
+			pointer-events: none;
 		}
 
 		.control-btn {
-			width: 30px;
-			height: 30px;
+			width: 28px;
+			height: 28px;
+			flex-shrink: 0;
 		}
 
 		.control-btn svg {
-			width: 18px;
-			height: 18px;
+			width: 16px;
+			height: 16px;
 		}
 
-		.button-group {
-			padding: 0.25rem 0.4rem;
+		/* Keep collapse button icon larger on mobile too */
+		.collapse-btn svg {
+			width: 20px;
+			height: 20px;
 		}
 
 		/* Slider popups appear to the left on mobile */
