@@ -70,6 +70,7 @@
 	// Universal patterns - available for all rules (results may vary)
 	const UNIVERSAL_PATTERNS = {
 		random: [
+			{ id: 'blank', name: 'Blank', density: 0, desc: 'Empty grid - draw your own' },
 			{ id: 'random-sparse', name: 'Sparse', density: 0.15, desc: 'Low density random' },
 			{ id: 'random-medium', name: 'Medium', density: 0.3, desc: 'Balanced random' },
 			{ id: 'random-dense', name: 'Dense', density: 0.5, desc: 'High density random' }

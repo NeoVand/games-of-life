@@ -1086,7 +1086,7 @@
 		<div class="footer">
 			<div class="states">
 				<span class="foot-label">States</span>
-				<input type="range" min="2" max="64" bind:value={numStates} oninput={updateRuleString} />
+				<input type="range" min="2" max="128" bind:value={numStates} oninput={updateRuleString} />
 				<span class="states-val">{numStates}</span>
 			</div>
 			<div class="rule-input">

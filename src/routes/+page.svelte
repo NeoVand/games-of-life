@@ -7,6 +7,7 @@
 	import Settings from '$lib/components/Settings.svelte';
 	import InitializeModal from '$lib/components/InitializeModal.svelte';
 	import InfoOverlay from '$lib/components/InfoOverlay.svelte';
+	import ClickHint from '$lib/components/ClickHint.svelte';
 	import AboutModal from '$lib/components/AboutModal.svelte';
 	import { getSimulationState, getUIState, DARK_THEME_COLORS, LIGHT_THEME_COLORS, type GridScale } from '$lib/stores/simulation.svelte.js';
 	import { hasTourBeenCompleted, startTour, getTourStyles } from '$lib/utils/tour.js';
@@ -212,9 +213,9 @@
 		const palette = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
 		const [r, g, b] = simState.aliveColor;
 		
-		// Find current color index
+		// Find current color index using exact match (colors are set from palette)
 		let currentIndex = palette.findIndex(
-			(p) => Math.abs(p.color[0] - r) < 0.15 && Math.abs(p.color[1] - g) < 0.15 && Math.abs(p.color[2] - b) < 0.15
+			(p) => p.color[0] === r && p.color[1] === g && p.color[2] === b
 		);
 		
 		// Cycle to next color
@@ -227,7 +228,7 @@
 		const currentPalette = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
 		const [r, g, b] = simState.aliveColor;
 		let currentIndex = currentPalette.findIndex(
-			(p) => Math.abs(p.color[0] - r) < 0.15 && Math.abs(p.color[1] - g) < 0.15 && Math.abs(p.color[2] - b) < 0.15
+			(p) => p.color[0] === r && p.color[1] === g && p.color[2] === b
 		);
 		const safeIndex = currentIndex >= 0 ? currentIndex : 0;
 		
@@ -330,6 +331,8 @@
 	style="--ui-accent: {accentColor}; --ui-accent-bg: {accentColorBg}; --ui-accent-border: {accentColorBorder}; --ui-accent-bg-hover: {accentColorBgHover}; --toolbar-bg: {toolbarBg}; --toolbar-border: {toolbarBorder}; --btn-bg: {btnBg}; --btn-bg-hover: {btnBgHover}; --btn-bg-active: {btnBgActive}; --group-bg: {groupBg}; --group-border: {groupBorder}; --group-bg-hover: {groupBgHover}; --group-border-hover: {groupBorderHover};"
 >
 	<Canvas bind:this={canvas} />
+
+	<ClickHint />
 
 	<InfoOverlay />
 

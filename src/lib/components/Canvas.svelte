@@ -11,6 +11,14 @@
 		const modes: SpectrumMode[] = ['hueShift', 'rainbow', 'warm', 'cool', 'monochrome', 'fire'];
 		return modes.indexOf(mode);
 	}
+	
+	// Convert neighbor shading mode string to number for shader
+	function getNeighborShadingIndex(mode: string): number {
+		if (mode === 'off') return 0;
+		if (mode === 'alive') return 1;
+		if (mode === 'vitality') return 2;
+		return 0;
+	}
 
 	let canvas: HTMLCanvasElement;
 	let container: HTMLDivElement;
@@ -180,8 +188,10 @@
 			rule: simState.currentRule
 		});
 
-		// Initial randomization for visual appeal
-		simulation.randomize(0.15);
+		// Only randomize if not set to blank
+		if (simState.lastInitPattern !== 'blank') {
+			simulation.randomize(0.15);
+		}
 		
 		// Note: We don't call resetView here because the grid was created with
 		// dimensions matching the container aspect ratio. The initial view state
@@ -245,7 +255,8 @@
 			brushY: showBrush ? gridMouseY : -1000,
 			brushRadius: showBrush ? simState.brushSize : -1,
 			boundaryMode: simState.boundaryMode,
-			spectrumMode: getSpectrumModeIndex(simState.spectrumMode)
+			spectrumMode: getSpectrumModeIndex(simState.spectrumMode),
+			neighborShading: getNeighborShadingIndex(simState.neighborShading)
 		});
 
 		// Always render
@@ -304,6 +315,9 @@
 	// Mouse event handlers
 	function handleMouseDown(e: MouseEvent) {
 		if (!simulation) return;
+		
+		// Mark that user has interacted (dismiss click hint)
+		simState.hasInteracted = true;
 
 		const rect = canvas.getBoundingClientRect();
 		const x = (e.clientX - rect.left) * (canvasWidth / rect.width);
@@ -422,6 +436,9 @@
 	function handleTouchStart(e: TouchEvent) {
 		if (!simulation) return;
 		e.preventDefault();
+		
+		// Mark that user has interacted (dismiss click hint)
+		simState.hasInteracted = true;
 
 		const touches = e.touches;
 		touchStartTime = performance.now();
@@ -564,6 +581,11 @@
 		// Clear first
 		simulation.clear();
 		simState.resetGeneration();
+		
+		// Handle blank - just clear, no randomization
+		if (type === 'blank') {
+			return;
+		}
 		
 		// Handle random types
 		if (type.startsWith('random')) {

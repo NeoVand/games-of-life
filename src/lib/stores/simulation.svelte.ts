@@ -7,13 +7,14 @@ import type { CARule } from '../utils/rules.js';
 import { getDefaultRule } from '../utils/rules.js';
 
 // Simulation state
-let isPlaying = $state(false);
+let isPlaying = $state(true); // Start playing by default
 let speed = $state(30); // Steps per second (default 30 fps)
 let brushSize = $state(3);
 let brushState = $state(1); // 1 = draw alive, 0 = erase
 let currentRule = $state<CARule>(getDefaultRule());
 let generation = $state(0);
 let showGrid = $state(true);
+let hasInteracted = $state(false); // Track if user has clicked/touched the canvas
 
 // Grid scale presets - base cell count for the shorter dimension
 export type GridScale = 'tiny' | 'small' | 'medium' | 'large' | 'huge';
@@ -32,14 +33,14 @@ function isMobileDevice(): boolean {
 }
 
 // Grid configuration - now calculated from scale
-// Default to 'tiny' on mobile, 'small' on desktop
-let gridScale = $state<GridScale>(isMobileDevice() ? 'tiny' : 'small');
+// Default to 'small' on mobile, 'medium' on desktop
+let gridScale = $state<GridScale>(isMobileDevice() ? 'small' : 'medium');
 let gridWidth = $state(256);
 let gridHeight = $state(256);
 
 // Visual settings
 let isLightTheme = $state(false);
-let aliveColor = $state<[number, number, number]>([0.2, 0.9, 0.95]); // Cyan default
+let aliveColor = $state<[number, number, number]>([0.85, 0.8, 0.7]); // Sand default
 
 // Spectrum modes for multi-state color transitions
 export type SpectrumMode = 'hueShift' | 'rainbow' | 'warm' | 'cool' | 'monochrome' | 'fire';
@@ -87,10 +88,16 @@ export function boundaryModeToIndex(mode: BoundaryMode): number {
 	return modes.indexOf(mode);
 }
 
-let spectrumMode = $state<SpectrumMode>('hueShift');
+let spectrumMode = $state<SpectrumMode>('fire');
+
+// Neighbor shading mode - modulate color based on neighbors
+// 'off' = no shading, 'alive' = count alive neighbors, 'vitality' = sum neighbor states
+export type NeighborShadingMode = 'off' | 'alive' | 'vitality';
+let neighborShading = $state<NeighborShadingMode>('alive');
 
 // Color palettes for dark and light themes
 export const DARK_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
+	// Row 1: Vibrant saturated colors
 	{ name: 'White', color: [1.0, 1.0, 1.0], hex: '#ffffff' },
 	{ name: 'Cyan', color: [0.2, 0.9, 0.95], hex: '#33e6f2' },
 	{ name: 'Green', color: [0.3, 0.95, 0.5], hex: '#4df280' },
@@ -100,10 +107,22 @@ export const DARK_THEME_COLORS: { name: string; color: [number, number, number];
 	{ name: 'Red', color: [1.0, 0.35, 0.35], hex: '#ff5959' },
 	{ name: 'Pink', color: [1.0, 0.45, 0.65], hex: '#ff73a6' },
 	{ name: 'Purple', color: [0.7, 0.5, 1.0], hex: '#b380ff' },
-	{ name: 'Blue', color: [0.4, 0.6, 1.0], hex: '#6699ff' }
+	{ name: 'Blue', color: [0.4, 0.6, 1.0], hex: '#6699ff' },
+	// Row 2: Soft pastels and muted tones
+	{ name: 'Soft Pink', color: [1.0, 0.75, 0.85], hex: '#ffbfd9' },
+	{ name: 'Blush', color: [0.95, 0.7, 0.75], hex: '#f2b3bf' },
+	{ name: 'Peach', color: [1.0, 0.8, 0.65], hex: '#ffcca6' },
+	{ name: 'Cream', color: [1.0, 0.95, 0.8], hex: '#fff2cc' },
+	{ name: 'Mint', color: [0.7, 0.95, 0.8], hex: '#b3f2cc' },
+	{ name: 'Sky', color: [0.7, 0.85, 1.0], hex: '#b3d9ff' },
+	{ name: 'Lavender', color: [0.8, 0.7, 1.0], hex: '#ccb3ff' },
+	{ name: 'Mauve', color: [0.75, 0.6, 0.7], hex: '#bf99b3' },
+	{ name: 'Sage', color: [0.65, 0.75, 0.6], hex: '#a6bf99' },
+	{ name: 'Sand', color: [0.85, 0.8, 0.7], hex: '#d9ccb3' }
 ];
 
 export const LIGHT_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
+	// Row 1: Deep saturated colors
 	{ name: 'Black', color: [0.1, 0.1, 0.12], hex: '#1a1a1f' },
 	{ name: 'Teal', color: [0.0, 0.5, 0.55], hex: '#00808c' },
 	{ name: 'Green', color: [0.1, 0.55, 0.25], hex: '#1a8c40' },
@@ -113,11 +132,22 @@ export const LIGHT_THEME_COLORS: { name: string; color: [number, number, number]
 	{ name: 'Red', color: [0.7, 0.15, 0.15], hex: '#b32626' },
 	{ name: 'Rose', color: [0.75, 0.2, 0.4], hex: '#bf3366' },
 	{ name: 'Purple', color: [0.45, 0.2, 0.7], hex: '#7333b3' },
-	{ name: 'Navy', color: [0.15, 0.25, 0.55], hex: '#26408c' }
+	{ name: 'Navy', color: [0.15, 0.25, 0.55], hex: '#26408c' },
+	// Row 2: Muted earthy and dusty tones
+	{ name: 'Dusty Rose', color: [0.6, 0.4, 0.45], hex: '#996673' },
+	{ name: 'Terracotta', color: [0.65, 0.4, 0.3], hex: '#a6664d' },
+	{ name: 'Rust', color: [0.6, 0.3, 0.2], hex: '#994d33' },
+	{ name: 'Ochre', color: [0.6, 0.5, 0.25], hex: '#998040' },
+	{ name: 'Moss', color: [0.35, 0.45, 0.3], hex: '#59734d' },
+	{ name: 'Slate', color: [0.35, 0.4, 0.5], hex: '#596680' },
+	{ name: 'Storm', color: [0.4, 0.45, 0.55], hex: '#66738c' },
+	{ name: 'Plum', color: [0.45, 0.3, 0.45], hex: '#734d73' },
+	{ name: 'Clay', color: [0.5, 0.4, 0.35], hex: '#806659' },
+	{ name: 'Charcoal', color: [0.25, 0.25, 0.28], hex: '#404047' }
 ];
 
 // Last initialization settings
-let lastInitPattern = $state('random-medium');
+let lastInitPattern = $state('blank');
 let lastInitCategory = $state('random');
 let lastInitTiling = $state(true);
 let lastInitSpacing = $state(50); // Actual cell spacing on main grid
@@ -463,6 +493,13 @@ export function getSimulationState() {
 			showGrid = value;
 		},
 
+		get hasInteracted() {
+			return hasInteracted;
+		},
+		set hasInteracted(value: boolean) {
+			hasInteracted = value;
+		},
+
 		get gridWidth() {
 			return gridWidth;
 		},
@@ -503,6 +540,13 @@ export function getSimulationState() {
 		},
 		set spectrumMode(value: SpectrumMode) {
 			spectrumMode = value;
+		},
+
+		get neighborShading() {
+			return neighborShading;
+		},
+		set neighborShading(value: NeighborShadingMode) {
+			neighborShading = value;
 		},
 
 		get lastInitPattern() {

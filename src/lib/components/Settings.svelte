@@ -17,7 +17,7 @@
 		const [r, g, b] = simState.aliveColor;
 		const palettes = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
 		return palettes.findIndex(
-			(p) => Math.abs(p.color[0] - r) < 0.15 && Math.abs(p.color[1] - g) < 0.15 && Math.abs(p.color[2] - b) < 0.15
+			(p) => p.color[0] === r && p.color[1] === g && p.color[2] === b
 		);
 	}
 
@@ -170,6 +170,28 @@
 								{mode.name}
 							</button>
 						{/each}
+					</div>
+				</div>
+
+				<!-- Neighbor Shading -->
+				<div class="row">
+					<span class="label">Clustering</span>
+					<div class="shading-toggle">
+						<button 
+							class="shading-option" 
+							class:active={simState.neighborShading === 'off'}
+							onclick={() => simState.neighborShading = 'off'}
+						>Off</button>
+						<button 
+							class="shading-option" 
+							class:active={simState.neighborShading === 'alive'}
+							onclick={() => simState.neighborShading = 'alive'}
+						>Alive</button>
+						<button 
+							class="shading-option" 
+							class:active={simState.neighborShading === 'vitality'}
+							onclick={() => simState.neighborShading = 'vitality'}
+						>Vitality</button>
 					</div>
 				</div>
 
@@ -420,6 +442,40 @@
 		color: var(--ui-accent, #2dd4bf);
 	}
 
+	/* Shading toggle styling */
+	.shading-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0;
+		padding: 0;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 4px;
+		overflow: hidden;
+	}
+
+	.shading-option {
+		font-size: 0.6rem;
+		font-weight: 500;
+		padding: 0.2rem 0.4rem;
+		color: var(--ui-text, #666);
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		transition: all 0.15s;
+		user-select: none;
+		line-height: 1;
+	}
+
+	.shading-option:hover {
+		color: var(--ui-text-hover, #fff);
+	}
+
+	.shading-option.active {
+		color: var(--ui-accent, #2dd4bf);
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
+	}
+
 	/* Boundary grid - 9 topology icons */
 	.boundary-grid {
 		display: flex;
@@ -456,7 +512,8 @@
 
 	/* Color swatches */
 	.colors {
-		display: flex;
+		display: grid;
+		grid-template-columns: repeat(10, 1fr);
 		gap: 0.3rem;
 	}
 
@@ -520,8 +577,8 @@
 		}
 
 		.swatch {
-			width: 28px;
-			height: 28px;
+			width: 24px;
+			height: 24px;
 		}
 
 		.sizes {

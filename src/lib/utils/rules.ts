@@ -889,8 +889,8 @@ export const RULE_PRESETS: CARule[] = [
 		name: 'Hex2 Neo Slime Mold',
 		birthMask: 0b0000101000, // 3, 5
 		surviveMask: 0b0001110000, // 4, 5, 6
-		numStates: 32,
-		ruleString: 'B35/S456/C32',
+		numStates: 100,
+		ruleString: 'B35/S456/C100',
 		neighborhood: 'extendedHexagonal',
 		category: 'artistic',
 		description: 'Organic slime mold growth in extended hexagonal grid',

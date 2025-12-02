@@ -30,6 +30,7 @@ export interface ViewState {
 	brushRadius: number; // Brush radius in cells (-1 to hide)
 	boundaryMode: BoundaryMode; // Topological boundary condition
 	spectrumMode: number; // 0=hueShift, 1=rainbow, 2=warm, 3=cool, 4=monochrome, 5=fire
+	neighborShading: number; // 0=off, 1=count alive, 2=sum vitality
 }
 
 export class Simulation {
@@ -95,7 +96,8 @@ export class Simulation {
 			brushY: -1000,
 			brushRadius: -1, // Hidden by default
 			boundaryMode: 'torus', // Default to toroidal wrapping
-			spectrumMode: 0 // Default to hue shift
+			spectrumMode: 0, // Default to hue shift
+			neighborShading: 1 // Default to count alive
 		};
 
 		this.initializePipelines();
@@ -217,7 +219,7 @@ export class Simulation {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
 
-		// Render params buffer (18 f32 values = 72 bytes, aligned to 80)
+		// Render params buffer (19 f32 values = 76 bytes, aligned to 80)
 		this.renderParamsBuffer = this.device.createBuffer({
 			label: 'Render Params Buffer',
 			size: 80,
@@ -315,7 +317,8 @@ export class Simulation {
 			this.view.brushY,
 			this.view.brushRadius,
 			this.getNeighborhoodIndex(), // neighborhood type for rendering
-			this.view.spectrumMode // spectrum mode for color transitions
+			this.view.spectrumMode, // spectrum mode for color transitions
+			this.view.neighborShading // neighbor shading mode: 0=off, 1=alive, 2=vitality
 		]);
 		this.device.queue.writeBuffer(this.renderParamsBuffer, 0, params);
 	}
@@ -883,7 +886,8 @@ export class Simulation {
 			brushY: this.view.brushY,
 			brushRadius: this.view.brushRadius,
 			boundaryMode: this.view.boundaryMode,
-			spectrumMode: this.view.spectrumMode
+			spectrumMode: this.view.spectrumMode,
+			neighborShading: this.view.neighborShading
 		};
 	}
 

@@ -23,8 +23,9 @@ struct RenderParams {
     brush_x: f32,        // Brush center in grid coordinates
     brush_y: f32,
     brush_radius: f32,   // Brush radius in cells
-    neighborhood: f32,   // 0 = square, 3 = hexagonal
+    neighborhood: f32,   // 0 = moore, 1 = vonNeumann, 2 = extendedMoore, 3 = hexagonal, 4 = extendedHexagonal
     spectrum_mode: f32,  // 0=hueShift, 1=rainbow, 2=warm, 3=cool, 4=monochrome, 5=fire
+    neighbor_shading: f32, // 0=off, 1=count alive, 2=sum vitality
 }
 
 @group(0) @binding(0) var<uniform> params: RenderParams;
@@ -63,6 +64,224 @@ fn get_cell_state(grid_x: i32, grid_y: i32) -> u32 {
         return 0u;
     }
     return cell_state[u32(grid_x) + u32(grid_y) * u32(params.grid_width)];
+}
+
+// Check if a cell is "alive" (state == 1)
+fn is_alive(grid_x: i32, grid_y: i32) -> bool {
+    return get_cell_state(grid_x, grid_y) == 1u;
+}
+
+// Check if a cell is "active" (any non-dead state)
+fn is_active(grid_x: i32, grid_y: i32) -> bool {
+    return get_cell_state(grid_x, grid_y) > 0u;
+}
+
+// Get cell vitality (1.0 for alive, decreasing for dying states, 0 for dead)
+fn get_vitality(grid_x: i32, grid_y: i32) -> f32 {
+    let state = get_cell_state(grid_x, grid_y);
+    if (state == 0u) { return 0.0; }
+    if (state == 1u) { return 1.0; }
+    // Dying states: linearly decrease from 1.0 to near 0
+    let num_states = u32(params.num_states);
+    if (num_states <= 2u) { return 0.0; }
+    // state 2 is freshly dying (high vitality), state num_states-1 is almost dead (low vitality)
+    return 1.0 - f32(state - 1u) / f32(num_states - 1u);
+}
+
+// Count active (non-dead) neighbors for a cell (used for neighbor shading)
+// Returns a normalized value 0.0-1.0 based on neighborhood type
+fn count_active_neighbors_normalized(cell_x: i32, cell_y: i32) -> f32 {
+    var count: u32 = 0u;
+    var max_neighbors: u32 = 8u;
+    let nh = i32(params.neighborhood);
+    
+    if (nh == 0) {
+        // Moore (8 neighbors)
+        max_neighbors = 8u;
+        for (var dy: i32 = -1; dy <= 1; dy++) {
+            for (var dx: i32 = -1; dx <= 1; dx++) {
+                if (dx == 0 && dy == 0) { continue; }
+                if (is_active(cell_x + dx, cell_y + dy)) { count++; }
+            }
+        }
+    } else if (nh == 1) {
+        // Von Neumann (4 neighbors)
+        max_neighbors = 4u;
+        if (is_active(cell_x, cell_y - 1)) { count++; }
+        if (is_active(cell_x, cell_y + 1)) { count++; }
+        if (is_active(cell_x - 1, cell_y)) { count++; }
+        if (is_active(cell_x + 1, cell_y)) { count++; }
+    } else if (nh == 2) {
+        // Extended Moore (24 neighbors)
+        max_neighbors = 24u;
+        for (var dy: i32 = -2; dy <= 2; dy++) {
+            for (var dx: i32 = -2; dx <= 2; dx++) {
+                if (dx == 0 && dy == 0) { continue; }
+                if (is_active(cell_x + dx, cell_y + dy)) { count++; }
+            }
+        }
+    } else if (nh == 3) {
+        // Hexagonal (6 neighbors)
+        max_neighbors = 6u;
+        let is_odd = (cell_y & 1) == 1;
+        if (is_odd) {
+            if (is_active(cell_x, cell_y - 1)) { count++; }
+            if (is_active(cell_x + 1, cell_y - 1)) { count++; }
+            if (is_active(cell_x - 1, cell_y)) { count++; }
+            if (is_active(cell_x + 1, cell_y)) { count++; }
+            if (is_active(cell_x, cell_y + 1)) { count++; }
+            if (is_active(cell_x + 1, cell_y + 1)) { count++; }
+        } else {
+            if (is_active(cell_x - 1, cell_y - 1)) { count++; }
+            if (is_active(cell_x, cell_y - 1)) { count++; }
+            if (is_active(cell_x - 1, cell_y)) { count++; }
+            if (is_active(cell_x + 1, cell_y)) { count++; }
+            if (is_active(cell_x - 1, cell_y + 1)) { count++; }
+            if (is_active(cell_x, cell_y + 1)) { count++; }
+        }
+    } else {
+        // Extended Hexagonal (18 neighbors) - just use inner 6 for simplicity
+        max_neighbors = 6u;
+        let is_odd = (cell_y & 1) == 1;
+        if (is_odd) {
+            if (is_active(cell_x, cell_y - 1)) { count++; }
+            if (is_active(cell_x + 1, cell_y - 1)) { count++; }
+            if (is_active(cell_x - 1, cell_y)) { count++; }
+            if (is_active(cell_x + 1, cell_y)) { count++; }
+            if (is_active(cell_x, cell_y + 1)) { count++; }
+            if (is_active(cell_x + 1, cell_y + 1)) { count++; }
+        } else {
+            if (is_active(cell_x - 1, cell_y - 1)) { count++; }
+            if (is_active(cell_x, cell_y - 1)) { count++; }
+            if (is_active(cell_x - 1, cell_y)) { count++; }
+            if (is_active(cell_x + 1, cell_y)) { count++; }
+            if (is_active(cell_x - 1, cell_y + 1)) { count++; }
+            if (is_active(cell_x, cell_y + 1)) { count++; }
+        }
+    }
+    
+    return f32(count) / f32(max_neighbors);
+}
+
+// Sum vitality of neighbors (used for vitality-based shading)
+// Returns a normalized value 0.0-1.0 based on neighborhood type
+fn sum_neighbor_vitality_normalized(cell_x: i32, cell_y: i32) -> f32 {
+    var total: f32 = 0.0;
+    var max_neighbors: f32 = 8.0;
+    let nh = i32(params.neighborhood);
+    
+    if (nh == 0) {
+        // Moore (8 neighbors)
+        max_neighbors = 8.0;
+        for (var dy: i32 = -1; dy <= 1; dy++) {
+            for (var dx: i32 = -1; dx <= 1; dx++) {
+                if (dx == 0 && dy == 0) { continue; }
+                total += get_vitality(cell_x + dx, cell_y + dy);
+            }
+        }
+    } else if (nh == 1) {
+        // Von Neumann (4 neighbors)
+        max_neighbors = 4.0;
+        total += get_vitality(cell_x, cell_y - 1);
+        total += get_vitality(cell_x, cell_y + 1);
+        total += get_vitality(cell_x - 1, cell_y);
+        total += get_vitality(cell_x + 1, cell_y);
+    } else if (nh == 2) {
+        // Extended Moore (24 neighbors)
+        max_neighbors = 24.0;
+        for (var dy: i32 = -2; dy <= 2; dy++) {
+            for (var dx: i32 = -2; dx <= 2; dx++) {
+                if (dx == 0 && dy == 0) { continue; }
+                total += get_vitality(cell_x + dx, cell_y + dy);
+            }
+        }
+    } else if (nh == 3) {
+        // Hexagonal (6 neighbors)
+        max_neighbors = 6.0;
+        let is_odd = (cell_y & 1) == 1;
+        if (is_odd) {
+            total += get_vitality(cell_x, cell_y - 1);
+            total += get_vitality(cell_x + 1, cell_y - 1);
+            total += get_vitality(cell_x - 1, cell_y);
+            total += get_vitality(cell_x + 1, cell_y);
+            total += get_vitality(cell_x, cell_y + 1);
+            total += get_vitality(cell_x + 1, cell_y + 1);
+        } else {
+            total += get_vitality(cell_x - 1, cell_y - 1);
+            total += get_vitality(cell_x, cell_y - 1);
+            total += get_vitality(cell_x - 1, cell_y);
+            total += get_vitality(cell_x + 1, cell_y);
+            total += get_vitality(cell_x - 1, cell_y + 1);
+            total += get_vitality(cell_x, cell_y + 1);
+        }
+    } else {
+        // Extended Hexagonal - use inner 6 neighbors
+        max_neighbors = 6.0;
+        let is_odd = (cell_y & 1) == 1;
+        if (is_odd) {
+            total += get_vitality(cell_x, cell_y - 1);
+            total += get_vitality(cell_x + 1, cell_y - 1);
+            total += get_vitality(cell_x - 1, cell_y);
+            total += get_vitality(cell_x + 1, cell_y);
+            total += get_vitality(cell_x, cell_y + 1);
+            total += get_vitality(cell_x + 1, cell_y + 1);
+        } else {
+            total += get_vitality(cell_x - 1, cell_y - 1);
+            total += get_vitality(cell_x, cell_y - 1);
+            total += get_vitality(cell_x - 1, cell_y);
+            total += get_vitality(cell_x + 1, cell_y);
+            total += get_vitality(cell_x - 1, cell_y + 1);
+            total += get_vitality(cell_x, cell_y + 1);
+        }
+    }
+    
+    return total / max_neighbors;
+}
+
+// Apply neighbor shading to a color
+// Cells with more/stronger neighbors appear more vibrant
+fn apply_neighbor_shading(color: vec3<f32>, cell_x: i32, cell_y: i32) -> vec3<f32> {
+    let mode = i32(params.neighbor_shading);
+    if (mode == 0) {
+        return color;
+    }
+    
+    var neighbor_ratio: f32;
+    if (mode == 1) {
+        // Count active (non-dead) neighbors
+        neighbor_ratio = count_active_neighbors_normalized(cell_x, cell_y);
+    } else {
+        // Sum vitality of all neighbors (weighted by how alive they are)
+        neighbor_ratio = sum_neighbor_vitality_normalized(cell_x, cell_y);
+    }
+    
+    // neighbor_ratio: 0 = isolated, 1 = max neighbors/vitality
+    // Convert to HSL to adjust saturation and lightness
+    let hsl = rgb_to_hsl(color);
+    
+    // Boost factor: cells with more vital neighbors get boosted
+    // Range from 0.5 (isolated) to 1.0 (fully surrounded)
+    let boost = 0.5 + neighbor_ratio * 0.5;
+    
+    // Adjust saturation: more neighbors = more saturated
+    var new_sat = hsl.y * (0.6 + neighbor_ratio * 0.6); // Range: 60% to 120% of original
+    new_sat = clamp(new_sat, 0.0, 1.0);
+    
+    // Adjust lightness based on theme
+    var new_light = hsl.z;
+    if (params.is_light_theme > 0.5) {
+        // Light mode: isolated cells get lighter (fade toward white bg)
+        // Clustered cells stay at their natural lightness
+        let fade_amount = (1.0 - neighbor_ratio) * 0.3;
+        new_light = mix(hsl.z, 0.9, fade_amount);
+    } else {
+        // Dark mode: isolated cells get darker (fade toward black bg)
+        // Clustered cells stay bright
+        let fade_amount = (1.0 - neighbor_ratio) * 0.4;
+        new_light = mix(hsl.z, 0.1, fade_amount);
+    }
+    
+    return hsl_to_rgb(vec3<f32>(hsl.x, new_sat, new_light));
 }
 
 // Background color based on theme
@@ -170,13 +389,15 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
         dying_hue = alive_hsl.x + 0.25 * dying_progress;
         if (dying_hue > 1.0) { dying_hue -= 1.0; }
         if (is_light) {
-            // Light mode: keep saturation high, increase lightness toward white
-            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.3, 0.6);
+            // Light mode: boost saturation for low-sat colors, then fade
+            let boosted_sat = max(alive_hsl.y, 0.5); // Ensure minimum saturation
+            dying_sat = boosted_sat * max(1.0 - dying_progress * 0.4, 0.5);
             dying_light = mix(alive_hsl.z, 0.92, dying_progress * dying_progress);
         } else {
-            // Dark mode: can desaturate more, decrease lightness toward dark
+            // Dark mode: boost saturation for low-sat colors
+            let boosted_sat = max(alive_hsl.y, 0.4);
             let sat_curve = 1.0 - dying_progress * dying_progress;
-            dying_sat = alive_hsl.y * max(sat_curve, 0.2);
+            dying_sat = boosted_sat * max(sat_curve, 0.25);
             dying_light = mix(alive_hsl.z, 0.12, dying_progress * dying_progress);
         }
     }
@@ -185,10 +406,11 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
         dying_hue = alive_hsl.x + dying_progress; // Full rotation
         if (dying_hue > 1.0) { dying_hue -= 1.0; }
         if (is_light) {
-            dying_sat = max(0.8, alive_hsl.y); // Keep very saturated for vivid rainbow
+            dying_sat = max(0.7, alive_hsl.y); // Keep saturated for vivid rainbow
             dying_light = mix(alive_hsl.z, 0.88, dying_progress * dying_progress);
         } else {
-            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.4, 0.4);
+            let boosted_sat = max(alive_hsl.y, 0.5);
+            dying_sat = boosted_sat * max(1.0 - dying_progress * 0.3, 0.45);
             dying_light = mix(alive_hsl.z, 0.15, dying_progress * dying_progress);
         }
     }
@@ -203,10 +425,12 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
         if (dying_hue < 0.0) { dying_hue += 1.0; }
         if (dying_hue > 1.0) { dying_hue -= 1.0; }
         if (is_light) {
-            dying_sat = max(0.7, alive_hsl.y * (1.0 - dying_progress * 0.2));
+            let boosted_sat = max(alive_hsl.y, 0.5);
+            dying_sat = boosted_sat * max(1.0 - dying_progress * 0.3, 0.5);
             dying_light = mix(alive_hsl.z, 0.9, dying_progress * dying_progress);
         } else {
-            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.3, 0.4);
+            let boosted_sat = max(alive_hsl.y, 0.45);
+            dying_sat = boosted_sat * max(1.0 - dying_progress * 0.3, 0.4);
             dying_light = mix(alive_hsl.z, 0.1, dying_progress * dying_progress);
         }
     }
@@ -221,10 +445,12 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
         if (dying_hue < 0.0) { dying_hue += 1.0; }
         if (dying_hue > 1.0) { dying_hue -= 1.0; }
         if (is_light) {
-            dying_sat = max(0.7, alive_hsl.y * (1.0 - dying_progress * 0.2));
+            let boosted_sat = max(alive_hsl.y, 0.5);
+            dying_sat = boosted_sat * max(1.0 - dying_progress * 0.3, 0.5);
             dying_light = mix(alive_hsl.z, 0.9, dying_progress * dying_progress);
         } else {
-            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.3, 0.4);
+            let boosted_sat = max(alive_hsl.y, 0.45);
+            dying_sat = boosted_sat * max(1.0 - dying_progress * 0.3, 0.4);
             dying_light = mix(alive_hsl.z, 0.1, dying_progress * dying_progress);
         }
     }
@@ -232,12 +458,14 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
     else if (mode == 4) {
         dying_hue = alive_hsl.x; // Keep same hue
         if (is_light) {
-            // Light mode: keep some saturation, fade toward white
-            dying_sat = alive_hsl.y * (1.0 - dying_progress * 0.5);
+            // Light mode: boost and maintain saturation longer, fade toward white
+            let boosted_sat = max(alive_hsl.y, 0.4);
+            dying_sat = boosted_sat * (1.0 - dying_progress * 0.6);
             dying_light = mix(alive_hsl.z, 0.93, dying_progress);
         } else {
-            // Dark mode: desaturate and darken
-            dying_sat = alive_hsl.y * (1.0 - dying_progress * 0.8);
+            // Dark mode: boost saturation, then desaturate and darken
+            let boosted_sat = max(alive_hsl.y, 0.35);
+            dying_sat = boosted_sat * (1.0 - dying_progress * 0.7);
             dying_light = mix(alive_hsl.z, 0.1, dying_progress);
         }
     }
@@ -436,6 +664,11 @@ fn render_square(input: VertexOutput) -> vec4<f32> {
     // Base color from state
     var color = state_to_color(state, u32(params.num_states));
     
+    // Apply neighbor shading if enabled (only for non-dead cells)
+    if (state > 0u) {
+        color = apply_neighbor_shading(color, cell_x, cell_y);
+    }
+    
     // Brush preview highlight - subtle semi-transparent overlay
     if (is_in_brush(cell_x, cell_y)) {
         // Use a subtle white/black overlay based on theme
@@ -499,6 +732,11 @@ fn render_hexagonal(input: VertexOutput) -> vec4<f32> {
     
     // Base color from state
     var color = state_to_color(state, u32(params.num_states));
+    
+    // Apply neighbor shading if enabled (only for non-dead cells)
+    if (state > 0u) {
+        color = apply_neighbor_shading(color, cell_x, cell_y);
+    }
     
     // Brush preview highlight
     if (is_in_brush(cell_x, cell_y)) {
