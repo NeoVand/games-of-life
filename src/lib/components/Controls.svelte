@@ -265,7 +265,7 @@
 	<!-- Collapse/Expand toggle - invisible button-group to match sizing -->
 	<div class="button-group collapse-group">
 		<button class="control-btn collapse-btn" class:collapsed onclick={() => (collapsed = !collapsed)} data-tooltip={collapsed ? "Expand" : "Collapse"} aria-label={collapsed ? "Expand toolbar" : "Collapse toolbar"}>
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
 				<path d="M12 4v16M4 12h16" />
 			</svg>
 		</button>
@@ -427,10 +427,17 @@
 
 	.collapse-btn {
 		opacity: 0.7;
+		transition: opacity 0.15s, color 0.15s;
 	}
 
 	.collapse-btn:hover {
 		opacity: 1;
+	}
+
+	/* When collapsed, use accent color for the + icon */
+	.collapse-btn.collapsed {
+		opacity: 1;
+		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.collapse-btn svg {
