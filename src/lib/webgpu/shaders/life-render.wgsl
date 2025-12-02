@@ -469,21 +469,29 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
             dying_light = mix(alive_hsl.z, 0.1, dying_progress);
         }
     }
-    // Spectrum mode 5: Fire (orange -> red -> dark/light)
+    // Spectrum mode 5: Fire (alive -> yellow -> orange -> red -> dark/light)
     else {
         let fire_progress = dying_progress * dying_progress; // Accelerate toward end
-        if (dying_progress < 0.5) {
-            dying_hue = mix(alive_hsl.x, 0.08, dying_progress * 2.0); // toward orange
+        
+        // More gradual hue journey: alive -> yellow (0.12) -> orange (0.06) -> red (0.0)
+        if (dying_progress < 0.33) {
+            // First third: alive color toward yellow
+            dying_hue = mix(alive_hsl.x, 0.12, dying_progress * 3.0);
+        } else if (dying_progress < 0.66) {
+            // Second third: yellow toward orange
+            dying_hue = mix(0.12, 0.06, (dying_progress - 0.33) * 3.0);
         } else {
-            dying_hue = mix(0.08, 0.0, (dying_progress - 0.5) * 2.0); // toward red
+            // Final third: orange toward red
+            dying_hue = mix(0.06, 0.0, (dying_progress - 0.66) * 3.0);
         }
         if (dying_hue < 0.0) { dying_hue += 1.0; }
+        
         if (is_light) {
-            dying_sat = max(0.8 - fire_progress * 0.3, 0.5);
-            dying_light = mix(0.5, 0.9, fire_progress); // bright fire fading to white
+            dying_sat = max(0.85 - fire_progress * 0.25, 0.55); // Stay more saturated
+            dying_light = mix(0.55, 0.9, fire_progress); // bright fire fading to white
         } else {
-            dying_sat = max(1.0 - fire_progress * 0.3, 0.7);
-            dying_light = mix(0.6, 0.05, fire_progress); // fire fading to black
+            dying_sat = max(1.0 - fire_progress * 0.2, 0.75); // Very saturated throughout
+            dying_light = mix(0.65, 0.04, fire_progress); // Brighter start, fade to embers
         }
     }
     

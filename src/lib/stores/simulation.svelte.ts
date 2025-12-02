@@ -40,7 +40,7 @@ let gridHeight = $state(256);
 
 // Visual settings
 let isLightTheme = $state(false);
-let aliveColor = $state<[number, number, number]>([1.0, 0.95, 0.8]); // Cream default
+let aliveColor = $state<[number, number, number]>([0.95, 0.7, 0.75]); // Blush default
 
 // Spectrum modes for multi-state color transitions
 export type SpectrumMode = 'hueShift' | 'rainbow' | 'warm' | 'cool' | 'monochrome' | 'fire';
