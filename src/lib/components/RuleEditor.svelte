@@ -1123,7 +1123,7 @@
 						title={mode.description}
 						aria-label={mode.name}
 					>
-						<BoundaryIcon mode={mode.id} size={32} />
+						<BoundaryIcon mode={mode.id} size={38} />
 					</button>
 				{/each}
 			</div>

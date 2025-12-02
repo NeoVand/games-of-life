@@ -886,7 +886,7 @@ export const RULE_PRESETS: CARule[] = [
 		density: 0.22
 	},
 	{
-		name: 'Hex2 Neo Slime Mold',
+		name: 'Hex2 Neo Brain',
 		birthMask: 0b0000101000, // 3, 5
 		surviveMask: 0b0001110000, // 4, 5, 6
 		numStates: 100,
@@ -906,10 +906,10 @@ export function getRuleByName(name: string): CARule | undefined {
 }
 
 /**
- * Get the default rule (Hex2 Neo Slime Mold)
+ * Get the default rule (Hex2 Neo Brain)
  */
 export function getDefaultRule(): CARule {
-	return getRuleByName('Hex2 Neo Slime Mold') || RULE_PRESETS[0];
+	return getRuleByName('Hex2 Neo Brain') || RULE_PRESETS[0];
 }
 
 /**

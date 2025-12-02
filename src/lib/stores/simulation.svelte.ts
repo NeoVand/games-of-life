@@ -437,7 +437,7 @@ let seedPattern = $state<SeedPatternId>('pixel'); // Current seed pattern
 let seedAlive = $state(true); // true = add alive cells, false = add dead cells (erase)
 
 // Boundary mode - topological boundary condition
-let boundaryMode = $state<BoundaryMode>('projectivePlane'); // Default to projective plane
+let boundaryMode = $state<BoundaryMode>('torus'); // Default to torus
 
 // Stats
 let aliveCells = $state(0);
