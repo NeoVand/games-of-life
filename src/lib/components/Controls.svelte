@@ -64,7 +64,9 @@
 </script>
 
 <div class="controls" class:collapsed>
-	<!-- Play/Pause -->
+	<!-- GROUP 1: Playback Controls -->
+	<div class="button-group" id="tour-playback-group">
+		<!-- Play/Pause -->
 		<button
 			id="tour-play-btn"
 			class="control-btn primary"
@@ -111,21 +113,28 @@
 				</div>
 			{/if}
 		</div>
+	</div>
 
-		<!-- Rules - Grid with a few alive cells -->
+	<!-- GROUP 2: Editing Controls -->
+	<div class="button-group" id="tour-editing-group">
+		<!-- Rules - Calligraphic f (function) -->
 		<button id="tour-rules-btn" class="control-btn" class:active={uiState.showRuleEditor} onclick={openRules} data-tooltip="Edit Rules (E)">
+			<svg viewBox="0 0 24 24" fill="currentColor">
+				<!-- Bold italic f -->
+				<path d="M16.5 3C14 3 12.5 4.5 11.8 7L10.5 11H7.5C7 11 6.5 11.4 6.5 12s.5 1 1 1h2.3l-1.6 5.5C7.7 20 6.8 21 5.5 21c-.5 0-.9-.1-1.2-.3-.4-.2-.9-.1-1.1.3-.2.4-.1.9.3 1.1.6.3 1.3.5 2 .5 2.5 0 4-1.5 4.8-4.2L12 13h3.5c.5 0 1-.4 1-1s-.5-1-1-1h-2.8l1.1-3.5C14.3 5.8 15.2 5 16.5 5c.4 0 .8.1 1.1.2.4.2.9 0 1.1-.4.2-.4 0-.9-.4-1.1-.6-.4-1.4-.7-2.3-.7z" />
+			</svg>
+		</button>
+
+		<!-- Initialize -->
+		<button id="tour-init-btn" class="control-btn" class:active={showInitialize} onclick={openInitialize} data-tooltip="Initialize (I)">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<!-- 3x3 grid outline -->
-				<rect x="4" y="4" width="16" height="16" rx="1" />
-				<!-- Grid lines -->
-				<line x1="4" y1="9.33" x2="20" y2="9.33" />
-				<line x1="4" y1="14.66" x2="20" y2="14.66" />
-				<line x1="9.33" y1="4" x2="9.33" y2="20" />
-				<line x1="14.66" y1="4" x2="14.66" y2="20" />
-				<!-- A few filled cells - like a glider pattern -->
-				<rect x="10.33" y="5" width="3.33" height="3.33" fill="currentColor" stroke="none" />
-				<rect x="15.66" y="10.33" width="3.33" height="3.33" fill="currentColor" stroke="none" />
-				<rect x="5" y="15.66" width="3.33" height="3.33" fill="currentColor" stroke="none" />
+				<!-- Dice/random scatter icon -->
+				<rect x="4" y="4" width="16" height="16" rx="2" />
+				<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+				<circle cx="16" cy="8" r="1.5" fill="currentColor" stroke="none" />
+				<circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+				<circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none" />
+				<circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none" />
 			</svg>
 		</button>
 
@@ -138,16 +147,21 @@
 				data-tooltip="Brush"
 				class:active={showBrushSlider}
 			>
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					{#if simState.brushState === 1}
-						<!-- Filled circle for draw mode -->
-						<circle cx="12" cy="12" r={Math.min(8, simState.brushSize)} fill="currentColor" />
-					{:else}
-						<!-- Empty circle with X for erase mode -->
-						<circle cx="12" cy="12" r={Math.min(8, simState.brushSize)} />
-						<path d="M9 9l6 6M15 9l-6 6" stroke-width="1.5" />
-					{/if}
-				</svg>
+				{#if simState.brushState === 1}
+					<!-- Paint brush icon for draw mode -->
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M18.37 2.63L14 7l-1.59-1.59a2 2 0 00-2.82 0L8 7l9 9 1.59-1.59a2 2 0 000-2.82L17 10l4.37-4.37a2.12 2.12 0 10-3-3z" />
+						<path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-10" fill="currentColor" opacity="0.2" />
+						<path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-10" />
+					</svg>
+				{:else}
+					<!-- Eraser icon for erase mode -->
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M20 20H9L4 15a1 1 0 010-1.4l9.6-9.6a2 2 0 012.8 0l4.2 4.2a2 2 0 010 2.8L12 20" />
+						<path d="M6.5 13.5L13 7" />
+						<path d="M4 15l5 5" fill="currentColor" opacity="0.3" />
+					</svg>
+				{/if}
 			</button>
 			{#if showBrushSlider}
 				<div class="slider-popup brush-popup">
@@ -157,8 +171,9 @@
 							class:active={simState.brushState === 1}
 							onclick={() => simState.brushState = 1}
 						>
-							<svg viewBox="0 0 24 24" fill="currentColor">
-								<circle cx="12" cy="12" r="6" />
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M18.37 2.63L14 7l-1.59-1.59a2 2 0 00-2.82 0L8 7l9 9 1.59-1.59a2 2 0 000-2.82L17 10l4.37-4.37a2.12 2.12 0 10-3-3z" />
+								<path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-10" />
 							</svg>
 							<span>Draw</span>
 						</button>
@@ -168,8 +183,8 @@
 							onclick={() => simState.brushState = 0}
 						>
 							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<circle cx="12" cy="12" r="6" />
-								<path d="M9 9l6 6M15 9l-6 6" stroke-width="1.5" />
+								<path d="M20 20H9L4 15a1 1 0 010-1.4l9.6-9.6a2 2 0 012.8 0l4.2 4.2a2 2 0 010 2.8L12 20" />
+								<path d="M6.5 13.5L13 7" />
 							</svg>
 							<span>Erase</span>
 						</button>
@@ -183,16 +198,20 @@
 		</div>
 
 		<!-- Clear -->
-		<button id="tour-clear-btn" class="control-btn" onclick={onclear} data-tooltip="Clear (C)">
+		<button id="tour-clear-btn" class="control-btn" onclick={onclear} data-tooltip="Clear (D)">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
 			</svg>
 		</button>
+	</div>
 
-		<!-- Initialize -->
-		<button id="tour-init-btn" class="control-btn" class:active={showInitialize} onclick={openInitialize} data-tooltip="Initialize (I)">
+	<!-- GROUP 3: Camera Controls -->
+	<div class="button-group" id="tour-camera-group">
+		<!-- Screenshot -->
+		<button id="tour-screenshot-btn" class="control-btn" onclick={onscreenshot} data-tooltip="Screenshot">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+				<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z" />
+				<circle cx="12" cy="13" r="4" />
 			</svg>
 		</button>
 
@@ -211,15 +230,10 @@
 				<path d="M15 15l5 5m0 0v-3m0 3h-3" />
 			</svg>
 		</button>
+	</div>
 
-		<!-- Screenshot -->
-		<button id="tour-screenshot-btn" class="control-btn" onclick={onscreenshot} data-tooltip="Screenshot">
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z" />
-				<circle cx="12" cy="13" r="4" />
-			</svg>
-		</button>
-
+	<!-- GROUP 4: Info Controls -->
+	<div class="button-group" id="tour-info-group">
 		<!-- Help -->
 		<button id="tour-help-btn" class="control-btn" class:active={showHelp} onclick={handleHelp} data-tooltip="Help (?)">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -246,13 +260,16 @@
 		<button id="tour-about-btn" class="control-btn logo-btn" class:active={showAbout} onclick={onabout} data-tooltip="About">
 			<HeartIcon size={18} animated={true} />
 		</button>
+	</div>
 
-		<!-- Collapse/Expand toggle -->
-		<button class="control-btn collapse-btn" onclick={() => (collapsed = !collapsed)} data-tooltip={collapsed ? "Expand" : "Collapse"}>
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M9 5l7 7-7 7" />
+	<!-- Collapse/Expand toggle - invisible button-group to match sizing -->
+	<div class="button-group collapse-group">
+		<button class="control-btn collapse-btn" class:collapsed onclick={() => (collapsed = !collapsed)} data-tooltip={collapsed ? "Expand" : "Collapse"}>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+				<path d="M12 4v16M4 12h16" />
 			</svg>
 		</button>
+	</div>
 </div>
 
 
@@ -262,11 +279,11 @@
 		top: 1rem;
 		right: 1rem;
 		display: flex;
-		gap: 0.2rem;
+		gap: 0.35rem;
 		align-items: center;
 		background: var(--toolbar-bg, rgba(12, 12, 18, 0.5));
 		backdrop-filter: blur(12px);
-		padding: 0.3rem;
+		padding: 0.35rem;
 		border-radius: 10px;
 		border: 1px solid var(--toolbar-border, rgba(255, 255, 255, 0.08));
 		z-index: 100;
@@ -274,43 +291,65 @@
 	}
 
 	.controls.collapsed {
-		padding: 0.25rem;
+		padding: 0.35rem;
 		gap: 0;
 	}
 
-	/* Hide all buttons except collapse when collapsed */
-	.controls.collapsed .control-btn:not(.collapse-btn),
-	.controls.collapsed .control-group {
+	/* Button groups - shared background container */
+	.button-group {
+		display: flex;
+		gap: 0;
+		align-items: center;
+		background: var(--group-bg, rgba(255, 255, 255, 0.04));
+		padding: 0.2rem 0.35rem;
+		border-radius: 8px;
+		border: 1px solid var(--group-border, rgba(255, 255, 255, 0.06));
+		transition: background 0.15s, border-color 0.15s;
+	}
+
+	.button-group:hover {
+		background: var(--group-bg-hover, rgba(255, 255, 255, 0.06));
+		border-color: var(--group-border-hover, rgba(255, 255, 255, 0.1));
+	}
+
+	/* Hide all button groups except collapse-group when collapsed */
+	.controls.collapsed .button-group:not(.collapse-group) {
 		opacity: 0;
 		max-width: 0;
 		max-height: 0;
 		padding: 0;
 		margin: 0;
+		border-width: 0;
 		overflow: hidden;
 		pointer-events: none;
 	}
 
-	/* Animate buttons appearing/disappearing */
+	/* Animate button groups appearing/disappearing */
+	.button-group {
+		transition: opacity 0.2s ease, max-width 0.2s ease, max-height 0.2s ease, padding 0.2s ease, margin 0.2s ease, border-width 0.2s ease, background 0.15s;
+		max-width: 200px;
+		max-height: 50px;
+	}
+
 	.control-btn:not(.collapse-btn),
 	.control-group {
-		transition: opacity 0.2s ease, max-width 0.2s ease, max-height 0.2s ease;
 		max-width: 50px;
 		max-height: 50px;
 	}
 
 	.control-btn {
-		width: 32px;
-		height: 32px;
+		width: 26px;
+		height: 26px;
 		border: none;
 		outline: none;
-		background: var(--btn-bg, rgba(255, 255, 255, 0.04));
+		background: transparent;
 		color: var(--ui-text, #888);
 		cursor: pointer;
-		border-radius: 6px;
+		border-radius: 4px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: all 0.15s;
+		transition: color 0.15s;
 		-webkit-tap-highlight-color: transparent;
 	}
 
@@ -323,7 +362,6 @@
 	}
 
 	.control-btn:hover:not(:disabled) {
-		background: var(--btn-bg-hover, rgba(255, 255, 255, 0.1));
 		color: var(--ui-text-hover, #fff);
 	}
 
@@ -333,23 +371,19 @@
 	}
 
 	.control-btn.primary {
-		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
 		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.control-btn.primary:hover {
-		background: var(--ui-accent-bg-hover, rgba(45, 212, 191, 0.25));
-		filter: brightness(1.1);
+		filter: brightness(1.2);
 	}
 
 	.control-btn.active {
-		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
 		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.control-btn.active:hover:not(:disabled) {
-		background: var(--ui-accent-bg-hover, rgba(45, 212, 191, 0.25));
-		color: var(--ui-accent, #2dd4bf);
+		filter: brightness(1.2);
 	}
 
 	.control-btn svg {
@@ -357,23 +391,55 @@
 		height: 16px;
 	}
 
-	.collapse-btn {
-		opacity: 0.6;
+	/* Collapse group - same as button-group but invisible and square */
+	.button-group.collapse-group {
 		background: transparent;
+		border-color: transparent;
+		/* Make it square */
+		padding: 0.25rem;
+		width: 36px;
+		height: 36px;
+		flex-shrink: 0;
+		justify-content: center;
+	}
+
+	.button-group.collapse-group:hover {
+		background: transparent;
+		border-color: transparent;
+	}
+
+	/* Larger icon for collapse button */
+	.collapse-btn svg {
+		width: 22px;
+		height: 22px;
+	}
+
+	/* Keep collapse-group visible when collapsed, reset margin/gap effects */
+	.controls.collapsed .button-group.collapse-group {
+		opacity: 1;
+		max-width: none;
+		max-height: none;
+		padding: 0.25rem;
+		margin: 0;
+		pointer-events: auto;
+		overflow: visible;
+	}
+
+	.collapse-btn {
+		opacity: 0.7;
 	}
 
 	.collapse-btn:hover {
 		opacity: 1;
-		background: var(--btn-bg-hover, rgba(255, 255, 255, 0.08));
 	}
 
 	.collapse-btn svg {
 		transition: transform 0.2s ease;
 	}
 
-	/* Desktop: arrow points left when collapsed (expand to left), right when expanded */
-	.controls.collapsed .collapse-btn svg {
-		transform: rotate(180deg);
+	/* Rotate + to × when expanded (speed dial effect) */
+	.collapse-btn:not(.collapsed) svg {
+		transform: rotate(45deg);
 	}
 
 	.control-group {
@@ -586,21 +652,18 @@
 			padding: 0.2rem;
 		}
 
-		/* Collapse button at bottom - arrow points down (click to collapse) */
-		.collapse-btn {
+		/* Button groups stack vertically on mobile */
+		.button-group {
+			flex-direction: column;
+		}
+
+		/* Collapse group at bottom */
+		.button-group.collapse-group {
 			order: 100; /* Push to end (bottom) */
 		}
 
-		.collapse-btn svg {
-			transform: rotate(90deg); /* Arrow pointing down */
-		}
-
-		/* Expand button arrow points up when collapsed (click to expand upward) */
-		.controls.collapsed .collapse-btn svg {
-			transform: rotate(-90deg); /* Arrow pointing up */
-		}
-
 		/* Mobile collapsed state - hide width/height for vertical layout */
+		.controls.collapsed .button-group,
 		.controls.collapsed .control-btn:not(.collapse-btn),
 		.controls.collapsed .control-group {
 			width: 0;
@@ -608,13 +671,17 @@
 		}
 
 		.control-btn {
-			width: 36px;
-			height: 36px;
+			width: 30px;
+			height: 30px;
 		}
 
 		.control-btn svg {
 			width: 18px;
 			height: 18px;
+		}
+
+		.button-group {
+			padding: 0.25rem 0.4rem;
 		}
 
 		/* Slider popups appear to the left on mobile */

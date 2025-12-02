@@ -306,28 +306,37 @@ const icons = {
 	play: `<svg viewBox="0 0 24 24" fill="currentColor" class="tour-icon">
 		<path d="M8 5.14v14l11-7-11-7z"/>
 	</svg>`,
+	// Pause icon
+	pause: `<svg viewBox="0 0 24 24" fill="currentColor" class="tour-icon">
+		<rect x="6" y="4" width="4" height="16" rx="1"/>
+		<rect x="14" y="4" width="4" height="16" rx="1"/>
+	</svg>`,
+	// Step icon
+	step: `<svg viewBox="0 0 24 24" fill="currentColor" class="tour-icon">
+		<path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2V6z"/>
+	</svg>`,
 	// Clock/speed icon
 	clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
 		<circle cx="12" cy="12" r="10"/>
 		<path d="M12 6v6l4 2"/>
 	</svg>`,
 	// Brush icon
-	brush: `<svg viewBox="0 0 24 24" fill="currentColor" class="tour-icon">
-		<circle cx="12" cy="12" r="6"/>
+	brush: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
+		<path d="M18.37 2.63L14 7l-1.59-1.59a2 2 0 00-2.82 0L8 7l9 9 1.59-1.59a2 2 0 000-2.82L17 10l4.37-4.37a2.12 2.12 0 10-3-3z"/>
+		<path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-10"/>
 	</svg>`,
-	// Initialize/refresh icon
-	refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
-		<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+	// Initialize/dice icon
+	seed: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
+		<rect x="4" y="4" width="16" height="16" rx="2"/>
+		<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>
+		<circle cx="16" cy="8" r="1.5" fill="currentColor" stroke="none"/>
+		<circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+		<circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none"/>
+		<circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none"/>
 	</svg>`,
-	// Rules/grid icon
-	rules: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
-		<rect x="4" y="4" width="16" height="16" rx="1"/>
-		<line x1="4" y1="9.33" x2="20" y2="9.33"/>
-		<line x1="4" y1="14.66" x2="20" y2="14.66"/>
-		<line x1="9.33" y1="4" x2="9.33" y2="20"/>
-		<line x1="14.66" y1="4" x2="14.66" y2="20"/>
-		<rect x="10.33" y="5" width="3.33" height="3.33" fill="currentColor" stroke="none"/>
-		<rect x="15.66" y="10.33" width="3.33" height="3.33" fill="currentColor" stroke="none"/>
+	// Rules/function icon (bold italic f)
+	rules: `<svg viewBox="0 0 24 24" fill="currentColor" class="tour-icon">
+		<path d="M16.5 3C14 3 12.5 4.5 11.8 7L10.5 11H7.5C7 11 6.5 11.4 6.5 12s.5 1 1 1h2.3l-1.6 5.5C7.7 20 6.8 21 5.5 21c-.5 0-.9-.1-1.2-.3-.4-.2-.9-.1-1.1.3-.2.4-.1.9.3 1.1.6.3 1.3.5 2 .5 2.5 0 4-1.5 4.8-4.2L12 13h3.5c.5 0 1-.4 1-1s-.5-1-1-1h-2.8l1.1-3.5C14.3 5.8 15.2 5 16.5 5c.4 0 .8.1 1.1.2.4.2.9 0 1.1-.4.2-.4 0-.9-.4-1.1-.6-.4-1.4-.7-2.3-.7z"/>
 	</svg>`,
 	// Settings/tuner icon
 	settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
@@ -361,8 +370,21 @@ const icons = {
 	camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
 		<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z"/>
 		<circle cx="12" cy="13" r="4"/>
+	</svg>`,
+	// Fit to screen icon
+	fit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
+		<path d="M4 14v4a2 2 0 002 2h4"/>
+		<path d="M20 14v4a2 2 0 01-2 2h-4"/>
+		<path d="M4 10V6a2 2 0 012-2h4"/>
+		<path d="M20 10V6a2 2 0 00-2-2h-4"/>
 	</svg>`
 };
+
+// Create inline icon for tour descriptions (smaller, inline)
+function inlineIcon(iconSvg: string, label: string): string {
+	const smallIcon = iconSvg.replace('class="tour-icon"', 'class="tour-icon-inline"');
+	return `<span class="tour-inline-item">${smallIcon}<span>${label}</span></span>`;
+}
 
 // Helper to create title with icon
 function titleWithIcon(icon: string, text: string): string {
@@ -380,7 +402,18 @@ function getWelcomeContent(): string {
 	`;
 }
 
-// Tour step definitions - buttons in order from left to right (desktop) or top to bottom (mobile)
+// Create description with icon list for groups
+function createGroupDescription(items: Array<{ icon: string; label: string; shortcut?: string }>, intro?: string, mobile?: boolean): string {
+	const itemsHtml = items.map(item => {
+		const shortcutText = !mobile && item.shortcut ? ` (${item.shortcut})` : '';
+		return inlineIcon(item.icon, `${item.label}${shortcutText}`);
+	}).join('');
+	
+	const introHtml = intro ? `<p class="tour-group-intro">${intro}</p>` : '';
+	return `${introHtml}<div class="tour-icon-list">${itemsHtml}</div>`;
+}
+
+// Tour step definitions - now grouped by function
 function getTourSteps(): DriveStep[] {
 	const mobile = isMobile();
 	const popoverSide = mobile ? 'left' : 'bottom';
@@ -407,147 +440,63 @@ function getTourSteps(): DriveStep[] {
 				align: 'center'
 			}
 		},
-		// 3. Play/Pause (first button)
+		// 3. Playback group
 		{
-			element: '#tour-play-btn',
+			element: '#tour-playback-group',
 			popover: {
-				title: titleWithIcon(icons.play, 'Play / Pause'),
-				description: mobile
-					? 'Start or stop the simulation. Watch cells evolve according to the current rule.'
-					: 'Start or stop the simulation (Space). Watch cells evolve according to the current rule.',
+				title: titleWithIcon(icons.play, 'Playback Controls'),
+				description: createGroupDescription([
+					{ icon: icons.play, label: 'Play/Pause', shortcut: 'Space' },
+					{ icon: icons.step, label: 'Step forward', shortcut: 'S' },
+					{ icon: icons.clock, label: 'Adjust speed', shortcut: '< >' }
+				], 'Control the simulation timing.', mobile),
 				side: popoverSide,
 				align: 'center'
 			}
 		},
-		// 4. Step
+		// 4. Editing group
 		{
-			element: '#tour-step-btn',
+			element: '#tour-editing-group',
 			popover: {
-				title: titleWithIcon(icons.play, 'Step Forward'),
-				description: mobile
-					? 'Advance the simulation one generation at a time. Great for studying patterns frame by frame.'
-					: 'Advance by one generation (S). Great for studying patterns frame by frame.',
+				title: titleWithIcon(icons.rules, 'Editing Tools'),
+				description: createGroupDescription([
+					{ icon: icons.rules, label: 'Edit rules', shortcut: 'E' },
+					{ icon: icons.seed, label: 'Initialize grid', shortcut: 'I' },
+					{ icon: icons.brush, label: 'Brush tool', shortcut: '[ ]' },
+					{ icon: icons.trash, label: 'Clear grid', shortcut: 'D' }
+				], 'Modify rules, patterns, and draw cells.', mobile),
 				side: popoverSide,
 				align: 'center'
 			}
 		},
-		// 5. Speed control
+		// 5. Camera group
 		{
-			element: '#tour-speed-btn',
+			element: '#tour-camera-group',
 			popover: {
-				title: titleWithIcon(icons.clock, 'Speed Control'),
-				description: mobile
-					? 'Tap to adjust simulation speed from 1 to 120 fps.'
-					: 'Adjust simulation speed (< > keys). Click to open a slider.',
+				title: titleWithIcon(icons.camera, 'View Controls'),
+				description: createGroupDescription([
+					{ icon: icons.camera, label: 'Take screenshot' },
+					{ icon: icons.fit, label: 'Fit to screen', shortcut: 'F' }
+				], 'Capture and navigate the view.', mobile),
 				side: popoverSide,
 				align: 'center'
 			}
 		},
-		// 6. Rules editor
+		// 6. Info group
 		{
-			element: '#tour-rules-btn',
+			element: '#tour-info-group',
 			popover: {
-				title: titleWithIcon(icons.rules, 'Rule Editor'),
-				description: mobile
-					? 'Change the rules! Choose from 50+ presets like Star Wars, Day & Night, or create your own with different neighborhoods.'
-					: 'Change the rules (E)! Choose from 50+ presets, search by name, filter by category, or create your own with different neighborhoods.',
+				title: titleWithIcon(icons.settings, 'Settings & Help'),
+				description: createGroupDescription([
+					{ icon: icons.help, label: 'Help & shortcuts', shortcut: '?' },
+					{ icon: icons.settings, label: 'Settings', shortcut: 'T for theme' },
+					{ icon: icons.heart, label: 'About' }
+				], 'Customize appearance and get help.', mobile),
 				side: popoverSide,
 				align: 'center'
 			}
 		},
-		// 7. Brush tool
-		{
-			element: '#tour-brush-btn',
-			popover: {
-				title: titleWithIcon(icons.brush, 'Brush Tool'),
-				description: mobile
-					? 'Tap to switch between draw and erase modes, and adjust brush size.'
-					: 'Adjust brush size ([ ] keys) and switch between draw and erase modes.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 8. Clear
-		{
-			element: '#tour-clear-btn',
-			popover: {
-				title: titleWithIcon(icons.trash, 'Clear Grid'),
-				description: mobile
-					? 'Wipe the canvas clean and start fresh.'
-					: 'Wipe the canvas clean (D). Start fresh with a blank grid.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 9. Initialize
-		{
-			element: '#tour-init-btn',
-			popover: {
-				title: titleWithIcon(icons.refresh, 'Initialize'),
-				description: mobile
-					? 'Load patterns like gliders, spaceships, and oscillators. Enable auto-seeding to keep the simulation alive.'
-					: 'Load patterns (I) like gliders, spaceships, and oscillators. Enable auto-seeding to keep the simulation alive forever.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 10. Fit to screen
-		{
-			element: '#tour-fit-btn',
-			popover: {
-				title: titleWithIcon(icons.canvas, 'Fit to Screen'),
-				description: mobile
-					? 'Reset the view to show the entire grid centered on screen.'
-					: 'Reset the view (F) to show the entire grid centered on screen.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 11. Screenshot
-		{
-			element: '#tour-screenshot-btn',
-			popover: {
-				title: titleWithIcon(icons.camera, 'Screenshot'),
-				description: 'Capture and save the current canvas as a PNG image.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 12. Help button
-		{
-			element: '#tour-help-btn',
-			popover: {
-				title: titleWithIcon(icons.help, 'Help'),
-				description: mobile 
-					? 'View touch controls and tips. Restart this tour anytime from here.'
-					: 'View all keyboard shortcuts (?) and tips. Restart this tour anytime from here.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 13. Settings
-		{
-			element: '#tour-settings-btn',
-			popover: {
-				title: titleWithIcon(icons.settings, 'Settings'),
-				description: mobile
-					? 'Switch between dark/light themes, choose colors, adjust grid size, and set edge wrapping.'
-					: 'Switch themes (T), cycle colors (C), adjust grid size, and set edge wrapping behavior.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 14. About
-		{
-			element: '#tour-about-btn',
-			popover: {
-				title: titleWithIcon(icons.heart, 'About'),
-				description: 'Learn more about Games of Life, see quick start tips, and access the source code.',
-				side: popoverSide,
-				align: 'center'
-			}
-		},
-		// 15. Final step
+		// 7. Final step
 		{
 			popover: {
 				title: titleWithIcon(icons.check, 'Ready to Explore!'),
@@ -581,9 +530,8 @@ export function createTour(options?: {
 		animate: true,
 		smoothScroll: true,
 		allowClose: true,
-		overlayClickNext: false,
-		stagePadding: 2,
-		stageRadius: 6,
+		stagePadding: 0,
+		stageRadius: 8,
 		popoverClass: `gol-tour-popover ${isLight ? 'light-theme' : 'dark-theme'}`,
 		overlayColor: isLight ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.7)',
 		steps: getTourSteps(),
@@ -749,6 +697,39 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 			fill: ${accentColor} !important;
 		}
 		
+		/* Inline icons for group descriptions */
+		.tour-icon-inline {
+			width: 16px !important;
+			height: 16px !important;
+			flex-shrink: 0 !important;
+			color: ${accentColor} !important;
+		}
+		
+		.tour-group-intro {
+			margin: 0 0 0.6rem 0 !important;
+			color: ${mutedColor} !important;
+			font-size: 0.85rem !important;
+			line-height: 1.4 !important;
+		}
+		
+		.tour-icon-list {
+			display: flex !important;
+			flex-direction: column !important;
+			gap: 0.4rem !important;
+		}
+		
+		.tour-inline-item {
+			display: flex !important;
+			align-items: center !important;
+			gap: 0.5rem !important;
+			color: ${textColor} !important;
+			font-size: 0.8rem !important;
+		}
+		
+		.tour-inline-item span {
+			color: ${mutedColor} !important;
+		}
+		
 		/* Welcome mini canvas */
 		.tour-welcome-content {
 			display: flex !important;
@@ -795,6 +776,19 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 			.tour-icon-heart {
 				width: 20px !important;
 				height: 20px !important;
+			}
+			
+			.tour-icon-inline {
+				width: 14px !important;
+				height: 14px !important;
+			}
+			
+			.tour-inline-item {
+				font-size: 0.75rem !important;
+			}
+			
+			.tour-group-intro {
+				font-size: 0.8rem !important;
 			}
 		}
 	`;

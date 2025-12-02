@@ -791,7 +791,7 @@ export const RULE_PRESETS: CARule[] = [
 		density: 0.3
 	},
 	{
-		name: 'Hex Neo',
+		name: 'Hex Neo Brain',
 		birthMask: 0b0001100, // 2, 3
 		surviveMask: 0b0101100, // 2, 3, 5
 		numStates: 22,
@@ -800,6 +800,17 @@ export const RULE_PRESETS: CARule[] = [
 		category: 'artistic',
 		description: 'Beautiful long-trail patterns with mesmerizing flow',
 		density: 0.25
+	},
+	{
+		name: 'Hex Neo Slime Mold',
+		birthMask: 0b0000100, // 2
+		surviveMask: 0b0001100, // 2, 3
+		numStates: 32,
+		ruleString: 'B2/S23/C32',
+		neighborhood: 'hexagonal',
+		category: 'artistic',
+		description: 'Organic slime mold-like growth with long colorful trails',
+		density: 0.2
 	}
 ];
 
@@ -811,10 +822,10 @@ export function getRuleByName(name: string): CARule | undefined {
 }
 
 /**
- * Get the default rule (Hex Neo)
+ * Get the default rule (Hex Neo Slime Mold)
  */
 export function getDefaultRule(): CARule {
-	return getRuleByName('Hex Neo') || RULE_PRESETS[0];
+	return getRuleByName('Hex Neo Slime Mold') || RULE_PRESETS[0];
 }
 
 /**

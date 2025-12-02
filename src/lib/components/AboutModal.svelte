@@ -19,7 +19,22 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && onclose()}>
+<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && onclose()} onwheel={(e) => {
+	// Only forward wheel events if scrolling on the backdrop itself (not inside modal content)
+	if (e.target !== e.currentTarget) return;
+	
+	// Forward wheel events to the canvas for zooming while modal is open
+	const canvas = document.querySelector('canvas');
+	if (canvas) {
+		canvas.dispatchEvent(new WheelEvent('wheel', {
+			deltaY: e.deltaY,
+			deltaX: e.deltaX,
+			clientX: e.clientX,
+			clientY: e.clientY,
+			bubbles: true
+		}));
+	}
+}}>
 	<div class="modal">
 		<div class="header">
 			<div class="logo">

@@ -25,6 +25,10 @@
 	let { onclose, onrulechange }: Props = $props();
 
 	const simState = getSimulationState();
+	
+	// Store the original rule when editor opens, for reverting on cancel
+	const originalRule: CARule = { ...simState.currentRule };
+	const originalNeighborhood: NeighborhoodType = originalRule.neighborhood ?? 'moore';
 
 	const PREVIEW_SIZE_X = 20;
 	// For hexagonal grids, rows are visually compressed by sqrt(3)/2
@@ -522,6 +526,9 @@
 		if (numStates > 2) ruleString += `/C${numStates}`;
 		selectedPreset = RULE_PRESETS.findIndex((r) => r.ruleString === ruleString);
 		error = '';
+		
+		// Apply changes to canvas immediately (live preview)
+		applyToCanvas();
 	}
 
 	function selectPreset(index: number) {
@@ -537,6 +544,9 @@
 		error = '';
 		randomizePreview();
 		dropdownOpen = false;
+		
+		// Apply changes to canvas immediately (live preview)
+		applyToCanvas();
 	}
 
 	function getFilteredRules(filter: string) {
@@ -598,14 +608,18 @@
 			numStates = parsed.numStates;
 			selectedPreset = RULE_PRESETS.findIndex((r) => r.ruleString === parsed.ruleString);
 			error = '';
+			// Apply changes to canvas immediately (live preview)
+			applyToCanvas();
 		} else {
 			error = 'Invalid';
 		}
 	}
 
-	function applyRule() {
+	// Apply current settings to the canvas immediately (live preview)
+	function applyToCanvas() {
 		const parsed = parseRule(ruleString);
-		if (!parsed) { error = 'Invalid rule'; return; }
+		if (!parsed) return; // Don't apply invalid rules
+		
 		const preset = RULE_PRESETS.find((r) => r.ruleString === parsed.ruleString);
 		const rule: CARule = { 
 			...parsed, 
@@ -615,8 +629,29 @@
 			description: preset?.description,
 			density: preset?.density
 		};
+		
 		simState.currentRule = rule;
-		onrulechange();
+		onrulechange(); // This will reset canvas only if neighborhood changed
+	}
+	
+	// Called when user clicks the apply/checkmark button - just close, changes are already applied
+	function applyRule() {
+		const parsed = parseRule(ruleString);
+		if (!parsed) { error = 'Invalid rule'; return; }
+		// Changes are already applied via live preview, just close
+		onclose();
+	}
+	
+	// Called when user clicks the X button - revert to original rule
+	function cancelAndClose() {
+		// Revert to the original rule
+		simState.currentRule = originalRule;
+		// If neighborhood changed during editing, need to reset canvas back
+		if (neighborhood !== originalNeighborhood) {
+			onrulechange();
+		} else {
+			onrulechange(); // Still need to apply the reverted rule
+		}
 		onclose();
 	}
 
@@ -647,30 +682,41 @@
 	const neighborNumbers = $derived(Array.from({ length: maxNeighbors + 1 }, (_, i) => i));
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && cancelAndClose()} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && onclose()}>
+<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && cancelAndClose()} onwheel={(e) => {
+	// Only forward wheel events if scrolling on the backdrop itself (not inside modal content)
+	if (e.target !== e.currentTarget) return;
+	
+	// Forward wheel events to the canvas for zooming while modal is open
+	const canvas = document.querySelector('canvas');
+	if (canvas) {
+		canvas.dispatchEvent(new WheelEvent('wheel', {
+			deltaY: e.deltaY,
+			deltaX: e.deltaX,
+			clientX: e.clientX,
+			clientY: e.clientY,
+			bubbles: true
+		}));
+	}
+}}>
 	<div class="editor">
-		<!-- Row 1: Title + Close -->
+		<!-- Row 1: Title + Apply + Close -->
 		<div class="header">
 			<span class="title">
-				<svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<!-- 3x3 grid outline -->
-					<rect x="4" y="4" width="16" height="16" rx="1" />
-					<!-- Grid lines -->
-					<line x1="4" y1="9.33" x2="20" y2="9.33" />
-					<line x1="4" y1="14.66" x2="20" y2="14.66" />
-					<line x1="9.33" y1="4" x2="9.33" y2="20" />
-					<line x1="14.66" y1="4" x2="14.66" y2="20" />
-					<!-- A few filled cells - like a glider pattern -->
-					<rect x="10.33" y="5" width="3.33" height="3.33" fill="currentColor" stroke="none" />
-					<rect x="15.66" y="10.33" width="3.33" height="3.33" fill="currentColor" stroke="none" />
-					<rect x="5" y="15.66" width="3.33" height="3.33" fill="currentColor" stroke="none" />
+				<svg class="header-icon" viewBox="0 0 24 24" fill="currentColor">
+					<!-- Bold italic f -->
+					<path d="M16.5 3C14 3 12.5 4.5 11.8 7L10.5 11H7.5C7 11 6.5 11.4 6.5 12s.5 1 1 1h2.3l-1.6 5.5C7.7 20 6.8 21 5.5 21c-.5 0-.9-.1-1.2-.3-.4-.2-.9-.1-1.1.3-.2.4-.1.9.3 1.1.6.3 1.3.5 2 .5 2.5 0 4-1.5 4.8-4.2L12 13h3.5c.5 0 1-.4 1-1s-.5-1-1-1h-2.8l1.1-3.5C14.3 5.8 15.2 5 16.5 5c.4 0 .8.1 1.1.2.4.2.9 0 1.1-.4.2-.4 0-.9-.4-1.1-.6-.4-1.4-.7-2.3-.7z" />
 				</svg>
 				Rule Editor
 			</span>
-			<button class="close-btn" onclick={onclose} aria-label="Close">✕</button>
+			<button class="apply-btn" onclick={applyRule} title="Apply rule">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+					<path d="M5 12l5 5L20 7" />
+				</svg>
+			</button>
+			<button class="close-btn" onclick={cancelAndClose} aria-label="Close">✕</button>
 		</div>
 
 		<!-- Row 2: Category, Preset, Neighborhood dropdowns -->
@@ -892,7 +938,7 @@
 			</div>
 		</div>
 
-		<!-- Footer: States + Rule String + Actions -->
+		<!-- Footer: States + Rule String -->
 		<div class="footer">
 			<div class="states">
 				<span class="foot-label">States</span>
@@ -902,10 +948,6 @@
 			<div class="rule-input">
 				<span class="foot-label">Rule</span>
 				<input type="text" value={ruleString} oninput={handleRuleStringChange} class:error={!!error} />
-			</div>
-			<div class="actions">
-				<button class="btn cancel" onclick={onclose}>Cancel</button>
-				<button class="btn apply" onclick={applyRule}>Apply</button>
 			</div>
 		</div>
 	</div>
@@ -957,6 +999,32 @@
 		flex-shrink: 0;
 	}
 
+	.apply-btn {
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
+		border: 1px solid var(--ui-accent-border, rgba(45, 212, 191, 0.4));
+		color: var(--ui-accent, #2dd4bf);
+		cursor: pointer;
+		border-radius: 6px;
+		margin-left: auto;
+		transition: all 0.15s;
+	}
+
+	.apply-btn:hover {
+		background: var(--ui-accent-bg-hover, rgba(45, 212, 191, 0.25));
+		border-color: var(--ui-accent, #2dd4bf);
+		transform: scale(1.05);
+	}
+
+	.apply-btn svg {
+		width: 16px;
+		height: 16px;
+	}
+
 	.close-btn {
 		width: 24px;
 		height: 24px;
@@ -969,6 +1037,7 @@
 		font-size: 0.9rem;
 		cursor: pointer;
 		border-radius: 4px;
+		margin-left: 0.3rem;
 	}
 
 	.close-btn:hover { 
@@ -1286,7 +1355,8 @@
 	/* Main row */
 	.main-row {
 		display: flex;
-		justify-content: space-between;
+		justify-content: center;
+		gap: 1.2rem;
 		padding: 0.3rem 0;
 		flex-wrap: nowrap; /* Never wrap - scale down instead */
 	}
@@ -1296,8 +1366,7 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 0.2rem;
-		flex-shrink: 1;
-		min-width: 0;
+		flex-shrink: 0;
 	}
 
 	.label {
@@ -1317,15 +1386,13 @@
 		margin-bottom: 0.15rem;
 	}
 
-	/* Grid - 108px default, scales down on mobile */
+	/* Grid - fixed 108px to match preview canvas */
 	.grid {
 		display: grid;
 		gap: 2px;
 		width: 108px;
 		height: 108px;
-		flex-shrink: 1;
-		min-width: 60px;
-		min-height: 60px;
+		flex-shrink: 0;
 	}
 
 	/* Moore: 9 cells in 3x3, each ~35px */
@@ -1347,56 +1414,79 @@
 	}
 
 	/* Hexagonal: 7 cells in honeycomb pattern (0-6)
-	   Visual layout:
+	   Visual layout (pointy-top hexagons):
 	        1   2
 	      3   0   4
 	        5   6
+	   Using absolute positioning for precise honeycomb layout
 	*/
 	.grid.grid-hexagonal {
-		display: grid;
-		grid-template-columns: repeat(6, 1fr);
-		grid-template-rows: repeat(3, 1fr);
-		gap: 2px;
+		display: block;
+		position: relative;
 		width: 108px;
-		height: 90px;
+		height: 108px;
 	}
 
-	/* Position cells in honeycomb pattern - 0 is center, 1-6 around it */
-	.grid.grid-hexagonal .cell:nth-child(1) { /* 0 - center */
-		grid-column: 3 / 5;
-		grid-row: 2;
-	}
-	.grid.grid-hexagonal .cell:nth-child(2) { /* 1 - top left */
-		grid-column: 2 / 4;
-		grid-row: 1;
-	}
-	.grid.grid-hexagonal .cell:nth-child(3) { /* 2 - top right */
-		grid-column: 4 / 6;
-		grid-row: 1;
-	}
-	.grid.grid-hexagonal .cell:nth-child(4) { /* 3 - left */
-		grid-column: 1 / 3;
-		grid-row: 2;
-	}
-	.grid.grid-hexagonal .cell:nth-child(5) { /* 4 - right */
-		grid-column: 5 / 7;
-		grid-row: 2;
-	}
-	.grid.grid-hexagonal .cell:nth-child(6) { /* 5 - bottom left */
-		grid-column: 2 / 4;
-		grid-row: 3;
-	}
-	.grid.grid-hexagonal .cell:nth-child(7) { /* 6 - bottom right */
-		grid-column: 4 / 6;
-		grid-row: 3;
-	}
-
-	/* Hexagonal cells are rounded to look more hex-like */
+	/* Hexagonal cells - smaller with rounded hexagon shape */
 	.grid.grid-hexagonal .cell {
-		border-radius: 50%;
-		aspect-ratio: 1;
-		min-width: 24px;
-		min-height: 24px;
+		position: absolute;
+		width: 28px;
+		height: 32px;
+		/* Rounded pointy-top hexagon using clip-path with inset corners */
+		clip-path: polygon(
+			50% 2px,           /* top - slightly inset for rounding effect */
+			calc(100% - 2px) 27%,   /* top-right */
+			calc(100% - 2px) 73%,   /* bottom-right */
+			50% calc(100% - 2px),   /* bottom */
+			2px 73%,           /* bottom-left */
+			2px 27%            /* top-left */
+		);
+		border-radius: 0;
+		border: none;
+	}
+
+	/* Honeycomb positioning - tightly packed with equal spacing
+	   Cell size: 28x32, spacing: ~4px between cells
+	   Horizontal offset for odd rows: 16px (half cell width)
+	*/
+	/* Center cell (0) */
+	.grid.grid-hexagonal .cell:nth-child(1) {
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+	}
+	/* Top row: 1 (left) and 2 (right) */
+	.grid.grid-hexagonal .cell:nth-child(2) {
+		left: calc(50% - 18px);
+		top: 10px;
+		transform: translateX(-50%);
+	}
+	.grid.grid-hexagonal .cell:nth-child(3) {
+		left: calc(50% + 18px);
+		top: 10px;
+		transform: translateX(-50%);
+	}
+	/* Middle row: 3 (left) and 4 (right) */
+	.grid.grid-hexagonal .cell:nth-child(4) {
+		left: 8px;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+	.grid.grid-hexagonal .cell:nth-child(5) {
+		right: 8px;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+	/* Bottom row: 5 (left) and 6 (right) */
+	.grid.grid-hexagonal .cell:nth-child(6) {
+		left: calc(50% - 18px);
+		bottom: 10px;
+		transform: translateX(-50%);
+	}
+	.grid.grid-hexagonal .cell:nth-child(7) {
+		left: calc(50% + 18px);
+		bottom: 10px;
+		transform: translateX(-50%);
 	}
 
 	.cell {
@@ -1440,8 +1530,7 @@
 		display: flex;
 		gap: 0.4rem;
 		align-items: stretch;
-		flex-shrink: 1;
-		min-width: 0;
+		flex-shrink: 0;
 	}
 
 	.canvas {
@@ -1449,9 +1538,7 @@
 		height: 108px;
 		border-radius: 5px;
 		background: var(--ui-canvas-bg, #0a0a0f);
-		flex-shrink: 1;
-		min-width: 60px;
-		min-height: 60px;
+		flex-shrink: 0;
 	}
 
 	.preview-btns {
@@ -1570,10 +1657,12 @@
 	.rule-input {
 		display: flex;
 		align-items: center;
+		flex: 1;
 	}
 
 	.rule-input input {
-		width: 90px;
+		flex: 1;
+		min-width: 120px;
 		padding: 0.25rem 0.4rem;
 		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
@@ -1589,40 +1678,6 @@
 	}
 
 	.rule-input input.error { border-color: #ef4444; }
-
-	.actions {
-		display: flex;
-		gap: 0.4rem;
-		margin-left: auto;
-	}
-
-	.btn {
-		padding: 0.35rem 0.7rem;
-		border-radius: 5px;
-		font-size: 0.7rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-
-	.btn.cancel {
-		background: transparent;
-		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
-		color: var(--ui-text, #888);
-	}
-
-	.btn.cancel:hover { 
-		background: var(--ui-border, rgba(255, 255, 255, 0.05)); 
-		color: var(--ui-text-hover, #e0e0e0); 
-	}
-
-	.btn.apply {
-		background: var(--ui-accent, #2dd4bf);
-		border: none;
-		color: var(--ui-apply-text, #0a0a0f);
-	}
-
-	.btn.apply:hover { filter: brightness(1.15); }
 
 	/* Mobile adjustments */
 	@media (max-width: 540px) {
@@ -1679,23 +1734,58 @@
 		}
 
 		.main-row {
-			justify-content: space-between;
+			justify-content: center;
+			gap: 0.5rem;
 		}
 
-		/* Scale down grids and preview on mobile */
+		/* Scale down grids and preview on mobile - keep them equal */
 		.grid {
 			width: 80px;
 			height: 80px;
-			min-width: 55px;
-			min-height: 55px;
 			gap: 1px;
+		}
+
+		.grid.grid-hexagonal {
+			width: 80px;
+			height: 80px;
+		}
+
+		.grid.grid-hexagonal .cell {
+			width: 21px;
+			height: 24px;
+		}
+
+		/* Adjust honeycomb positions for mobile */
+		.grid.grid-hexagonal .cell:nth-child(2),
+		.grid.grid-hexagonal .cell:nth-child(3) {
+			top: 8px;
+		}
+		.grid.grid-hexagonal .cell:nth-child(2) {
+			left: calc(50% - 14px);
+		}
+		.grid.grid-hexagonal .cell:nth-child(3) {
+			left: calc(50% + 14px);
+		}
+		.grid.grid-hexagonal .cell:nth-child(4) {
+			left: 6px;
+		}
+		.grid.grid-hexagonal .cell:nth-child(5) {
+			right: 6px;
+		}
+		.grid.grid-hexagonal .cell:nth-child(6),
+		.grid.grid-hexagonal .cell:nth-child(7) {
+			bottom: 8px;
+		}
+		.grid.grid-hexagonal .cell:nth-child(6) {
+			left: calc(50% - 14px);
+		}
+		.grid.grid-hexagonal .cell:nth-child(7) {
+			left: calc(50% + 14px);
 		}
 
 		.canvas {
 			width: 80px;
 			height: 80px;
-			min-width: 55px;
-			min-height: 55px;
 		}
 
 		.cell {
@@ -1718,9 +1808,13 @@
 			gap: 0.4rem;
 		}
 
-		.actions {
-			width: 100%;
-			justify-content: flex-end;
+		.rule-input {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.rule-input input {
+			min-width: 80px;
 		}
 	}
 </style>

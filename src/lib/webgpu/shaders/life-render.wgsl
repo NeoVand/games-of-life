@@ -24,7 +24,7 @@ struct RenderParams {
     brush_y: f32,
     brush_radius: f32,   // Brush radius in cells
     neighborhood: f32,   // 0 = square, 3 = hexagonal
-    _padding: f32,       // Padding for alignment
+    spectrum_mode: f32,  // 0=hueShift, 1=rainbow, 2=warm, 3=cool, 4=monochrome, 5=fire
 }
 
 @group(0) @binding(0) var<uniform> params: RenderParams;
@@ -133,7 +133,7 @@ fn hue_to_rgb(p: f32, q: f32, t_in: f32) -> f32 {
     return p;
 }
 
-// Color palette for cell states
+// Color palette for cell states with spectrum mode support
 fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
     let alive_color = vec3<f32>(params.alive_r, params.alive_g, params.alive_b);
     let bg = get_bg_color();
@@ -152,32 +152,112 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
         return alive_color;
     }
     
-    // Dying states - more distinct color progression
+    // Dying states - apply spectrum mode
     let dying_progress = f32(state - 1u) / f32(num_states - 1u);
-    
-    // Convert alive color to HSL
     let alive_hsl = rgb_to_hsl(alive_color);
+    let mode = i32(params.spectrum_mode);
     
-    // Shift hue more aggressively through a color wheel segment
-    // This creates more visually distinct intermediate states
-    var dying_hue = alive_hsl.x + 0.25 * dying_progress; // Quarter hue rotation
-    if (dying_hue > 1.0) { dying_hue -= 1.0; }
+    var dying_hue: f32;
+    var dying_sat: f32;
+    var dying_light: f32;
     
-    // Keep saturation high initially, then drop off
-    let sat_curve = 1.0 - dying_progress * dying_progress;
-    let dying_sat = alive_hsl.y * max(sat_curve, 0.2);
+    // Light theme: colors should stay saturated and get LIGHTER (toward white bg ~0.95)
+    // Dark theme: colors can desaturate and get darker (toward dark bg ~0.05)
+    let is_light = params.is_light_theme > 0.5;
     
-    // Lightness: stay visible longer, then fade
-    let light_factor = select(
-        1.0 - dying_progress * 0.5, // Dark theme: start bright, gradually dim
-        mix(alive_hsl.z, 0.35, dying_progress * 0.8), // Light theme: move to gray
-        params.is_light_theme > 0.5
-    );
-    let dying_light = select(
-        mix(alive_hsl.z, 0.15, dying_progress * dying_progress),
-        light_factor,
-        params.is_light_theme > 0.5
-    );
+    // Spectrum mode 0: Hue Shift (subtle 25% rotation)
+    if (mode == 0) {
+        dying_hue = alive_hsl.x + 0.25 * dying_progress;
+        if (dying_hue > 1.0) { dying_hue -= 1.0; }
+        if (is_light) {
+            // Light mode: keep saturation high, increase lightness toward white
+            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.3, 0.6);
+            dying_light = mix(alive_hsl.z, 0.92, dying_progress * dying_progress);
+        } else {
+            // Dark mode: can desaturate more, decrease lightness toward dark
+            let sat_curve = 1.0 - dying_progress * dying_progress;
+            dying_sat = alive_hsl.y * max(sat_curve, 0.2);
+            dying_light = mix(alive_hsl.z, 0.12, dying_progress * dying_progress);
+        }
+    }
+    // Spectrum mode 1: Rainbow (full spectrum rotation)
+    else if (mode == 1) {
+        dying_hue = alive_hsl.x + dying_progress; // Full rotation
+        if (dying_hue > 1.0) { dying_hue -= 1.0; }
+        if (is_light) {
+            dying_sat = max(0.8, alive_hsl.y); // Keep very saturated for vivid rainbow
+            dying_light = mix(alive_hsl.z, 0.88, dying_progress * dying_progress);
+        } else {
+            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.4, 0.4);
+            dying_light = mix(alive_hsl.z, 0.15, dying_progress * dying_progress);
+        }
+    }
+    // Spectrum mode 2: Warm (shift toward red/orange)
+    else if (mode == 2) {
+        let target_hue = 0.05; // red-orange
+        let hue_diff = target_hue - alive_hsl.x;
+        var adjusted_diff = hue_diff;
+        if (hue_diff > 0.5) { adjusted_diff = hue_diff - 1.0; }
+        if (hue_diff < -0.5) { adjusted_diff = hue_diff + 1.0; }
+        dying_hue = alive_hsl.x + adjusted_diff * dying_progress;
+        if (dying_hue < 0.0) { dying_hue += 1.0; }
+        if (dying_hue > 1.0) { dying_hue -= 1.0; }
+        if (is_light) {
+            dying_sat = max(0.7, alive_hsl.y * (1.0 - dying_progress * 0.2));
+            dying_light = mix(alive_hsl.z, 0.9, dying_progress * dying_progress);
+        } else {
+            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.3, 0.4);
+            dying_light = mix(alive_hsl.z, 0.1, dying_progress * dying_progress);
+        }
+    }
+    // Spectrum mode 3: Cool (shift toward blue/purple)
+    else if (mode == 3) {
+        let target_hue = 0.7; // blue-purple
+        let hue_diff = target_hue - alive_hsl.x;
+        var adjusted_diff = hue_diff;
+        if (hue_diff > 0.5) { adjusted_diff = hue_diff - 1.0; }
+        if (hue_diff < -0.5) { adjusted_diff = hue_diff + 1.0; }
+        dying_hue = alive_hsl.x + adjusted_diff * dying_progress;
+        if (dying_hue < 0.0) { dying_hue += 1.0; }
+        if (dying_hue > 1.0) { dying_hue -= 1.0; }
+        if (is_light) {
+            dying_sat = max(0.7, alive_hsl.y * (1.0 - dying_progress * 0.2));
+            dying_light = mix(alive_hsl.z, 0.9, dying_progress * dying_progress);
+        } else {
+            dying_sat = alive_hsl.y * max(1.0 - dying_progress * 0.3, 0.4);
+            dying_light = mix(alive_hsl.z, 0.1, dying_progress * dying_progress);
+        }
+    }
+    // Spectrum mode 4: Monochrome (fade without hue change)
+    else if (mode == 4) {
+        dying_hue = alive_hsl.x; // Keep same hue
+        if (is_light) {
+            // Light mode: keep some saturation, fade toward white
+            dying_sat = alive_hsl.y * (1.0 - dying_progress * 0.5);
+            dying_light = mix(alive_hsl.z, 0.93, dying_progress);
+        } else {
+            // Dark mode: desaturate and darken
+            dying_sat = alive_hsl.y * (1.0 - dying_progress * 0.8);
+            dying_light = mix(alive_hsl.z, 0.1, dying_progress);
+        }
+    }
+    // Spectrum mode 5: Fire (orange -> red -> dark/light)
+    else {
+        let fire_progress = dying_progress * dying_progress; // Accelerate toward end
+        if (dying_progress < 0.5) {
+            dying_hue = mix(alive_hsl.x, 0.08, dying_progress * 2.0); // toward orange
+        } else {
+            dying_hue = mix(0.08, 0.0, (dying_progress - 0.5) * 2.0); // toward red
+        }
+        if (dying_hue < 0.0) { dying_hue += 1.0; }
+        if (is_light) {
+            dying_sat = max(0.8 - fire_progress * 0.3, 0.5);
+            dying_light = mix(0.5, 0.9, fire_progress); // bright fire fading to white
+        } else {
+            dying_sat = max(1.0 - fire_progress * 0.3, 0.7);
+            dying_light = mix(0.6, 0.05, fire_progress); // fire fading to black
+        }
+    }
     
     let dying_hsl = vec3<f32>(dying_hue, dying_sat, dying_light);
     let dying_rgb = hsl_to_rgb(dying_hsl);

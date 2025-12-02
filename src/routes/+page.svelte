@@ -86,6 +86,39 @@
 		return `rgba(${Math.round(r * 255 * 0.4 + 80)}, ${Math.round(g * 255 * 0.4 + 80)}, ${Math.round(b * 255 * 0.4 + 80)}, 0.3)`;
 	});
 
+	// Button group backgrounds
+	const groupBg = $derived.by(() => {
+		const [r, g, b] = simState.aliveColor;
+		if (simState.isLightTheme) {
+			return `rgba(${Math.round(r * 255 * 0.05)}, ${Math.round(g * 255 * 0.05)}, ${Math.round(b * 255 * 0.05)}, 0.08)`;
+		}
+		return `rgba(255, 255, 255, 0.04)`;
+	});
+
+	const groupBorder = $derived.by(() => {
+		const [r, g, b] = simState.aliveColor;
+		if (simState.isLightTheme) {
+			return `rgba(${Math.round(r * 255 * 0.1)}, ${Math.round(g * 255 * 0.1)}, ${Math.round(b * 255 * 0.1)}, 0.12)`;
+		}
+		return `rgba(255, 255, 255, 0.06)`;
+	});
+
+	const groupBgHover = $derived.by(() => {
+		const [r, g, b] = simState.aliveColor;
+		if (simState.isLightTheme) {
+			return `rgba(${Math.round(r * 255 * 0.08)}, ${Math.round(g * 255 * 0.08)}, ${Math.round(b * 255 * 0.08)}, 0.12)`;
+		}
+		return `rgba(255, 255, 255, 0.06)`;
+	});
+
+	const groupBorderHover = $derived.by(() => {
+		const [r, g, b] = simState.aliveColor;
+		if (simState.isLightTheme) {
+			return `rgba(${Math.round(r * 255 * 0.15)}, ${Math.round(g * 255 * 0.15)}, ${Math.round(b * 255 * 0.15)}, 0.18)`;
+		}
+		return `rgba(255, 255, 255, 0.1)`;
+	});
+
 	// Update tour styles when theme or color changes
 	function updateTourStyles() {
 		if (!tourStyleElement) {
@@ -294,7 +327,7 @@
 <main 
 	class="app" 
 	class:light-theme={simState.isLightTheme}
-	style="--ui-accent: {accentColor}; --ui-accent-bg: {accentColorBg}; --ui-accent-border: {accentColorBorder}; --ui-accent-bg-hover: {accentColorBgHover}; --toolbar-bg: {toolbarBg}; --toolbar-border: {toolbarBorder}; --btn-bg: {btnBg}; --btn-bg-hover: {btnBgHover}; --btn-bg-active: {btnBgActive};"
+	style="--ui-accent: {accentColor}; --ui-accent-bg: {accentColorBg}; --ui-accent-border: {accentColorBorder}; --ui-accent-bg-hover: {accentColorBgHover}; --toolbar-bg: {toolbarBg}; --toolbar-border: {toolbarBorder}; --btn-bg: {btnBg}; --btn-bg-hover: {btnBgHover}; --btn-bg-active: {btnBgActive}; --group-bg: {groupBg}; --group-border: {groupBorder}; --group-bg-hover: {groupBgHover}; --group-border-hover: {groupBorderHover};"
 >
 	<Canvas bind:this={canvas} />
 

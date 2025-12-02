@@ -2,9 +2,15 @@
 	import { onMount } from 'svelte';
 	import { initWebGPU, type WebGPUContext, type WebGPUError } from '../webgpu/context.js';
 	import { Simulation } from '../webgpu/simulation.js';
-	import { getSimulationState, GRID_SCALES, type GridScale } from '../stores/simulation.svelte.js';
+	import { getSimulationState, GRID_SCALES, type GridScale, type SpectrumMode } from '../stores/simulation.svelte.js';
 
 	const simState = getSimulationState();
+	
+	// Convert spectrum mode string to number for shader
+	function getSpectrumModeIndex(mode: SpectrumMode): number {
+		const modes: SpectrumMode[] = ['hueShift', 'rainbow', 'warm', 'cool', 'monochrome', 'fire'];
+		return modes.indexOf(mode);
+	}
 
 	let canvas: HTMLCanvasElement;
 	let container: HTMLDivElement;
@@ -220,7 +226,7 @@
 			if (timestamp - lastStepTime >= stepInterval) {
 				// Apply continuous seeding if enabled
 				if (simState.seedingEnabled && simState.seedingRate > 0) {
-					simulation.continuousSeed(simState.seedingRate);
+					simulation.continuousSeed(simState.seedingRate, simState.seedPattern, simState.seedAlive);
 				}
 				
 				simulation.step();
@@ -238,7 +244,8 @@
 			brushX: showBrush ? gridMouseX : -1000,
 			brushY: showBrush ? gridMouseY : -1000,
 			brushRadius: showBrush ? simState.brushSize : -1,
-			wrapBoundary: simState.wrapBoundary
+			wrapBoundary: simState.wrapBoundary,
+			spectrumMode: getSpectrumModeIndex(simState.spectrumMode)
 		});
 
 		// Always render

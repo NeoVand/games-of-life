@@ -41,6 +41,20 @@ let gridHeight = $state(256);
 let isLightTheme = $state(false);
 let aliveColor = $state<[number, number, number]>([0.2, 0.9, 0.95]); // Cyan default
 
+// Spectrum modes for multi-state color transitions
+export type SpectrumMode = 'hueShift' | 'rainbow' | 'warm' | 'cool' | 'monochrome' | 'fire';
+
+export const SPECTRUM_MODES: { id: SpectrumMode; name: string; description: string }[] = [
+	{ id: 'hueShift', name: 'Shift', description: 'Subtle hue rotation' },
+	{ id: 'rainbow', name: 'Rainbow', description: 'Full spectrum rotation' },
+	{ id: 'warm', name: 'Warm', description: 'Toward red/orange' },
+	{ id: 'cool', name: 'Cool', description: 'Toward blue/purple' },
+	{ id: 'monochrome', name: 'Mono', description: 'Fade without hue change' },
+	{ id: 'fire', name: 'Fire', description: 'Orange to red to black' }
+];
+
+let spectrumMode = $state<SpectrumMode>('hueShift');
+
 // Color palettes for dark and light themes
 export const DARK_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
 	{ name: 'White', color: [1.0, 1.0, 1.0], hex: '#ffffff' },
@@ -66,9 +80,289 @@ let lastInitCategory = $state('random');
 let lastInitTiling = $state(true);
 let lastInitSpacing = $state(50); // Actual cell spacing on main grid
 
+// Seed pattern definitions - relative coordinates from center (0,0)
+export type SeedPatternId = string; // Allow any pattern ID
+
+export interface SeedPattern {
+	id: string;
+	name: string;
+	cells: [number, number][]; // [dx, dy] offsets from center
+	description: string;
+	hex?: boolean; // If true, this pattern is designed for hexagonal grids
+}
+
+export const SEED_PATTERNS: SeedPattern[] = [
+	{
+		id: 'pixel',
+		name: 'Pixel',
+		cells: [[0, 0]],
+		description: 'Single cell'
+	},
+	{
+		id: 'dot-pair',
+		name: 'Pair',
+		cells: [[0, 0], [1, 0]],
+		description: 'Two adjacent cells'
+	},
+	{
+		id: 'line-h',
+		name: 'Line H',
+		cells: [[-1, 0], [0, 0], [1, 0]],
+		description: 'Horizontal line'
+	},
+	{
+		id: 'line-v',
+		name: 'Line V',
+		cells: [[0, -1], [0, 0], [0, 1]],
+		description: 'Vertical line'
+	},
+	{
+		id: 'cross',
+		name: 'Cross',
+		cells: [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]],
+		description: 'Plus shape'
+	},
+	{
+		id: 'diamond',
+		name: 'Diamond',
+		cells: [[0, -1], [-1, 0], [1, 0], [0, 1]],
+		description: 'Diamond outline'
+	},
+	{
+		id: 'square',
+		name: 'Block',
+		cells: [[0, 0], [1, 0], [0, 1], [1, 1]],
+		description: '2x2 block'
+	},
+	{
+		id: 'corner',
+		name: 'Corner',
+		cells: [[0, 0], [1, 0], [0, 1]],
+		description: 'L-shape'
+	},
+	// 3x3 patterns
+	{
+		id: 'ring',
+		name: 'Ring',
+		cells: [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
+		description: '3x3 ring (hollow)'
+	},
+	{
+		id: 'full-3x3',
+		name: 'Full 3×3',
+		cells: [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
+		description: 'Solid 3x3 block'
+	},
+	{
+		id: 'x-shape',
+		name: 'X',
+		cells: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
+		description: 'X shape'
+	},
+	{
+		id: 'checker-3x3',
+		name: 'Checker',
+		cells: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
+		description: 'Checkerboard 3x3'
+	},
+	// 4x4 patterns
+	{
+		id: 'full-4x4',
+		name: 'Full 4×4',
+		cells: [
+			[-1, -1], [0, -1], [1, -1], [2, -1],
+			[-1, 0], [0, 0], [1, 0], [2, 0],
+			[-1, 1], [0, 1], [1, 1], [2, 1],
+			[-1, 2], [0, 2], [1, 2], [2, 2]
+		],
+		description: 'Solid 4x4 block'
+	},
+	{
+		id: 'ring-4x4',
+		name: 'Ring 4×4',
+		cells: [
+			[-1, -1], [0, -1], [1, -1], [2, -1],
+			[-1, 0], [2, 0],
+			[-1, 1], [2, 1],
+			[-1, 2], [0, 2], [1, 2], [2, 2]
+		],
+		description: '4x4 ring (hollow)'
+	},
+	{
+		id: 'corners-4x4',
+		name: 'Corners',
+		cells: [[-1, -1], [2, -1], [-1, 2], [2, 2]],
+		description: '4x4 corner dots'
+	},
+	{
+		id: 'diagonal',
+		name: 'Diagonal',
+		cells: [[-1, -1], [0, 0], [1, 1], [2, 2]],
+		description: 'Diagonal line'
+	},
+	// More interesting shapes
+	{
+		id: 'h-shape',
+		name: 'H',
+		cells: [[-1, -1], [-1, 0], [-1, 1], [0, 0], [1, -1], [1, 0], [1, 1]],
+		description: 'H letter shape'
+	},
+	{
+		id: 't-shape',
+		name: 'T',
+		cells: [[-1, -1], [0, -1], [1, -1], [0, 0], [0, 1]],
+		description: 'T letter shape'
+	},
+	{
+		id: 'arrow',
+		name: 'Arrow',
+		cells: [[0, -1], [-1, 0], [0, 0], [1, 0], [0, 1], [0, 2]],
+		description: 'Arrow pointing down'
+	},
+	{
+		id: 'glider',
+		name: 'Glider',
+		cells: [[0, -1], [1, 0], [-1, 1], [0, 1], [1, 1]],
+		description: 'Classic glider pattern'
+	}
+];
+
+// Hexagonal seed patterns - using odd-r offset coordinates
+// In hex grids, odd rows are shifted right by 0.5
+// Neighbors for even row (y=0): NW(-1,-1), NE(0,-1), W(-1,0), E(1,0), SW(-1,1), SE(0,1)
+// Neighbors for odd row (y=1): NW(0,-1), NE(1,-1), W(-1,0), E(1,0), SW(0,1), SE(1,1)
+export const SEED_PATTERNS_HEX: SeedPattern[] = [
+	{
+		id: 'hex-pixel',
+		name: 'Pixel',
+		cells: [[0, 0]],
+		description: 'Single cell',
+		hex: true
+	},
+	{
+		id: 'hex-pair',
+		name: 'Pair',
+		cells: [[0, 0], [1, 0]],
+		description: 'Two adjacent cells',
+		hex: true
+	},
+	{
+		id: 'hex-trio-h',
+		name: 'Trio H',
+		cells: [[-1, 0], [0, 0], [1, 0]],
+		description: 'Horizontal trio',
+		hex: true
+	},
+	{
+		id: 'hex-trio-v',
+		name: 'Trio V',
+		cells: [[0, -1], [0, 0], [0, 1]],
+		description: 'Vertical trio',
+		hex: true
+	},
+	{
+		id: 'hex-ring',
+		name: 'Ring',
+		cells: [[-1, -1], [0, -1], [-1, 0], [1, 0], [-1, 1], [0, 1]],
+		description: 'Hexagonal ring (6 neighbors)',
+		hex: true
+	},
+	{
+		id: 'hex-full',
+		name: 'Full Hex',
+		cells: [[0, 0], [-1, -1], [0, -1], [-1, 0], [1, 0], [-1, 1], [0, 1]],
+		description: 'Center + all 6 neighbors',
+		hex: true
+	},
+	{
+		id: 'hex-triangle-up',
+		name: 'Tri Up',
+		cells: [[0, 0], [-1, 1], [0, 1]],
+		description: 'Upward triangle',
+		hex: true
+	},
+	{
+		id: 'hex-triangle-down',
+		name: 'Tri Down',
+		cells: [[-1, -1], [0, -1], [0, 0]],
+		description: 'Downward triangle',
+		hex: true
+	},
+	{
+		id: 'hex-diamond',
+		name: 'Diamond',
+		cells: [[0, -1], [-1, 0], [1, 0], [0, 1]],
+		description: 'Diamond shape',
+		hex: true
+	},
+	{
+		id: 'hex-line-diag',
+		name: 'Diagonal',
+		cells: [[-1, -1], [0, 0], [0, 1]],
+		description: 'Diagonal line',
+		hex: true
+	},
+	{
+		id: 'hex-flower',
+		name: 'Flower',
+		cells: [[0, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [0, -2], [-1, 2], [1, 1]],
+		description: 'Flower pattern',
+		hex: true
+	},
+	{
+		id: 'hex-arrow',
+		name: 'Arrow',
+		cells: [[0, -1], [-1, 0], [0, 0], [1, 0], [0, 1]],
+		description: 'Arrow/cross shape',
+		hex: true
+	},
+	{
+		id: 'hex-wave',
+		name: 'Wave',
+		cells: [[-1, -1], [0, 0], [1, 0], [0, 1], [1, 1]],
+		description: 'Wave pattern',
+		hex: true
+	},
+	{
+		id: 'hex-cluster',
+		name: 'Cluster',
+		cells: [[0, 0], [1, 0], [0, 1], [1, 1]],
+		description: '4-cell cluster',
+		hex: true
+	},
+	{
+		id: 'hex-big-ring',
+		name: 'Big Ring',
+		cells: [
+			[-1, -2], [0, -2],
+			[-2, -1], [1, -1],
+			[-2, 0], [2, 0],
+			[-2, 1], [1, 1],
+			[-1, 2], [0, 2]
+		],
+		description: 'Large hexagonal ring',
+		hex: true
+	},
+	{
+		id: 'hex-star',
+		name: 'Star',
+		cells: [
+			[0, -2],
+			[-1, -1], [1, -1],
+			[-2, 0], [0, 0], [2, 0],
+			[-1, 1], [1, 1],
+			[0, 2]
+		],
+		description: 'Star pattern',
+		hex: true
+	}
+];
+
 // Continuous seeding settings
 let seedingEnabled = $state(true); // Whether continuous seeding is active
 let seedingRate = $state(0.1); // Seeds per 1000 cells per frame (0.01 - 1.0)
+let seedPattern = $state<SeedPatternId>('pixel'); // Current seed pattern
+let seedAlive = $state(true); // true = add alive cells, false = add dead cells (erase)
 
 // Boundary mode
 let wrapBoundary = $state(true); // true = toroidal wrap, false = fixed edges
@@ -162,6 +456,13 @@ export function getSimulationState() {
 			aliveColor = value;
 		},
 
+		get spectrumMode() {
+			return spectrumMode;
+		},
+		set spectrumMode(value: SpectrumMode) {
+			spectrumMode = value;
+		},
+
 		get lastInitPattern() {
 			return lastInitPattern;
 		},
@@ -209,6 +510,20 @@ export function getSimulationState() {
 		},
 		set seedingRate(value: number) {
 			seedingRate = Math.max(0.01, Math.min(1.0, value));
+		},
+
+		get seedPattern() {
+			return seedPattern;
+		},
+		set seedPattern(value: SeedPatternId) {
+			seedPattern = value;
+		},
+
+		get seedAlive() {
+			return seedAlive;
+		},
+		set seedAlive(value: boolean) {
+			seedAlive = value;
 		},
 
 		get aliveCells() {

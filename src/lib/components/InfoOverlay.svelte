@@ -64,17 +64,11 @@
 		</div>
 
 		<div class="info-content">
-			<!-- Rule - 3x3 grid with a few cells (matches toolbar) -->
+			<!-- Rule - bold italic f (matches toolbar) -->
 			<div class="info-row">
 				<div class="info-label">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<rect x="4" y="4" width="16" height="16" rx="1" />
-						<line x1="4" y1="9.33" x2="20" y2="9.33" />
-						<line x1="4" y1="14.66" x2="20" y2="14.66" />
-						<line x1="9.33" y1="4" x2="9.33" y2="20" />
-						<line x1="14.66" y1="4" x2="14.66" y2="20" />
-						<rect x="10.33" y="5" width="3.33" height="3.33" fill="currentColor" stroke="none" />
-						<rect x="15.66" y="10.33" width="3.33" height="3.33" fill="currentColor" stroke="none" />
+					<svg viewBox="0 0 24 24" fill="currentColor">
+						<path d="M16.5 3C14 3 12.5 4.5 11.8 7L10.5 11H7.5C7 11 6.5 11.4 6.5 12s.5 1 1 1h2.3l-1.6 5.5C7.7 20 6.8 21 5.5 21c-.5 0-.9-.1-1.2-.3-.4-.2-.9-.1-1.1.3-.2.4-.1.9.3 1.1.6.3 1.3.5 2 .5 2.5 0 4-1.5 4.8-4.2L12 13h3.5c.5 0 1-.4 1-1s-.5-1-1-1h-2.8l1.1-3.5C14.3 5.8 15.2 5 16.5 5c.4 0 .8.1 1.1.2.4.2.9 0 1.1-.4.2-.4 0-.9-.4-1.1-.6-.4-1.4-.7-2.3-.7z" />
 					</svg>
 				</div>
 				{#if simState.currentRule.name && simState.currentRule.name !== simState.currentRule.ruleString}

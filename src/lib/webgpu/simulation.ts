@@ -6,6 +6,7 @@
 import type { WebGPUContext } from './context.js';
 import type { CARule, NeighborhoodType } from '../utils/rules.js';
 import { getDefaultRule } from '../utils/rules.js';
+import { SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId } from '../stores/simulation.svelte.js';
 
 // Import shaders as raw text
 import computeShaderCode from './shaders/life-compute.wgsl?raw';
@@ -28,6 +29,7 @@ export interface ViewState {
 	brushY: number;
 	brushRadius: number; // Brush radius in cells (-1 to hide)
 	wrapBoundary: boolean; // true = toroidal, false = fixed edges
+	spectrumMode: number; // 0=hueShift, 1=rainbow, 2=warm, 3=cool, 4=monochrome, 5=fire
 }
 
 export class Simulation {
@@ -92,7 +94,8 @@ export class Simulation {
 			brushX: -1000,
 			brushY: -1000,
 			brushRadius: -1, // Hidden by default
-			wrapBoundary: true // Default to toroidal wrapping
+			wrapBoundary: true, // Default to toroidal wrapping
+			spectrumMode: 0 // Default to hue shift
 		};
 
 		this.initializePipelines();
@@ -311,7 +314,7 @@ export class Simulation {
 			this.view.brushY,
 			this.view.brushRadius,
 			this.getNeighborhoodIndex(), // neighborhood type for rendering
-			0.0 // padding
+			this.view.spectrumMode // spectrum mode for color transitions
 		]);
 		this.device.queue.writeBuffer(this.renderParamsBuffer, 0, params);
 	}
@@ -483,24 +486,46 @@ export class Simulation {
 	}
 
 	/**
-	 * Continuous seeding - add random live cells to keep simulation active
-	 * @param rate - Seeds per 1000 cells per call (0.01 - 1.0)
+	 * Continuous seeding - add random cells to keep simulation active
+	 * @param rate - Seeds per frame as percentage (0.01 - 1.0, where 0.1 = 10%)
+	 * @param patternId - The seed pattern to use (default: 'pixel')
+	 * @param alive - true to add alive cells, false to add dead cells (erase)
 	 */
-	continuousSeed(rate: number): void {
-		// Calculate probability per cell based on rate
-		// rate of 0.1 = 0.1 seeds per 1000 cells = 0.0001 probability per cell
-		const probability = rate / 10000;
+	continuousSeed(rate: number, patternId: SeedPatternId = 'pixel', alive: boolean = true): void {
+		// Get the pattern from either square or hex patterns
+		const pattern = SEED_PATTERNS.find(p => p.id === patternId) 
+			?? SEED_PATTERNS_HEX.find(p => p.id === patternId)
+			?? SEED_PATTERNS[0];
 		
-		// Randomly seed some cells
+		// Calculate how many seeds to place based on rate and grid size
+		// rate of 0.1 (10%) on a 256x256 grid = ~6.5 seeds per frame
+		// rate of 1.0 (100%) on a 256x256 grid = ~65 seeds per frame
 		const cellCount = this.width * this.height;
-		for (let i = 0; i < cellCount; i++) {
-			if (Math.random() < probability) {
-				const x = i % this.width;
-				const y = Math.floor(i / this.width);
-				// Use pendingPaints to add new cells (only if dead)
+		const seedsPerFrame = (rate * cellCount) / 1000;
+		
+		// Adjust for pattern size - larger patterns need fewer placements
+		const patternSize = pattern.cells.length;
+		const adjustedSeeds = seedsPerFrame / Math.sqrt(patternSize);
+		
+		// The state to set: 1 for alive, 0 for dead
+		const seedState = alive ? 1 : 0;
+		
+		// Place seeds at random locations
+		const numSeeds = Math.ceil(adjustedSeeds);
+		for (let s = 0; s < numSeeds; s++) {
+			// Only place this seed with probability based on fractional part
+			if (s >= adjustedSeeds && Math.random() > (adjustedSeeds % 1)) continue;
+			
+			const centerX = Math.floor(Math.random() * this.width);
+			const centerY = Math.floor(Math.random() * this.height);
+			
+			// Place the pattern centered at this location
+			for (const [dx, dy] of pattern.cells) {
+				const x = (centerX + dx + this.width) % this.width;
+				const y = (centerY + dy + this.height) % this.height;
 				const key = y * this.width + x;
 				if (!this.pendingPaints.has(key)) {
-					this.pendingPaints.set(key, 1); // Set to alive
+					this.pendingPaints.set(key, seedState);
 				}
 			}
 		}
@@ -830,7 +855,8 @@ export class Simulation {
 			brushX: this.view.brushX,
 			brushY: this.view.brushY,
 			brushRadius: this.view.brushRadius,
-			wrapBoundary: this.view.wrapBoundary
+			wrapBoundary: this.view.wrapBoundary,
+			spectrumMode: this.view.spectrumMode
 		};
 	}
 

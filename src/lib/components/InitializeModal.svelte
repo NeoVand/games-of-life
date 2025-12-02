@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getSimulationState } from '../stores/simulation.svelte.js';
+	import { getSimulationState, SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId } from '../stores/simulation.svelte.js';
 	import { onMount, onDestroy } from 'svelte';
 
 	interface Props {
@@ -10,6 +10,13 @@
 	let { onclose, oninitialize }: Props = $props();
 
 	const simState = getSimulationState();
+	
+	// Seed pattern dropdown state
+	let seedPatternDropdownOpen = $state(false);
+	
+	// Select appropriate seed patterns based on grid type
+	const isHexGrid = $derived((simState.currentRule.neighborhood ?? 'moore') === 'hexagonal');
+	const currentSeedPatterns = $derived(isHexGrid ? SEED_PATTERNS_HEX : SEED_PATTERNS);
 
 	const PREVIEW_SIZE_X = 40;
 	// For hexagonal grids, rows are visually compressed by sqrt(3)/2
@@ -42,6 +49,17 @@
 	// Sync seeding rate to simState when slider changes
 	$effect(() => {
 		simState.seedingRate = seedingRatePercent / 100;
+	});
+	
+	// Reset seed pattern to first of current type when switching between hex/square grids
+	let lastIsHex: boolean | null = null;
+	$effect(() => {
+		const currentIsHex = isHexGrid;
+		if (lastIsHex !== null && lastIsHex !== currentIsHex) {
+			// Grid type changed, reset to first pattern of new type
+			simState.seedPattern = currentIsHex ? SEED_PATTERNS_HEX[0].id : SEED_PATTERNS[0].id;
+		}
+		lastIsHex = currentIsHex;
 	});
 
 	// Get rule's recommended density (or default)
@@ -588,17 +606,131 @@
 			selectedPattern = currentPatterns.still[0]?.id ?? 'block';
 		}
 	}
+
+	// Params for seed pattern preview action (pattern + theme/color version)
+	type SeedPreviewParams = { patternId: SeedPatternId; version: number };
+	
+	// Version that changes when theme or color changes, to trigger re-render
+	const seedPreviewVersion = $derived(
+		(simState.isLightTheme ? 1 : 0) + 
+		simState.aliveColor[0] * 1000 + 
+		simState.aliveColor[1] * 100 + 
+		simState.aliveColor[2] * 10
+	);
+
+	// Svelte action to draw seed pattern preview on a canvas
+	function drawSeedPatternPreview(canvas: HTMLCanvasElement, params: SeedPreviewParams) {
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+		
+		let currentPatternId = params.patternId;
+
+		function draw() {
+			// Look up pattern in both arrays
+			const pattern = SEED_PATTERNS.find(p => p.id === currentPatternId) 
+				|| SEED_PATTERNS_HEX.find(p => p.id === currentPatternId);
+			if (!pattern) return;
+
+			const w = canvas.width;
+			const h = canvas.height;
+			const cellSize = 4;
+			const centerX = Math.floor(w / 2);
+			const centerY = Math.floor(h / 2);
+
+			// Clear with background
+			ctx.fillStyle = simState.isLightTheme ? '#e8e8eb' : '#1a1a24';
+			ctx.fillRect(0, 0, w, h);
+
+			// Draw grid dots (subtle)
+			ctx.fillStyle = simState.isLightTheme ? '#d0d0d5' : '#2a2a38';
+			for (let y = 2; y < h; y += cellSize) {
+				for (let x = 2; x < w; x += cellSize) {
+					ctx.fillRect(x, y, 1, 1);
+				}
+			}
+
+			// Draw pattern cells
+			const [r, g, b] = simState.aliveColor;
+			ctx.fillStyle = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+			
+			if (pattern.hex) {
+				// Draw hexagonal pattern with proper offset coordinates
+				const hexCellSize = cellSize * 0.9;
+				for (const [dx, dy] of pattern.cells) {
+					// Odd-r offset: odd rows shift right by half a cell
+					const isOddRow = (dy & 1) !== 0;
+					const px = centerX + dx * cellSize + (isOddRow ? cellSize / 2 : 0);
+					const py = centerY + dy * cellSize * HEX_HEIGHT_RATIO;
+					drawSmallHexagon(ctx, px, py, hexCellSize / 2);
+				}
+			} else {
+				// Draw square pattern
+				for (const [dx, dy] of pattern.cells) {
+					const px = centerX + dx * cellSize - cellSize / 2;
+					const py = centerY + dy * cellSize - cellSize / 2;
+					ctx.fillRect(px, py, cellSize - 1, cellSize - 1);
+				}
+			}
+		}
+
+		draw();
+
+		return {
+			update(newParams: SeedPreviewParams) {
+				currentPatternId = newParams.patternId;
+				draw();
+			}
+		};
+	}
+	
+	// Draw a small hexagon for seed pattern preview
+	function drawSmallHexagon(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number) {
+		ctx.beginPath();
+		for (let i = 0; i < 6; i++) {
+			const angle = (Math.PI / 3) * i - Math.PI / 6;
+			const px = cx + radius * Math.cos(angle);
+			const py = cy + radius * Math.sin(angle);
+			if (i === 0) {
+				ctx.moveTo(px, py);
+			} else {
+				ctx.lineTo(px, py);
+			}
+		}
+		ctx.closePath();
+		ctx.fill();
+	}
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && onclose()}>
+<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && onclose()} onwheel={(e) => {
+	// Only forward wheel events if scrolling on the backdrop itself (not inside modal content)
+	if (e.target !== e.currentTarget) return;
+	
+	// Forward wheel events to the canvas for zooming while modal is open
+	const canvas = document.querySelector('canvas');
+	if (canvas) {
+		canvas.dispatchEvent(new WheelEvent('wheel', {
+			deltaY: e.deltaY,
+			deltaX: e.deltaX,
+			clientX: e.clientX,
+			clientY: e.clientY,
+			bubbles: true
+		}));
+	}
+}}>
 	<div class="modal">
 		<div class="header">
 			<span class="title">
 				<svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+					<!-- Dice/random scatter icon -->
+					<rect x="4" y="4" width="16" height="16" rx="2" />
+					<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+					<circle cx="16" cy="8" r="1.5" fill="currentColor" stroke="none" />
+					<circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+					<circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none" />
+					<circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none" />
 				</svg>
 				Initialize Grid
 			</span>
@@ -762,24 +894,6 @@
 						</div>
 					{/if}
 
-					<!-- Continuous seeding option -->
-					<div class="seeding-row">
-						<label class="seed-checkbox">
-							<input type="checkbox" bind:checked={simState.seedingEnabled} />
-							<span>Auto-seed</span>
-						</label>
-						{#if simState.seedingEnabled}
-							<input 
-								type="range" 
-								min="1" 
-								max="100" 
-								step="1" 
-								bind:value={seedingRatePercent}
-								class="seeding-slider" 
-							/>
-							<span class="seeding-val">{seedingRatePercent}%</span>
-						{/if}
-					</div>
 				</div>
 
 				<!-- Right side: preview -->
@@ -804,6 +918,80 @@
 						</div>
 					</div>
 				</div>
+			</div>
+
+			<!-- Continuous seeding option - full width row -->
+			<div class="seeding-row">
+				<label class="seed-checkbox">
+					<input type="checkbox" bind:checked={simState.seedingEnabled} />
+					<span>Auto-seed</span>
+				</label>
+				{#if simState.seedingEnabled}
+					<!-- Mode toggle with label -->
+					<div class="seed-control-group">
+						<span class="seed-control-label">Mode</span>
+						<button 
+							class="seed-mode-toggle" 
+							class:alive={simState.seedAlive}
+							onclick={() => simState.seedAlive = !simState.seedAlive}
+						>
+							<span class="mode-option" class:active={!simState.seedAlive}>−</span>
+							<span class="mode-option" class:active={simState.seedAlive}>+</span>
+						</button>
+					</div>
+					<!-- Shape dropdown with label -->
+					<div class="seed-control-group">
+						<span class="seed-control-label">Shape</span>
+						<div class="seed-pattern-wrapper">
+							<button 
+								class="seed-pattern-btn" 
+								onclick={() => seedPatternDropdownOpen = !seedPatternDropdownOpen}
+							>
+							<canvas 
+								class="seed-pattern-preview"
+								width="18" 
+								height="18"
+								use:drawSeedPatternPreview={{ patternId: simState.seedPattern, version: seedPreviewVersion }}
+							></canvas>
+								<svg class="chevron" class:open={seedPatternDropdownOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" /></svg>
+							</button>
+							{#if seedPatternDropdownOpen}
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<div class="dropdown-backdrop" onclick={() => seedPatternDropdownOpen = false} onkeydown={() => {}}></div>
+								<div class="seed-pattern-dropdown">
+									{#each currentSeedPatterns as pattern}
+										<button 
+											class="seed-pattern-item"
+											class:selected={simState.seedPattern === pattern.id}
+											onclick={() => { simState.seedPattern = pattern.id; seedPatternDropdownOpen = false; }}
+										>
+								<canvas 
+									class="seed-pattern-preview-item"
+									width="24" 
+									height="24"
+									use:drawSeedPatternPreview={{ patternId: pattern.id, version: seedPreviewVersion }}
+								></canvas>
+											<span class="seed-pattern-name">{pattern.name}</span>
+										</button>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					</div>
+					<!-- Rate slider with label -->
+					<div class="seed-control-group seed-rate-group">
+						<span class="seed-control-label">Rate</span>
+						<input 
+							type="range" 
+							min="1" 
+							max="100" 
+							step="1" 
+							bind:value={seedingRatePercent}
+							class="seeding-slider" 
+						/>
+						<span class="seeding-val">{seedingRatePercent}%</span>
+					</div>
+				{/if}
 			</div>
 
 			{#if selectedCategory !== 'random' && !selectedPattern.startsWith('random')}
@@ -883,9 +1071,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--ui-accent, #2dd4bf);
-		border: none;
-		color: #0a0a0f;
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
+		border: 1px solid var(--ui-accent-border, rgba(45, 212, 191, 0.4));
+		color: var(--ui-accent, #2dd4bf);
 		cursor: pointer;
 		border-radius: 6px;
 		margin-left: auto;
@@ -893,7 +1081,8 @@
 	}
 
 	.init-btn:hover {
-		filter: brightness(1.1);
+		background: var(--ui-accent-bg-hover, rgba(45, 212, 191, 0.25));
+		border-color: var(--ui-accent, #2dd4bf);
 		transform: scale(1.05);
 	}
 
@@ -1235,15 +1424,15 @@
 		font-family: 'SF Mono', Monaco, monospace;
 	}
 
-	/* Seeding row - similar to tiling row */
+	/* Seeding row - flexible spacing */
 	.seeding-row {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.35rem 0.5rem;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.4rem 0.5rem;
 		background: var(--ui-input-bg, rgba(0, 0, 0, 0.2));
 		border-radius: 5px;
-		margin-top: 0.3rem;
 	}
 
 	.seed-checkbox {
@@ -1262,10 +1451,58 @@
 		height: 12px;
 	}
 
+	/* Control groups with labels */
+	.seed-control-group {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+
+	.seed-control-label {
+		font-size: 0.55rem;
+		color: var(--ui-text, #666);
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+	}
+
+	/* Alive/Dead toggle - compact +/- style */
+	.seed-mode-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0;
+		padding: 0;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 0.15s;
+		overflow: hidden;
+		flex-shrink: 0;
+	}
+
+	.seed-mode-toggle:hover {
+		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.2));
+	}
+
+	.mode-option {
+		font-size: 0.7rem;
+		font-weight: 600;
+		padding: 0.2rem 0.35rem;
+		color: var(--ui-text, #666);
+		transition: all 0.15s;
+		user-select: none;
+		background: transparent;
+		line-height: 1;
+	}
+
+	.mode-option.active {
+		color: var(--ui-accent, #2dd4bf);
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
+	}
+
 	.seeding-slider {
-		flex: 1;
+		width: 60px;
 		height: 6px;
-		min-width: 60px;
 		-webkit-appearance: none;
 		appearance: none;
 		background: transparent;
@@ -1273,6 +1510,7 @@
 		outline: none;
 		margin: 0;
 		padding: 0;
+		flex-shrink: 0;
 	}
 
 	.seeding-slider::-webkit-slider-runnable-track {
@@ -1320,6 +1558,106 @@
 		min-width: 28px;
 		text-align: right;
 		font-family: 'SF Mono', Monaco, monospace;
+	}
+
+	/* Seed pattern dropdown */
+	.seed-pattern-wrapper {
+		position: relative;
+	}
+
+	.seed-pattern-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.2rem;
+		padding: 0.15rem 0.25rem;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.seed-pattern-btn:hover {
+		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.2));
+	}
+
+	.seed-pattern-preview {
+		width: 18px;
+		height: 18px;
+		border-radius: 2px;
+	}
+
+	.seed-pattern-btn .chevron {
+		width: 10px;
+		height: 10px;
+		color: var(--ui-text, #666);
+		transition: transform 0.15s;
+	}
+
+	.seed-pattern-btn .chevron.open {
+		transform: rotate(180deg);
+	}
+
+	.dropdown-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 10;
+	}
+
+	.seed-pattern-dropdown {
+		position: absolute;
+		bottom: calc(100% + 4px);
+		left: 0;
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 2px;
+		padding: 4px;
+		background: var(--ui-bg, rgba(16, 16, 24, 0.98));
+		backdrop-filter: blur(12px);
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.15));
+		border-radius: 6px;
+		z-index: 20;
+		box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+	}
+
+	.seed-pattern-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		padding: 6px 4px 4px;
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 0.1s;
+	}
+
+	.seed-pattern-item:hover {
+		background: var(--ui-bg-hover, rgba(255, 255, 255, 0.08));
+		border-color: var(--ui-border, rgba(255, 255, 255, 0.1));
+	}
+
+	.seed-pattern-item.selected {
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.4));
+	}
+
+	.seed-pattern-preview-item {
+		width: 24px;
+		height: 24px;
+		border-radius: 3px;
+		flex-shrink: 0;
+	}
+
+	.seed-pattern-name {
+		font-size: 0.5rem;
+		color: var(--ui-text, #888);
+		white-space: nowrap;
+	}
+
+	.seed-pattern-item.selected .seed-pattern-name {
+		color: var(--ui-accent, #2dd4bf);
 	}
 
 	.note {

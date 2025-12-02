@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getSimulationState, GRID_SCALES, DARK_THEME_COLORS, LIGHT_THEME_COLORS, type GridScale } from '../stores/simulation.svelte.js';
+	import { getSimulationState, GRID_SCALES, DARK_THEME_COLORS, LIGHT_THEME_COLORS, SPECTRUM_MODES, type GridScale, type SpectrumMode } from '../stores/simulation.svelte.js';
 
 	interface Props {
 		onclose: () => void;
@@ -54,7 +54,22 @@
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={(e) => e.target === e.currentTarget && onclose()}>
+<div class="backdrop" onclick={(e) => e.target === e.currentTarget && onclose()} onwheel={(e) => {
+	// Only forward wheel events if scrolling on the backdrop itself (not inside modal content)
+	if (e.target !== e.currentTarget) return;
+	
+	// Forward wheel events to the canvas for zooming while modal is open
+	const canvas = document.querySelector('canvas');
+	if (canvas) {
+		canvas.dispatchEvent(new WheelEvent('wheel', {
+			deltaY: e.deltaY,
+			deltaX: e.deltaX,
+			clientX: e.clientX,
+			clientY: e.clientY,
+			bubbles: true
+		}));
+	}
+}}>
 	<!-- Settings Panel -->
 		<div class="panel">
 			<div class="header">
@@ -126,6 +141,23 @@
 								title={cp.name}
 								onclick={() => selectColor(cp.color)}
 							></button>
+						{/each}
+					</div>
+				</div>
+
+				<!-- Spectrum Mode -->
+				<div class="row">
+					<span class="label">Spectrum</span>
+					<div class="spectrum-btns">
+						{#each SPECTRUM_MODES as mode}
+							<button 
+								class="spectrum-btn" 
+								class:active={simState.spectrumMode === mode.id}
+								onclick={() => simState.spectrumMode = mode.id}
+								title={mode.description}
+							>
+								{mode.name}
+							</button>
 						{/each}
 					</div>
 				</div>
@@ -351,6 +383,35 @@
 	}
 
 	.theme-btn.active {
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
+		color: var(--ui-accent, #2dd4bf);
+	}
+
+	/* Spectrum mode buttons */
+	.spectrum-btns {
+		display: flex;
+		gap: 0.2rem;
+		flex-wrap: wrap;
+	}
+
+	.spectrum-btn {
+		padding: 0.2rem 0.4rem;
+		background: var(--ui-border, rgba(255, 255, 255, 0.05));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
+		border-radius: 4px;
+		color: var(--ui-text, #666);
+		font-size: 0.6rem;
+		cursor: pointer;
+		transition: all 0.1s;
+	}
+
+	.spectrum-btn:hover {
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
+		color: var(--ui-text-hover, #fff);
+	}
+
+	.spectrum-btn.active {
 		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
 		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
 		color: var(--ui-accent, #2dd4bf);
