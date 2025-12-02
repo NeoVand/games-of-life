@@ -37,13 +37,8 @@
 }}>
 	<div class="modal">
 		<div class="header">
-			<div class="logo">
-				<HeartIcon size={32} animated={true} />
-				<div class="title-group">
-					<span class="title">Games of Life</span>
-					<span class="tagline">GPU-powered cellular automaton visualizer</span>
-				</div>
-			</div>
+			<HeartIcon size={24} animated={true} />
+			<span class="title">Games of Life</span>
 			<button class="close-btn" onclick={onclose} aria-label="Close">✕</button>
 		</div>
 
@@ -115,16 +110,6 @@
 							<li><kbd>T</kbd> Toggle theme · <kbd>C</kbd> Cycle colors</li>
 							<li><kbd>[ ]</kbd> Brush size · <kbd>, .</kbd> Speed</li>
 						</ul>
-						<button class="tour-btn" onclick={handleStartTour}>
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<circle cx="6" cy="6" r="2"/>
-								<circle cx="18" cy="10" r="2"/>
-								<circle cx="12" cy="18" r="2"/>
-								<path d="M6 8v2a4 4 0 004 4h2"/>
-								<path d="M16 10h-2a4 4 0 00-4 4v2"/>
-							</svg>
-							<span>Take a Tour</span>
-						</button>
 					</div>
 				</div>
 			</div>
@@ -133,17 +118,29 @@
 				<div class="author">
 					Developed by <strong>Neo Mohsenvand</strong>
 				</div>
-				<a 
-					href="https://github.com/NeoVand/games-of-life" 
-					target="_blank" 
-					rel="noopener noreferrer"
-					class="github-link"
-				>
-					<svg viewBox="0 0 24 24" fill="currentColor">
-						<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-					</svg>
-					View on GitHub
-				</a>
+				<div class="footer-buttons">
+					<button class="tour-btn" onclick={handleStartTour}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="6" cy="6" r="2"/>
+							<circle cx="18" cy="10" r="2"/>
+							<circle cx="12" cy="18" r="2"/>
+							<path d="M6 8v2a4 4 0 004 4h2"/>
+							<path d="M16 10h-2a4 4 0 00-4 4v2"/>
+						</svg>
+						<span>Take a Tour</span>
+					</button>
+					<a 
+						href="https://github.com/NeoVand/games-of-life" 
+						target="_blank" 
+						rel="noopener noreferrer"
+						class="github-link"
+					>
+						<svg viewBox="0 0 24 24" fill="currentColor">
+							<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+						</svg>
+						GitHub
+					</a>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -172,36 +169,16 @@
 	.header {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: 0.5rem;
 		margin-bottom: 0.8rem;
-		padding-bottom: 0.7rem;
-		border-bottom: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
-	}
-
-	.logo {
-		display: flex;
-		align-items: center;
-		gap: 0.7rem;
-	}
-
-
-	.title-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
 	}
 
 	.title {
-		font-size: 1.1rem;
+		flex: 1;
+		font-size: 1rem;
 		font-weight: 700;
 		color: var(--ui-text-hover, #fff);
 		letter-spacing: -0.02em;
-	}
-
-	.tagline {
-		font-size: 0.7rem;
-		color: var(--ui-text, #888);
-		font-style: italic;
 	}
 
 	.close-btn {
@@ -326,8 +303,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding-top: 0.7rem;
-		border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
+		margin-top: 0.3rem;
 	}
 
 	.author {
@@ -337,6 +313,12 @@
 
 	.author strong {
 		color: var(--ui-text-hover, #e0e0e0);
+	}
+
+	.footer-buttons {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
 	.github-link {
@@ -370,13 +352,12 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
-		margin-top: 0.5rem;
 		padding: 0.4rem 0.7rem;
 		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.1));
 		color: var(--ui-accent, #2dd4bf);
 		border: 1px solid var(--ui-accent-border, rgba(45, 212, 191, 0.2));
-		border-radius: 5px;
-		font-size: 0.68rem;
+		border-radius: 6px;
+		font-size: 0.7rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.15s;
