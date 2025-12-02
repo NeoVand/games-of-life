@@ -18,13 +18,21 @@
 	function changeScale(scale: GridScale) {
 		if (scale === simState.gridScale) return;
 		
-		// Pause if playing
-		if (simState.isPlaying) {
+		// Remember if it was playing
+		const wasPlaying = simState.isPlaying;
+		
+		// Pause temporarily for scale change
+		if (wasPlaying) {
 			simState.pause();
 		}
 		
 		// Apply immediately
 		onscalechange(scale);
+		
+		// Resume if it was playing
+		if (wasPlaying) {
+			simState.play();
+		}
 	}
 	
 	// Seed pattern dropdown state
