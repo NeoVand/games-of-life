@@ -494,158 +494,142 @@ fn state_to_color(state: u32, num_states: u32) -> vec3<f32> {
             dying_light = mix(0.65, 0.04, fire_progress); // Brighter start, fade to embers
         }
     }
-    // Spectrum mode 6: Thermal (scientific heat map with sharp bands)
-    // Black -> Purple -> Blue -> Cyan -> Green -> Yellow -> Red -> White
+    // Spectrum mode 6: Thermal (high-frequency heat map - 16 bands)
     else if (mode == 6) {
-        // Quantize into 7 discrete bands for sharp transitions
-        let band = floor(dying_progress * 7.0);
-        let band_progress = fract(dying_progress * 7.0);
+        // 16 bands cycling through thermal palette twice
+        let num_bands = 16.0;
+        let band = floor(dying_progress * num_bands);
+        let cycle = fract(band / 8.0); // Position in thermal cycle (0-1)
         
-        // Sharp transitions: minimal interpolation within bands
-        let t = band_progress * 0.3; // Only 30% blend for sharper edges
+        // Thermal palette: black -> purple -> blue -> cyan -> green -> yellow -> red -> white
+        let hues = array<f32, 8>(0.83, 0.75, 0.66, 0.5, 0.33, 0.16, 0.05, 0.0);
+        let idx = i32(cycle * 7.0);
+        let next_idx = min(idx + 1, 7);
+        dying_hue = hues[idx];
         
-        if (band < 1.0) {
-            // Band 0: Alive color -> Purple
-            dying_hue = mix(alive_hsl.x, 0.83, t);
-            dying_sat = 0.9;
-            dying_light = select(0.5, 0.4, is_light);
-        } else if (band < 2.0) {
-            // Band 1: Purple -> Blue
-            dying_hue = mix(0.83, 0.66, t);
-            dying_sat = 0.85;
-            dying_light = select(0.45, 0.5, is_light);
-        } else if (band < 3.0) {
-            // Band 2: Blue -> Cyan
-            dying_hue = mix(0.66, 0.5, t);
-            dying_sat = 0.9;
-            dying_light = select(0.5, 0.55, is_light);
-        } else if (band < 4.0) {
-            // Band 3: Cyan -> Green
-            dying_hue = mix(0.5, 0.33, t);
-            dying_sat = 0.85;
-            dying_light = select(0.45, 0.5, is_light);
-        } else if (band < 5.0) {
-            // Band 4: Green -> Yellow
-            dying_hue = mix(0.33, 0.16, t);
-            dying_sat = 0.9;
-            dying_light = select(0.5, 0.6, is_light);
-        } else if (band < 6.0) {
-            // Band 5: Yellow -> Red
-            dying_hue = mix(0.16, 0.0, t);
-            dying_sat = 0.95;
-            dying_light = select(0.5, 0.55, is_light);
+        // Alternating saturation for more visual distinction
+        dying_sat = select(0.95, 0.75, (band % 2.0) < 1.0);
+        
+        // Lightness fades toward end
+        let fade = dying_progress * dying_progress;
+        if (is_light) {
+            dying_light = mix(0.5, 0.88, fade);
         } else {
-            // Band 6: Red -> near background
-            dying_hue = 0.0;
-            dying_sat = max(0.8 - band_progress * 0.6, 0.2);
-            dying_light = select(mix(0.5, 0.15, band_progress), mix(0.55, 0.85, band_progress), is_light);
+            dying_light = mix(0.55, 0.1, fade);
         }
     }
-    // Spectrum mode 7: Bands (quantized rainbow with 6 sharp color steps)
+    // Spectrum mode 7: Bands (high-frequency quantized rainbow - 16 steps)
     else if (mode == 7) {
-        // Quantize into 6 discrete bands
-        let band = floor(dying_progress * 6.0);
-        let stepped_progress = band / 5.0;
+        // 16 discrete hue bands for high visibility of structure
+        let num_bands = 16.0;
+        let band = floor(dying_progress * num_bands);
+        let stepped_progress = band / (num_bands - 1.0);
         
         // Full hue rotation in discrete steps
-        dying_hue = alive_hsl.x + stepped_progress;
-        if (dying_hue > 1.0) { dying_hue -= 1.0; }
+        dying_hue = alive_hsl.x + stepped_progress * 1.5; // 1.5 rotations
+        dying_hue = fract(dying_hue); // Wrap around
         
+        // Alternating lightness for zebra-stripe effect
+        let stripe = (band % 2.0) < 1.0;
         if (is_light) {
-            dying_sat = 0.75;
-            dying_light = mix(0.5, 0.85, stepped_progress);
-        } else {
             dying_sat = 0.8;
-            dying_light = mix(0.55, 0.15, stepped_progress);
+            dying_light = select(0.45, 0.6, stripe);
+        } else {
+            dying_sat = 0.85;
+            dying_light = select(0.55, 0.4, stripe);
         }
+        
+        // Fade at end
+        let fade = dying_progress * dying_progress * dying_progress;
+        dying_light = mix(dying_light, select(0.1, 0.9, is_light), fade * 0.7);
     }
-    // Spectrum mode 8: Neon (vivid cyan -> magenta -> yellow with hard edges)
+    // Spectrum mode 8: Neon (high-frequency cycling - 12 bands of cyan/magenta/yellow)
     else if (mode == 8) {
-        // 3 distinct color zones with sharp transitions
-        let zone = floor(dying_progress * 3.0);
-        let zone_progress = fract(dying_progress * 3.0);
-        let t = zone_progress * 0.2; // Very sharp edges
+        // 12 bands cycling through 3 neon colors (4 full cycles)
+        let num_bands = 12.0;
+        let band = floor(dying_progress * num_bands);
+        let color_idx = band % 3.0;
         
-        if (zone < 1.0) {
-            // Zone 0: Alive -> Cyan
-            dying_hue = mix(alive_hsl.x, 0.5, t + 0.8);
-            dying_sat = 1.0;
-            dying_light = select(0.55, 0.5, is_light);
-        } else if (zone < 2.0) {
-            // Zone 1: Cyan -> Magenta (sharp jump)
-            dying_hue = mix(0.5, 0.83, t);
-            dying_sat = 1.0;
-            dying_light = select(0.5, 0.55, is_light);
+        // Sharp neon colors
+        if (color_idx < 1.0) {
+            dying_hue = 0.5; // Cyan
+        } else if (color_idx < 2.0) {
+            dying_hue = 0.83; // Magenta
         } else {
-            // Zone 2: Magenta -> Yellow (sharp jump)
-            dying_hue = mix(0.83, 0.16, t);
-            if (dying_hue < 0.0) { dying_hue += 1.0; }
-            dying_sat = max(1.0 - zone_progress * 0.3, 0.6);
-            dying_light = select(mix(0.5, 0.2, zone_progress), mix(0.55, 0.8, zone_progress), is_light);
+            dying_hue = 0.14; // Yellow
         }
+        
+        dying_sat = 1.0; // Full saturation for neon effect
+        
+        // Subtle lightness variation per band
+        let band_in_cycle = (band % 3.0) / 3.0;
+        if (is_light) {
+            dying_light = mix(0.45, 0.55, band_in_cycle);
+        } else {
+            dying_light = mix(0.5, 0.6, band_in_cycle);
+        }
+        
+        // Fade toward end
+        let fade = dying_progress * dying_progress;
+        dying_sat = max(dying_sat - fade * 0.5, 0.4);
+        dying_light = mix(dying_light, select(0.1, 0.9, is_light), fade * 0.6);
     }
-    // Spectrum mode 9: Sunset (yellow -> orange -> red -> purple -> blue with bands)
+    // Spectrum mode 9: Sunset (high-frequency - 20 bands warm to cool)
     else if (mode == 9) {
-        // 5 distinct sunset color bands
-        let band = floor(dying_progress * 5.0);
-        let band_progress = fract(dying_progress * 5.0);
-        let t = band_progress * 0.25; // Fairly sharp
+        // 20 bands from warm to cool colors
+        let num_bands = 20.0;
+        let band = floor(dying_progress * num_bands);
+        let band_progress = band / (num_bands - 1.0);
         
-        if (band < 1.0) {
-            // Band 0: Alive -> Yellow
-            dying_hue = mix(alive_hsl.x, 0.14, t + 0.75);
-            dying_sat = 0.95;
-            dying_light = select(0.55, 0.6, is_light);
-        } else if (band < 2.0) {
-            // Band 1: Yellow -> Orange
-            dying_hue = mix(0.14, 0.08, t);
-            dying_sat = 0.95;
-            dying_light = select(0.5, 0.55, is_light);
-        } else if (band < 3.0) {
-            // Band 2: Orange -> Red
-            dying_hue = mix(0.08, 0.0, t);
-            dying_sat = 0.9;
-            dying_light = select(0.45, 0.5, is_light);
-        } else if (band < 4.0) {
-            // Band 3: Red -> Purple
-            dying_hue = mix(0.0, 0.8, t);
-            if (dying_hue < 0.0) { dying_hue += 1.0; }
-            dying_sat = 0.75;
-            dying_light = select(0.4, 0.5, is_light);
+        // Hue journey: yellow (0.14) -> orange (0.08) -> red (0.0) -> magenta (0.9) -> purple (0.8) -> blue (0.66)
+        if (band_progress < 0.3) {
+            dying_hue = mix(0.14, 0.0, band_progress / 0.3);
         } else {
-            // Band 4: Purple -> Blue -> fade
-            dying_hue = mix(0.8, 0.66, t);
-            dying_sat = max(0.7 - band_progress * 0.4, 0.3);
-            dying_light = select(mix(0.35, 0.12, band_progress), mix(0.5, 0.85, band_progress), is_light);
+            dying_hue = mix(0.0, 0.66, (band_progress - 0.3) / 0.7);
+            if (dying_hue < 0.0) { dying_hue += 1.0; }
+        }
+        
+        // Alternating saturation pattern
+        dying_sat = select(0.9, 0.7, (band % 2.0) < 1.0);
+        
+        // Lightness with stripes
+        let stripe = (band % 3.0) / 3.0;
+        if (is_light) {
+            dying_light = mix(0.5, 0.65, stripe);
+            dying_light = mix(dying_light, 0.9, dying_progress * dying_progress);
+        } else {
+            dying_light = mix(0.55, 0.4, stripe);
+            dying_light = mix(dying_light, 0.1, dying_progress * dying_progress);
         }
     }
-    // Spectrum mode 10: Aurora (green -> cyan -> magenta with ethereal bands)
+    // Spectrum mode 10: Aurora (high-frequency oscillating green/cyan/magenta - 24 bands)
     else {
-        // 4 aurora color bands
-        let band = floor(dying_progress * 4.0);
-        let band_progress = fract(dying_progress * 4.0);
-        let t = band_progress * 0.3;
+        // 24 bands with oscillating aurora colors
+        let num_bands = 24.0;
+        let band = floor(dying_progress * num_bands);
+        let wave = sin(band * 0.5) * 0.5 + 0.5; // Oscillation factor
         
-        if (band < 1.0) {
-            // Band 0: Alive -> Green
-            dying_hue = mix(alive_hsl.x, 0.33, t + 0.7);
-            dying_sat = 0.85;
-            dying_light = select(0.5, 0.55, is_light);
-        } else if (band < 2.0) {
-            // Band 1: Green -> Cyan
-            dying_hue = mix(0.33, 0.5, t);
-            dying_sat = 0.9;
-            dying_light = select(0.55, 0.6, is_light);
-        } else if (band < 3.0) {
-            // Band 2: Cyan -> Magenta
-            dying_hue = mix(0.5, 0.85, t);
-            dying_sat = 0.85;
-            dying_light = select(0.5, 0.55, is_light);
+        // Oscillate between green (0.33), cyan (0.5), and magenta (0.85)
+        let color_phase = (band % 6.0) / 6.0;
+        if (color_phase < 0.33) {
+            dying_hue = mix(0.33, 0.5, color_phase * 3.0);
+        } else if (color_phase < 0.66) {
+            dying_hue = mix(0.5, 0.85, (color_phase - 0.33) * 3.0);
         } else {
-            // Band 3: Magenta -> fade
-            dying_hue = 0.85;
-            dying_sat = max(0.8 - band_progress * 0.5, 0.3);
-            dying_light = select(mix(0.45, 0.12, band_progress), mix(0.55, 0.88, band_progress), is_light);
+            dying_hue = mix(0.85, 0.33, (color_phase - 0.66) * 3.0);
+            if (dying_hue > 1.0) { dying_hue -= 1.0; }
+        }
+        
+        // Pulsing saturation
+        dying_sat = 0.7 + wave * 0.25;
+        
+        // Lightness with wave pattern
+        if (is_light) {
+            dying_light = 0.5 + wave * 0.15;
+            dying_light = mix(dying_light, 0.88, dying_progress * dying_progress);
+        } else {
+            dying_light = 0.45 + wave * 0.2;
+            dying_light = mix(dying_light, 0.1, dying_progress * dying_progress);
         }
     }
     

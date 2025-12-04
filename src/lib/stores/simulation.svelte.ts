@@ -104,7 +104,7 @@ export function boundaryModeToIndex(mode: BoundaryMode): number {
 	return modes.indexOf(mode);
 }
 
-let spectrumMode = $state<SpectrumMode>('fire');
+let spectrumMode = $state<SpectrumMode>('sunset');
 
 // Neighbor shading mode - modulate color based on neighbors
 // 'off' = no shading, 'alive' = count alive neighbors, 'vitality' = sum neighbor states
