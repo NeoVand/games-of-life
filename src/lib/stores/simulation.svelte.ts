@@ -52,15 +52,22 @@ let isLightTheme = $state(false);
 let aliveColor = $state<[number, number, number]>([0.95, 0.7, 0.75]); // Blush default
 
 // Spectrum modes for multi-state color transitions
-export type SpectrumMode = 'hueShift' | 'rainbow' | 'warm' | 'cool' | 'monochrome' | 'fire';
+export type SpectrumMode = 'hueShift' | 'rainbow' | 'warm' | 'cool' | 'monochrome' | 'fire' | 'thermal' | 'bands' | 'neon' | 'sunset' | 'aurora';
 
 export const SPECTRUM_MODES: { id: SpectrumMode; name: string; description: string }[] = [
+	// Smooth gradients
 	{ id: 'hueShift', name: 'Shift', description: 'Subtle hue rotation' },
 	{ id: 'rainbow', name: 'Rainbow', description: 'Full spectrum rotation' },
 	{ id: 'warm', name: 'Warm', description: 'Toward red/orange' },
 	{ id: 'cool', name: 'Cool', description: 'Toward blue/purple' },
 	{ id: 'monochrome', name: 'Mono', description: 'Fade without hue change' },
-	{ id: 'fire', name: 'Fire', description: 'Orange to red to black' }
+	{ id: 'fire', name: 'Fire', description: 'Orange to red to black' },
+	// Sharp transitions
+	{ id: 'thermal', name: 'Thermal', description: 'Heat map with sharp bands' },
+	{ id: 'bands', name: 'Bands', description: 'Quantized color steps' },
+	{ id: 'neon', name: 'Neon', description: 'Cyan → magenta → yellow' },
+	{ id: 'sunset', name: 'Sunset', description: 'Yellow → red → purple → blue' },
+	{ id: 'aurora', name: 'Aurora', description: 'Green → cyan → magenta' }
 ];
 
 // Boundary modes - 9 topological possibilities based on edge identification
@@ -471,7 +478,7 @@ export function getSimulationState() {
 			return brushSize;
 		},
 		set brushSize(value: number) {
-			brushSize = Math.max(1, Math.min(50, value));
+			brushSize = Math.max(1, Math.min(200, value));
 		},
 
 		get brushState() {
@@ -667,6 +674,7 @@ export function getSimulationState() {
 let showRuleEditor = $state(false);
 let showSettings = $state(false);
 let showHelp = $state(false);
+let showBrushPopup = $state(false);
 
 export function getUIState() {
 	return {
@@ -701,6 +709,13 @@ export function getUIState() {
 				showRuleEditor = false;
 				showSettings = false;
 			}
+		},
+
+		get showBrushPopup() {
+			return showBrushPopup;
+		},
+		set showBrushPopup(value: boolean) {
+			showBrushPopup = value;
 		},
 
 		closeAll() {

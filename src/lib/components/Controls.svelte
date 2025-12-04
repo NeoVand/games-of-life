@@ -22,12 +22,14 @@
 
 	let collapsed = $state(false);
 	let showSpeedSlider = $state(false);
-	let showBrushSlider = $state(false);
+
+	// Use UI state for brush popup so Canvas can also track it
+	let showBrushSlider = $derived(uiState.showBrushPopup);
 
 	// Close all popups
 	function closeAllPopups() {
 		showSpeedSlider = false;
-		showBrushSlider = false;
+		uiState.showBrushPopup = false;
 	}
 
 	function toggleSpeed() {
@@ -39,7 +41,7 @@
 	function toggleBrush() {
 		const wasOpen = showBrushSlider;
 		closeAllPopups();
-		showBrushSlider = !wasOpen;
+		uiState.showBrushPopup = !wasOpen;
 	}
 
 	function openRules() {
@@ -225,7 +227,7 @@
 					</div>
 					<div class="size-control">
 						<span>{simState.brushSize}px</span>
-						<input type="range" min="1" max="50" bind:value={simState.brushSize} />
+						<input type="range" min="1" max="200" bind:value={simState.brushSize} />
 					</div>
 				</div>
 			{/if}

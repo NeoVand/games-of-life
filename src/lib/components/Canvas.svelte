@@ -2,14 +2,15 @@
 	import { onMount } from 'svelte';
 	import { initWebGPU, type WebGPUContext, type WebGPUError } from '../webgpu/context.js';
 	import { Simulation } from '../webgpu/simulation.js';
-	import { getSimulationState, GRID_SCALES, type GridScale, type SpectrumMode } from '../stores/simulation.svelte.js';
+	import { getSimulationState, getUIState, GRID_SCALES, type GridScale, type SpectrumMode } from '../stores/simulation.svelte.js';
 	import { isTourActive } from '../utils/tour.js';
 
 	const simState = getSimulationState();
+	const uiState = getUIState();
 	
 	// Convert spectrum mode string to number for shader
 	function getSpectrumModeIndex(mode: SpectrumMode): number {
-		const modes: SpectrumMode[] = ['hueShift', 'rainbow', 'warm', 'cool', 'monochrome', 'fire'];
+		const modes: SpectrumMode[] = ['hueShift', 'rainbow', 'warm', 'cool', 'monochrome', 'fire', 'thermal', 'bands', 'neon', 'sunset', 'aurora'];
 		return modes.indexOf(mode);
 	}
 	
@@ -245,13 +246,20 @@
 		}
 
 		// Sync view state including brush preview
-		const showBrush = mouseInCanvas && !isShiftHeld && !isPanning;
+		const showBrush = (mouseInCanvas && !isShiftHeld && !isPanning) || uiState.showBrushPopup;
+		// When brush popup is open and mouse not in canvas, show brush at center of grid
+		const brushX = uiState.showBrushPopup && !mouseInCanvas 
+			? Math.floor(simState.gridWidth / 2) 
+			: gridMouseX;
+		const brushY = uiState.showBrushPopup && !mouseInCanvas 
+			? Math.floor(simState.gridHeight / 2) 
+			: gridMouseY;
 		simulation.setView({
 			showGrid: simState.showGrid,
 			isLightTheme: simState.isLightTheme,
 			aliveColor: simState.aliveColor,
-			brushX: showBrush ? gridMouseX : -1000,
-			brushY: showBrush ? gridMouseY : -1000,
+			brushX: showBrush ? brushX : -1000,
+			brushY: showBrush ? brushY : -1000,
 			brushRadius: showBrush ? simState.brushSize : -1,
 			boundaryMode: simState.boundaryMode,
 			spectrumMode: getSpectrumModeIndex(simState.spectrumMode),

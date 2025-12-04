@@ -853,6 +853,17 @@ export const RULE_PRESETS: CARule[] = [
 		density: 0.2
 	},
 	{
+		name: 'Hex2 Neo Fungus',
+		birthMask: 0b0001101000, // 3, 5, 6
+		surviveMask: 0b1111111110111100100, // 2, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18
+		numStates: 128,
+		ruleString: 'B356/S2,5,6,7,8,10,11,12,13,14,15,16,17,18/C128',
+		neighborhood: 'extendedHexagonal',
+		category: 'artistic',
+		description: 'Fungal growth patterns with high survival tolerance',
+		density: 0.2
+	},
+	{
 		name: 'Hex2 Aurora',
 		birthMask: 0b0000011000000, // 5, 6
 		surviveMask: 0b0000111100000, // 4, 5, 6, 7
