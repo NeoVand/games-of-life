@@ -471,7 +471,7 @@ export function getSimulationState() {
 			return speed;
 		},
 		set speed(value: number) {
-			speed = Math.max(1, Math.min(120, value));
+			speed = Math.max(1, Math.min(240, value));
 		},
 
 		get brushSize() {

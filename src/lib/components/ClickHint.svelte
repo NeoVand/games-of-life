@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { getSimulationState } from '../stores/simulation.svelte.js';
-	import { hasTourBeenCompleted } from '../utils/tour.js';
+	import { hasTourBeenCompleted, onTourCompleted } from '../utils/tour.js';
 	
 	const simState = getSimulationState();
 	
@@ -8,8 +9,23 @@
 	const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 	const hintText = isTouchDevice ? 'Tap Here' : 'Click Here';
 	
+	// Track tour completion reactively
+	let tourCompleted = $state(false);
+	
+	onMount(() => {
+		// Check initial state
+		tourCompleted = hasTourBeenCompleted();
+		
+		// Subscribe to tour completion
+		const unsubscribe = onTourCompleted(() => {
+			tourCompleted = true;
+		});
+		
+		return unsubscribe;
+	});
+	
 	// Only show hint if tour is completed and user hasn't interacted yet
-	const shouldShow = $derived(!simState.hasInteracted && hasTourBeenCompleted());
+	const shouldShow = $derived(!simState.hasInteracted && tourCompleted);
 </script>
 
 {#if shouldShow}

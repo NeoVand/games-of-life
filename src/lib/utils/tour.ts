@@ -6,8 +6,24 @@ const TOUR_COMPLETED_KEY = 'games-of-life-tour-completed';
 // Track if tour is currently active
 let tourActive = false;
 
+// Callbacks for tour completion notifications
+let tourCompletionCallbacks: (() => void)[] = [];
+
 export function isTourActive(): boolean {
 	return tourActive;
+}
+
+// Subscribe to tour completion changes
+export function onTourCompleted(callback: () => void): () => void {
+	tourCompletionCallbacks.push(callback);
+	return () => {
+		tourCompletionCallbacks = tourCompletionCallbacks.filter(cb => cb !== callback);
+	};
+}
+
+// Notify all subscribers
+function notifyTourCompleted() {
+	tourCompletionCallbacks.forEach(cb => cb());
 }
 
 // Mini simulation state for welcome preview
@@ -243,6 +259,7 @@ export function hasTourBeenCompleted(): boolean {
 export function markTourCompleted(): void {
 	if (typeof localStorage === 'undefined') return;
 	localStorage.setItem(TOUR_COMPLETED_KEY, 'true');
+	notifyTourCompleted();
 }
 
 export function resetTourStatus(): void {
@@ -509,8 +526,8 @@ function getTourSteps(): DriveStep[] {
 			popover: {
 				title: titleWithIcon(icons.check, 'Ready to Explore!'),
 				description: mobile
-					? 'You\'re all set! Tap Play to watch cells come alive. Try different rules for amazing patterns!'
-					: 'You\'re all set! Press Space to play. Try pressing C to cycle colors and T to toggle themes!',
+					? 'You\'re all set! Draw on the canvas and try different rules for amazing patterns!'
+					: 'You\'re all set! Press C to cycle colors, T to toggle themes, and R to reinitialize!',
 				side: 'over',
 				align: 'center'
 			}

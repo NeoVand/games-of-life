@@ -312,7 +312,7 @@
 				simState.speed = Math.max(1, simState.speed - 5);
 				break;
 			case 'Period':
-				simState.speed = Math.min(120, simState.speed + 5);
+				simState.speed = Math.min(240, simState.speed + 5);
 				break;
 		}
 	}
