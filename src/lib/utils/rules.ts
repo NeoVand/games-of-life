@@ -917,6 +917,17 @@ export const RULE_PRESETS: CARule[] = [
 		category: 'artistic',
 		description: 'Undying patterns with maximum state trails',
 		density: 0.2
+	},
+	{
+		name: 'Hex2 Neo Fungus2',
+		birthMask: 0b0011101000, // 3, 5, 6, 7
+		surviveMask: 0b0111100000, // 5, 6, 7, 8
+		numStates: 128,
+		ruleString: 'B3567/S5678/C128',
+		neighborhood: 'extendedHexagonal',
+		category: 'artistic',
+		description: 'Fungal growth patterns with balanced birth and survival',
+		density: 0.2
 	}
 ];
 
