@@ -37,8 +37,10 @@
 <div class="help-overlay" role="dialog" aria-modal="true" tabindex="-1">
 	<div 
 		class="help-panel"
+		role="presentation"
 		style="z-index: {modalState.zIndex};"
 		onclick={handleModalClick}
+		onkeydown={() => {}}
 		use:draggable={{ 
 			handle: '.help-header', 
 			bounds: true,

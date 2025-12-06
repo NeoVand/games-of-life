@@ -898,6 +898,17 @@ export const RULE_PRESETS: CARule[] = [
 		density: 0.2
 	},
 	{
+		name: 'Ext24 Neo Complexity 1',
+		birthMask: 0b10000000000000001000, // 3, 19
+		surviveMask: 0b1000000000001000000000000, // 12, 24
+		numStates: 177,
+		ruleString: 'B3,19/S12,24/C177',
+		neighborhood: 'extendedMoore',
+		category: 'artistic',
+		description: 'Complex emergent patterns with sparse birth/survive conditions',
+		density: 0.2
+	},
+	{
 		name: 'Hex2 Neo Brain 2',
 		birthMask: 0b0001101000, // 3, 5, 6
 		surviveMask: 0b0111100000, // 5, 6, 7, 8

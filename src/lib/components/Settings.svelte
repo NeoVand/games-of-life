@@ -289,6 +289,7 @@
 	}
 }}>
 	<!-- Theme Panel -->
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 		<div 
 			class="panel"
 			style="z-index: {modalState.zIndex};"
@@ -683,12 +684,6 @@
 
 	.spectrum-btn.active .spectrum-label {
 		color: var(--ui-accent, #2dd4bf);
-	}
-
-	.label-hint {
-		font-size: 0.55rem;
-		color: var(--ui-text-muted, #666);
-		font-weight: normal;
 	}
 
 	.spectrum-row-extra {

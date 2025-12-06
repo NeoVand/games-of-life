@@ -68,9 +68,8 @@
 </script>
 
 <!-- Invisible backdrop to close popups when clicking outside -->
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 {#if showSpeedSlider || showBrushSlider}
-	<div class="popup-backdrop" onclick={closeAllPopups}></div>
+	<div class="popup-backdrop" role="presentation" onclick={closeAllPopups} onkeydown={() => {}}></div>
 {/if}
 
 <div class="controls" class:collapsed>
