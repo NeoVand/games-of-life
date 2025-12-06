@@ -9,11 +9,13 @@
 		RULE_PRESETS, 
 		RULE_CATEGORIES, 
 		NEIGHBORHOODS,
+		VITALITY_MODES,
 		parseRule, 
 		getNeighborDescription,
 		type CARule, 
 		type RuleCategory,
-		type NeighborhoodType 
+		type NeighborhoodType,
+		type VitalityMode
 	} from '../utils/rules.js';
 	import { draggable } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
@@ -742,6 +744,10 @@
 		surviveToggles = Array.from({ length: 25 }, (_, i) => !!(preset.surviveMask & (1 << i)));
 		selectedPreset = index;
 		error = '';
+		
+		// Apply vitality settings from the preset if present
+		simState.setVitalitySettings(preset.vitality);
+		
 		randomizePreview();
 		dropdownOpen = false;
 		
@@ -1256,6 +1262,127 @@
 				{/each}
 			</div>
 		</div>
+		
+		<!-- Vitality Influence -->
+		{#if numStates > 2}
+			<div class="vitality-section">
+				<div class="vitality-header">
+					<span class="vitality-label">Vitality</span>
+				</div>
+				<div class="vitality-modes">
+					<!-- Off mode - standard behavior -->
+					<button 
+						class="vitality-mode-btn" 
+						class:active={simState.vitalityMode === 'none'}
+						onclick={() => { simState.vitalityMode = 'none'; }}
+						title="Only fully alive cells count as neighbors"
+					>
+						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+							<circle cx="10" cy="10" r="7" />
+							<line x1="5" y1="5" x2="15" y2="15" />
+						</svg>
+						<span>Off</span>
+					</button>
+					
+					<!-- Threshold (Cut) mode -->
+					<button 
+						class="vitality-mode-btn" 
+						class:active={simState.vitalityMode === 'threshold'}
+						onclick={() => { simState.vitalityMode = 'threshold'; }}
+						title="Cells above vitality threshold count as alive"
+					>
+						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+							<line x1="3" y1="14" x2="10" y2="14" />
+							<line x1="10" y1="14" x2="10" y2="6" />
+							<line x1="10" y1="6" x2="17" y2="6" />
+						</svg>
+						<span>Cut</span>
+					</button>
+					
+					<!-- Ghost mode -->
+					<button 
+						class="vitality-mode-btn" 
+						class:active={simState.vitalityMode === 'ghost'}
+						onclick={() => { simState.vitalityMode = 'ghost'; }}
+						title="Dying cells contribute fractionally based on vitality"
+					>
+						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+							<path d="M10 3 Q6 3 6 8 L6 14 Q6 17 8 17 L8 15 L10 17 L12 15 L12 17 Q14 17 14 14 L14 8 Q14 3 10 3" />
+							<circle cx="8" cy="9" r="1" fill="currentColor" />
+							<circle cx="12" cy="9" r="1" fill="currentColor" />
+						</svg>
+						<span>Ghost</span>
+					</button>
+					
+					<!-- Sigmoid (Soft) mode -->
+					<button 
+						class="vitality-mode-btn" 
+						class:active={simState.vitalityMode === 'sigmoid'}
+						onclick={() => { simState.vitalityMode = 'sigmoid'; }}
+						title="Smooth S-curve transition between counting and not"
+					>
+						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+							<path d="M3 15 Q7 15 10 10 Q13 5 17 5" />
+						</svg>
+						<span>Soft</span>
+					</button>
+					
+					<!-- Decay mode -->
+					<button 
+						class="vitality-mode-btn" 
+						class:active={simState.vitalityMode === 'decay'}
+						onclick={() => { simState.vitalityMode = 'decay'; }}
+						title="Power curve controls how fast influence falls off"
+					>
+						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+							<path d="M3 5 Q5 5 7 7 Q10 11 14 14 L17 15" />
+						</svg>
+						<span>Decay</span>
+					</button>
+				</div>
+				
+				<!-- Sliders row - context-sensitive based on mode -->
+				{#if simState.vitalityMode !== 'none'}
+					<div class="vitality-sliders">
+						{#if simState.vitalityMode === 'threshold'}
+							<div class="vitality-slider-item">
+								<span class="slider-label">Threshold</span>
+								<input type="range" min="0" max="1" step="0.01" bind:value={simState.vitalityThreshold} />
+								<span class="slider-value">{simState.vitalityThreshold.toFixed(2)}</span>
+							</div>
+						{:else if simState.vitalityMode === 'ghost'}
+							<div class="vitality-slider-item">
+								<span class="slider-label">Factor</span>
+								<input type="range" min="0" max="1" step="0.01" bind:value={simState.vitalityGhostFactor} />
+								<span class="slider-value">{simState.vitalityGhostFactor.toFixed(2)}</span>
+							</div>
+						{:else if simState.vitalityMode === 'sigmoid'}
+							<div class="vitality-slider-item">
+								<span class="slider-label">Center</span>
+								<input type="range" min="0" max="1" step="0.01" bind:value={simState.vitalityThreshold} />
+								<span class="slider-value">{simState.vitalityThreshold.toFixed(2)}</span>
+							</div>
+							<div class="vitality-slider-item">
+								<span class="slider-label">Sharp</span>
+								<input type="range" min="1" max="20" step="0.5" bind:value={simState.vitalitySigmoidSharpness} />
+								<span class="slider-value">{simState.vitalitySigmoidSharpness.toFixed(1)}</span>
+							</div>
+						{:else if simState.vitalityMode === 'decay'}
+							<div class="vitality-slider-item">
+								<span class="slider-label">Factor</span>
+								<input type="range" min="0" max="1" step="0.01" bind:value={simState.vitalityGhostFactor} />
+								<span class="slider-value">{simState.vitalityGhostFactor.toFixed(2)}</span>
+							</div>
+							<div class="vitality-slider-item">
+								<span class="slider-label">Curve</span>
+								<input type="range" min="0.5" max="3" step="0.1" bind:value={simState.vitalityDecayPower} />
+								<span class="slider-value">{simState.vitalityDecayPower.toFixed(1)}</span>
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -2166,6 +2293,148 @@
 		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
 		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
 		color: var(--ui-accent, #2dd4bf);
+	}
+
+	/* Vitality Influence Section */
+	.vitality-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		padding-top: 0.4rem;
+		border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.06));
+	}
+	
+	.vitality-header {
+		display: flex;
+		align-items: center;
+	}
+	
+	.vitality-label {
+		font-size: 0.55rem;
+		color: var(--ui-text, #555);
+		text-transform: uppercase;
+	}
+	
+	.vitality-modes {
+		display: flex;
+		gap: 0.2rem;
+	}
+	
+	.vitality-mode-btn {
+		flex: 1;
+		padding: 0.25rem 0.15rem;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 0.15s;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.15rem;
+	}
+	
+	.vitality-mode-btn svg {
+		width: 16px;
+		height: 16px;
+	}
+	
+	.vitality-mode-btn span {
+		font-size: 0.5rem;
+		color: var(--ui-text, #666);
+	}
+	
+	.vitality-mode-btn:hover {
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
+		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.15));
+	}
+	
+	.vitality-mode-btn:hover svg {
+		color: var(--ui-text-hover, #fff);
+	}
+	
+	.vitality-mode-btn:hover span {
+		color: var(--ui-text-hover, #fff);
+	}
+	
+	.vitality-mode-btn.active {
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
+	}
+	
+	.vitality-mode-btn.active svg {
+		color: var(--ui-accent, #2dd4bf);
+	}
+	
+	.vitality-mode-btn.active span {
+		color: var(--ui-accent, #2dd4bf);
+	}
+	
+	.vitality-sliders {
+		display: flex;
+		gap: 0.5rem;
+	}
+	
+	.vitality-slider-item {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+	
+	.vitality-slider-item .slider-label {
+		font-size: 0.5rem;
+		color: var(--ui-text, #666);
+		min-width: 2.2rem;
+	}
+	
+	.vitality-slider-item input[type='range'] {
+		flex: 1;
+		height: 3px;
+		-webkit-appearance: none;
+		appearance: none;
+		background: var(--ui-border, rgba(255, 255, 255, 0.15));
+		border-radius: 2px;
+		outline: none;
+		cursor: pointer;
+	}
+	
+	.vitality-slider-item input[type='range']::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 10px;
+		height: 10px;
+		background: var(--ui-accent, #2dd4bf);
+		border-radius: 50%;
+		cursor: pointer;
+		border: none;
+		transition: transform 0.1s;
+	}
+	
+	.vitality-slider-item input[type='range']::-webkit-slider-thumb:hover {
+		transform: scale(1.2);
+	}
+	
+	.vitality-slider-item input[type='range']::-moz-range-thumb {
+		width: 10px;
+		height: 10px;
+		background: var(--ui-accent, #2dd4bf);
+		border-radius: 50%;
+		cursor: pointer;
+		border: none;
+		transition: transform 0.1s;
+	}
+	
+	.vitality-slider-item input[type='range']::-moz-range-thumb:hover {
+		transform: scale(1.2);
+	}
+	
+	.vitality-slider-item .slider-value {
+		font-size: 0.5rem;
+		color: var(--ui-text-hover, #aaa);
+		min-width: 1.5rem;
+		text-align: right;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.foot-label {

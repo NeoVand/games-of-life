@@ -3,8 +3,8 @@
  * Manages reactive state for the cellular automaton
  */
 
-import type { CARule } from '../utils/rules.js';
-import { getDefaultRule } from '../utils/rules.js';
+import type { CARule, VitalityMode, VitalitySettings } from '../utils/rules.js';
+import { getDefaultRule, DEFAULT_VITALITY } from '../utils/rules.js';
 
 // Simulation state
 let isPlaying = $state(true); // Start playing by default
@@ -115,7 +115,7 @@ export function boundaryModeToIndex(mode: BoundaryMode): number {
 	return modes.indexOf(mode);
 }
 
-let spectrumMode = $state<SpectrumMode>('fire');
+let spectrumMode = $state<SpectrumMode>('thermal');
 
 // Spectrum frequency - how many times to repeat the spectrum across dying states
 // 1.0 = normal (once), 2.0 = twice, 0.5 = stretched to half
@@ -125,6 +125,16 @@ let spectrumFrequency = $state(2.3);
 // 'off' = no shading, 'alive' = count alive neighbors, 'vitality' = sum neighbor states
 export type NeighborShadingMode = 'off' | 'alive' | 'vitality';
 let neighborShading = $state<NeighborShadingMode>('vitality');
+
+// Vitality influence - how dying cells affect neighbor counting for rule application
+// This allows multi-state rules to have more complex dynamics
+// Initialize from default rule's vitality settings if present
+const defaultRuleVitality = getDefaultRule().vitality;
+let vitalityMode = $state<VitalityMode>(defaultRuleVitality?.mode ?? 'none');
+let vitalityThreshold = $state(defaultRuleVitality?.threshold ?? 1.0);
+let vitalityGhostFactor = $state(defaultRuleVitality?.ghostFactor ?? 0.0);
+let vitalitySigmoidSharpness = $state(defaultRuleVitality?.sigmoidSharpness ?? 10.0);
+let vitalityDecayPower = $state(defaultRuleVitality?.decayPower ?? 1.0);
 
 // Color palettes for dark and light themes
 export const DARK_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
@@ -592,6 +602,71 @@ export function getSimulationState() {
 		},
 		set neighborShading(value: NeighborShadingMode) {
 			neighborShading = value;
+		},
+
+		// Vitality influence settings
+		get vitalityMode() {
+			return vitalityMode;
+		},
+		set vitalityMode(value: VitalityMode) {
+			vitalityMode = value;
+		},
+
+		get vitalityThreshold() {
+			return vitalityThreshold;
+		},
+		set vitalityThreshold(value: number) {
+			vitalityThreshold = Math.max(0.0, Math.min(1.0, value));
+		},
+
+		get vitalityGhostFactor() {
+			return vitalityGhostFactor;
+		},
+		set vitalityGhostFactor(value: number) {
+			vitalityGhostFactor = Math.max(0.0, Math.min(1.0, value));
+		},
+
+		get vitalitySigmoidSharpness() {
+			return vitalitySigmoidSharpness;
+		},
+		set vitalitySigmoidSharpness(value: number) {
+			vitalitySigmoidSharpness = Math.max(1.0, Math.min(20.0, value));
+		},
+
+		get vitalityDecayPower() {
+			return vitalityDecayPower;
+		},
+		set vitalityDecayPower(value: number) {
+			vitalityDecayPower = Math.max(0.5, Math.min(3.0, value));
+		},
+
+		// Get current vitality settings as an object
+		getVitalitySettings(): VitalitySettings {
+			return {
+				mode: vitalityMode,
+				threshold: vitalityThreshold,
+				ghostFactor: vitalityGhostFactor,
+				sigmoidSharpness: vitalitySigmoidSharpness,
+				decayPower: vitalityDecayPower
+			};
+		},
+
+		// Set vitality from settings object (e.g., from a rule)
+		setVitalitySettings(settings: VitalitySettings | undefined) {
+			if (settings) {
+				vitalityMode = settings.mode;
+				vitalityThreshold = settings.threshold;
+				vitalityGhostFactor = settings.ghostFactor;
+				vitalitySigmoidSharpness = settings.sigmoidSharpness ?? DEFAULT_VITALITY.sigmoidSharpness;
+				vitalityDecayPower = settings.decayPower ?? DEFAULT_VITALITY.decayPower;
+			} else {
+				// Reset to defaults
+				vitalityMode = DEFAULT_VITALITY.mode;
+				vitalityThreshold = DEFAULT_VITALITY.threshold;
+				vitalityGhostFactor = DEFAULT_VITALITY.ghostFactor;
+				vitalitySigmoidSharpness = DEFAULT_VITALITY.sigmoidSharpness;
+				vitalityDecayPower = DEFAULT_VITALITY.decayPower;
+			}
 		},
 
 		get lastInitPattern() {

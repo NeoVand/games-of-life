@@ -5,12 +5,20 @@
 struct Params {
     width: u32,
     height: u32,
-    birth_mask: u32,      // Bit i = 1 means birth with i neighbors
-    survive_mask: u32,    // Bit i = 1 means survive with i neighbors
-    num_states: u32,      // 2 for Life-like, 3+ for Generations
-    boundary_mode: u32,   // 0=plane, 1=cylinderX, 2=cylinderY, 3=torus, 4=mobiusX, 5=mobiusY, 6=kleinX, 7=kleinY, 8=projectivePlane
-    neighborhood: u32,    // 0 = Moore (8), 1 = Von Neumann (4), 2 = Extended Moore (24), 3 = Hexagonal (6), 4 = Extended Hexagonal (18)
-    _padding: u32,        // Padding for 16-byte alignment
+    birth_mask: u32,          // Bit i = 1 means birth with i neighbors
+    survive_mask: u32,        // Bit i = 1 means survive with i neighbors
+    num_states: u32,          // 2 for Life-like, 3+ for Generations
+    boundary_mode: u32,       // 0=plane, 1=cylinderX, 2=cylinderY, 3=torus, 4=mobiusX, 5=mobiusY, 6=kleinX, 7=kleinY, 8=projectivePlane
+    neighborhood: u32,        // 0 = Moore (8), 1 = Von Neumann (4), 2 = Extended Moore (24), 3 = Hexagonal (6), 4 = Extended Hexagonal (18)
+    vitality_mode: u32,       // 0=none, 1=threshold, 2=ghost, 3=sigmoid, 4=decay
+    vitality_threshold: f32,  // For modes 1,3: vitality cutoff (0.0-1.0)
+    vitality_ghost: f32,      // For modes 2,4: ghost contribution factor (0.0-1.0)
+    vitality_sigmoid: f32,    // For mode 3: sigmoid sharpness (1.0-20.0)
+    vitality_decay: f32,      // For mode 4: power curve exponent (0.5-3.0)
+    _padding1: u32,           // Padding for 16-byte alignment
+    _padding2: u32,
+    _padding3: u32,
+    _padding4: u32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -107,60 +115,109 @@ fn is_alive(state: u32) -> bool {
     return state == 1u;
 }
 
+// Calculate vitality of a cell (1.0 = fully alive, 0.0 = dead)
+// For dying cells, vitality decreases from ~1.0 to ~0.0
+fn get_vitality(state: u32) -> f32 {
+    if (state == 0u) { return 0.0; }  // Dead
+    if (state == 1u) { return 1.0; }  // Fully alive
+    // Dying: vitality = (numStates - state) / (numStates - 1)
+    // State 2 -> vitality close to 1.0, last state -> vitality close to 0.0
+    return f32(params.num_states - state) / f32(params.num_states - 1u);
+}
+
+// Calculate how much a cell contributes to neighbor count based on vitality mode
+fn get_neighbor_contribution(state: u32) -> f32 {
+    let mode = params.vitality_mode;
+    
+    // Mode 0: Standard - only state 1 counts
+    if (mode == 0u) {
+        if (state == 1u) { return 1.0; }
+        return 0.0;
+    }
+    
+    let vitality = get_vitality(state);
+    
+    // Mode 1: Threshold - cells above threshold count as 1
+    if (mode == 1u) {
+        if (vitality >= params.vitality_threshold) { return 1.0; }
+        return 0.0;
+    }
+    
+    // Mode 2: Ghost - dying cells contribute fractionally
+    // Alive cells always contribute 1.0
+    // Dying cells contribute vitality * ghost_factor
+    if (mode == 2u) {
+        if (state == 1u) { return 1.0; }
+        if (state == 0u) { return 0.0; }
+        return vitality * params.vitality_ghost;
+    }
+    
+    // Mode 3: Sigmoid - smooth S-curve transition
+    // sigmoid((vitality - threshold) * sharpness)
+    if (mode == 3u) {
+        let x = (vitality - params.vitality_threshold) * params.vitality_sigmoid;
+        return 1.0 / (1.0 + exp(-x));
+    }
+    
+    // Mode 4: Decay - power curve with ghost factor
+    // Alive cells contribute 1.0
+    // Dying cells contribute vitality^power * ghost_factor
+    if (state == 1u) { return 1.0; }
+    if (state == 0u) { return 0.0; }
+    return pow(vitality, params.vitality_decay) * params.vitality_ghost;
+}
+
 // Count living neighbors - Moore neighborhood (8 cells)
 fn count_neighbors_moore(x: i32, y: i32) -> u32 {
-    var count: u32 = 0u;
+    var total: f32 = 0.0;
     
     for (var dy: i32 = -1; dy <= 1; dy++) {
         for (var dx: i32 = -1; dx <= 1; dx++) {
             if (dx == 0 && dy == 0) {
                 continue;
             }
-            if (is_alive(get_cell(x + dx, y + dy))) {
-                count++;
-            }
+            total += get_neighbor_contribution(get_cell(x + dx, y + dy));
         }
     }
     
-    return count;
+    // Round to nearest integer for bitmask lookup
+    return u32(total + 0.5);
 }
 
 // Count living neighbors - Von Neumann neighborhood (4 cells)
 fn count_neighbors_von_neumann(x: i32, y: i32) -> u32 {
-    var count: u32 = 0u;
+    var total: f32 = 0.0;
     
     // Only orthogonal neighbors (N, S, E, W)
-    if (is_alive(get_cell(x, y - 1))) { count++; } // North
-    if (is_alive(get_cell(x, y + 1))) { count++; } // South
-    if (is_alive(get_cell(x - 1, y))) { count++; } // West
-    if (is_alive(get_cell(x + 1, y))) { count++; } // East
+    total += get_neighbor_contribution(get_cell(x, y - 1)); // North
+    total += get_neighbor_contribution(get_cell(x, y + 1)); // South
+    total += get_neighbor_contribution(get_cell(x - 1, y)); // West
+    total += get_neighbor_contribution(get_cell(x + 1, y)); // East
     
-    return count;
+    return u32(total + 0.5);
 }
 
 // Count living neighbors - Extended Moore neighborhood (24 cells, radius 2)
 fn count_neighbors_extended(x: i32, y: i32) -> u32 {
-    var count: u32 = 0u;
+    var total: f32 = 0.0;
     
     for (var dy: i32 = -2; dy <= 2; dy++) {
         for (var dx: i32 = -2; dx <= 2; dx++) {
             if (dx == 0 && dy == 0) {
                 continue;
             }
-            if (is_alive(get_cell(x + dx, y + dy))) {
-                count++;
-            }
+            total += get_neighbor_contribution(get_cell(x + dx, y + dy));
         }
     }
     
-    return count;
+    return u32(total + 0.5);
 }
 
 // Count living neighbors - Hexagonal neighborhood (6 cells)
 // Uses "offset coordinates" (odd-r) where odd rows are shifted right
 // Each cell has 6 neighbors arranged in a honeycomb pattern
 fn count_neighbors_hexagonal(x: i32, y: i32) -> u32 {
-    var count: u32 = 0u;
+    var total: f32 = 0.0;
     
     // Determine if this row is odd or even
     let is_odd_row = (y & 1) == 1;
@@ -168,30 +225,30 @@ fn count_neighbors_hexagonal(x: i32, y: i32) -> u32 {
     // Top-left and top-right neighbors
     if (is_odd_row) {
         // Odd row: top neighbors at (x, y-1) and (x+1, y-1)
-        if (is_alive(get_cell(x, y - 1))) { count++; }
-        if (is_alive(get_cell(x + 1, y - 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x, y - 1));
+        total += get_neighbor_contribution(get_cell(x + 1, y - 1));
     } else {
         // Even row: top neighbors at (x-1, y-1) and (x, y-1)
-        if (is_alive(get_cell(x - 1, y - 1))) { count++; }
-        if (is_alive(get_cell(x, y - 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x - 1, y - 1));
+        total += get_neighbor_contribution(get_cell(x, y - 1));
     }
     
     // Left and right neighbors (same for both odd and even rows)
-    if (is_alive(get_cell(x - 1, y))) { count++; }
-    if (is_alive(get_cell(x + 1, y))) { count++; }
+    total += get_neighbor_contribution(get_cell(x - 1, y));
+    total += get_neighbor_contribution(get_cell(x + 1, y));
     
     // Bottom-left and bottom-right neighbors
     if (is_odd_row) {
         // Odd row: bottom neighbors at (x, y+1) and (x+1, y+1)
-        if (is_alive(get_cell(x, y + 1))) { count++; }
-        if (is_alive(get_cell(x + 1, y + 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x, y + 1));
+        total += get_neighbor_contribution(get_cell(x + 1, y + 1));
     } else {
         // Even row: bottom neighbors at (x-1, y+1) and (x, y+1)
-        if (is_alive(get_cell(x - 1, y + 1))) { count++; }
-        if (is_alive(get_cell(x, y + 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x - 1, y + 1));
+        total += get_neighbor_contribution(get_cell(x, y + 1));
     }
     
-    return count;
+    return u32(total + 0.5);
 }
 
 // Count living neighbors - Extended Hexagonal neighborhood (18 cells)
@@ -199,7 +256,7 @@ fn count_neighbors_hexagonal(x: i32, y: i32) -> u32 {
 // Ring 1: 6 immediate neighbors (same as regular hexagonal)
 // Ring 2: 12 neighbors at distance 2
 fn count_neighbors_extended_hexagonal(x: i32, y: i32) -> u32 {
-    var count: u32 = 0u;
+    var total: f32 = 0.0;
     
     // Determine if this row is odd or even
     let is_odd_row = (y & 1) == 1;
@@ -208,24 +265,24 @@ fn count_neighbors_extended_hexagonal(x: i32, y: i32) -> u32 {
     
     // Top neighbors (y-1)
     if (is_odd_row) {
-        if (is_alive(get_cell(x, y - 1))) { count++; }
-        if (is_alive(get_cell(x + 1, y - 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x, y - 1));
+        total += get_neighbor_contribution(get_cell(x + 1, y - 1));
     } else {
-        if (is_alive(get_cell(x - 1, y - 1))) { count++; }
-        if (is_alive(get_cell(x, y - 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x - 1, y - 1));
+        total += get_neighbor_contribution(get_cell(x, y - 1));
     }
     
     // Left and right neighbors (y)
-    if (is_alive(get_cell(x - 1, y))) { count++; }
-    if (is_alive(get_cell(x + 1, y))) { count++; }
+    total += get_neighbor_contribution(get_cell(x - 1, y));
+    total += get_neighbor_contribution(get_cell(x + 1, y));
     
     // Bottom neighbors (y+1)
     if (is_odd_row) {
-        if (is_alive(get_cell(x, y + 1))) { count++; }
-        if (is_alive(get_cell(x + 1, y + 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x, y + 1));
+        total += get_neighbor_contribution(get_cell(x + 1, y + 1));
     } else {
-        if (is_alive(get_cell(x - 1, y + 1))) { count++; }
-        if (is_alive(get_cell(x, y + 1))) { count++; }
+        total += get_neighbor_contribution(get_cell(x - 1, y + 1));
+        total += get_neighbor_contribution(get_cell(x, y + 1));
     }
     
     // === RING 2: 12 outer neighbors ===
@@ -234,53 +291,53 @@ fn count_neighbors_extended_hexagonal(x: i32, y: i32) -> u32 {
     let is_odd_row_m1 = ((y - 1) & 1) == 1;
     if (is_odd_row_m1) {
         // Row y-1 is odd, so y-2 is even
-        if (is_alive(get_cell(x, y - 2))) { count++; }      // directly above
-        if (is_alive(get_cell(x + 1, y - 2))) { count++; }  // above-right
+        total += get_neighbor_contribution(get_cell(x, y - 2));      // directly above
+        total += get_neighbor_contribution(get_cell(x + 1, y - 2));  // above-right
     } else {
         // Row y-1 is even, so y-2 is odd
-        if (is_alive(get_cell(x - 1, y - 2))) { count++; }  // above-left
-        if (is_alive(get_cell(x, y - 2))) { count++; }      // directly above
+        total += get_neighbor_contribution(get_cell(x - 1, y - 2));  // above-left
+        total += get_neighbor_contribution(get_cell(x, y - 2));      // directly above
     }
     
     // Row y-1 outer cells (2 cells at far corners of top row)
     if (is_odd_row) {
         // Current row is odd
-        if (is_alive(get_cell(x - 1, y - 1))) { count++; }  // far top-left
-        if (is_alive(get_cell(x + 2, y - 1))) { count++; }  // far top-right
+        total += get_neighbor_contribution(get_cell(x - 1, y - 1));  // far top-left
+        total += get_neighbor_contribution(get_cell(x + 2, y - 1));  // far top-right
     } else {
         // Current row is even
-        if (is_alive(get_cell(x - 2, y - 1))) { count++; }  // far top-left
-        if (is_alive(get_cell(x + 1, y - 1))) { count++; }  // far top-right
+        total += get_neighbor_contribution(get_cell(x - 2, y - 1));  // far top-left
+        total += get_neighbor_contribution(get_cell(x + 1, y - 1));  // far top-right
     }
     
     // Row y outer cells (2 cells at distance 2 horizontally)
-    if (is_alive(get_cell(x - 2, y))) { count++; }  // far left
-    if (is_alive(get_cell(x + 2, y))) { count++; }  // far right
+    total += get_neighbor_contribution(get_cell(x - 2, y));  // far left
+    total += get_neighbor_contribution(get_cell(x + 2, y));  // far right
     
     // Row y+1 outer cells (2 cells at far corners of bottom row)
     if (is_odd_row) {
         // Current row is odd
-        if (is_alive(get_cell(x - 1, y + 1))) { count++; }  // far bottom-left
-        if (is_alive(get_cell(x + 2, y + 1))) { count++; }  // far bottom-right
+        total += get_neighbor_contribution(get_cell(x - 1, y + 1));  // far bottom-left
+        total += get_neighbor_contribution(get_cell(x + 2, y + 1));  // far bottom-right
     } else {
         // Current row is even
-        if (is_alive(get_cell(x - 2, y + 1))) { count++; }  // far bottom-left
-        if (is_alive(get_cell(x + 1, y + 1))) { count++; }  // far bottom-right
+        total += get_neighbor_contribution(get_cell(x - 2, y + 1));  // far bottom-left
+        total += get_neighbor_contribution(get_cell(x + 1, y + 1));  // far bottom-right
     }
     
     // Row y+2 (2 cells directly below)
     let is_odd_row_p1 = ((y + 1) & 1) == 1;
     if (is_odd_row_p1) {
         // Row y+1 is odd, so y+2 is even
-        if (is_alive(get_cell(x, y + 2))) { count++; }      // directly below
-        if (is_alive(get_cell(x + 1, y + 2))) { count++; }  // below-right
+        total += get_neighbor_contribution(get_cell(x, y + 2));      // directly below
+        total += get_neighbor_contribution(get_cell(x + 1, y + 2));  // below-right
     } else {
         // Row y+1 is even, so y+2 is odd
-        if (is_alive(get_cell(x - 1, y + 2))) { count++; }  // below-left
-        if (is_alive(get_cell(x, y + 2))) { count++; }      // directly below
+        total += get_neighbor_contribution(get_cell(x - 1, y + 2));  // below-left
+        total += get_neighbor_contribution(get_cell(x, y + 2));      // directly below
     }
     
-    return count;
+    return u32(total + 0.5);
 }
 
 // Count neighbors based on neighborhood type

@@ -63,6 +63,41 @@ export const RULE_CATEGORIES: RuleCategoryInfo[] = [
 	{ id: 'generations', name: 'Generations', description: 'Multi-state with decay trails' }
 ];
 
+// Vitality modes - how dying cells influence neighbor counting
+export type VitalityMode = 'none' | 'threshold' | 'ghost' | 'sigmoid' | 'decay';
+
+export interface VitalityModeInfo {
+	id: VitalityMode;
+	name: string;
+	description: string;
+}
+
+export const VITALITY_MODES: VitalityModeInfo[] = [
+	{ id: 'none', name: 'Off', description: 'Only fully alive cells count as neighbors' },
+	{ id: 'threshold', name: 'Cut', description: 'Cells above vitality threshold count as alive' },
+	{ id: 'ghost', name: 'Ghost', description: 'Dying cells contribute fractionally based on vitality' },
+	{ id: 'sigmoid', name: 'Soft', description: 'Smooth S-curve transition between counting and not' },
+	{ id: 'decay', name: 'Decay', description: 'Power curve controls how fast influence falls off' }
+];
+
+// Vitality settings for a rule
+export interface VitalitySettings {
+	mode: VitalityMode;
+	threshold: number;     // For 'threshold'/'sigmoid' mode: 0.0-1.0 (default 1.0)
+	ghostFactor: number;   // For 'ghost'/'decay' mode: 0.0-1.0 (default 0.0)
+	sigmoidSharpness: number; // For 'sigmoid' mode: 1.0-20.0 (default 10.0)
+	decayPower: number;    // For 'decay' mode: 0.5-3.0 (default 1.0)
+}
+
+// Default vitality settings (standard behavior)
+export const DEFAULT_VITALITY: VitalitySettings = {
+	mode: 'none',
+	threshold: 1.0,
+	ghostFactor: 0.0,
+	sigmoidSharpness: 10.0,
+	decayPower: 1.0
+};
+
 export interface CARule {
 	name: string;
 	birthMask: number; // Bit mask: bit i = 1 means birth with i neighbors
@@ -73,6 +108,7 @@ export interface CARule {
 	category?: RuleCategory;
 	description?: string; // Brief description of behavior
 	density?: number; // Recommended initial density (0-1), default 0.25
+	vitality?: VitalitySettings; // How dying cells influence neighbor counting
 }
 
 /**
@@ -908,6 +944,25 @@ export const RULE_PRESETS: CARule[] = [
 		description: 'Complex emergent patterns with sparse birth/survive conditions',
 		density: 0.2
 	},
+	// Hex Neo Mandala series - artistic patterns with vitality influence
+	{
+		name: 'Hex Neo Mandala 1',
+		birthMask: 0b100, // 2
+		surviveMask: 0b111000, // 3, 4, 5
+		numStates: 188,
+		ruleString: 'B2/S345/C188',
+		neighborhood: 'hexagonal',
+		category: 'artistic',
+		description: 'Mandala-like symmetric patterns with ghost vitality',
+		density: 0.25,
+		vitality: {
+			mode: 'ghost',
+			threshold: 1.0,
+			ghostFactor: 0.59,
+			sigmoidSharpness: 10.0,
+			decayPower: 1.0
+		}
+	},
 	{
 		name: 'Hex2 Neo Brain 2',
 		birthMask: 0b0001101000, // 3, 5, 6
@@ -1028,10 +1083,10 @@ export function getRuleByName(name: string): CARule | undefined {
 }
 
 /**
- * Get the default rule (Hex2 Neo Slime Mold)
+ * Get the default rule (Hex Neo Mandala 1)
  */
 export function getDefaultRule(): CARule {
-	return getRuleByName('Hex2 Neo Slime Mold') || RULE_PRESETS[0];
+	return getRuleByName('Hex Neo Mandala 1') || RULE_PRESETS[0];
 }
 
 /**

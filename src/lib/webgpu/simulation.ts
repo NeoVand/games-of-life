@@ -4,7 +4,7 @@
  */
 
 import type { WebGPUContext } from './context.js';
-import type { CARule, NeighborhoodType } from '../utils/rules.js';
+import type { CARule, NeighborhoodType, VitalityMode } from '../utils/rules.js';
 import { getDefaultRule } from '../utils/rules.js';
 import { SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId, type BoundaryMode, boundaryModeToIndex } from '../stores/simulation.svelte.js';
 
@@ -32,6 +32,12 @@ export interface ViewState {
 	spectrumMode: number; // 0=hueShift, 1=rainbow, 2=warm, 3=cool, 4=monochrome, 5=fire
 	spectrumFrequency: number; // How many times to repeat spectrum (1.0 = normal)
 	neighborShading: number; // 0=off, 1=count alive, 2=sum vitality
+	// Vitality influence settings
+	vitalityMode: VitalityMode; // How dying cells affect neighbor counting
+	vitalityThreshold: number;  // For 'threshold'/'sigmoid' mode: 0.0-1.0
+	vitalityGhostFactor: number; // For 'ghost'/'decay' mode: 0.0-1.0
+	vitalitySigmoidSharpness: number; // For 'sigmoid' mode: 1.0-20.0
+	vitalityDecayPower: number; // For 'decay' mode: 0.5-3.0
 }
 
 export class Simulation {
@@ -98,7 +104,14 @@ export class Simulation {
 			brushRadius: -1, // Hidden by default
 			boundaryMode: 'torus', // Default to toroidal wrapping
 			spectrumMode: 0, // Default to hue shift
-			neighborShading: 1 // Default to count alive
+			spectrumFrequency: 1.0, // Default to single spectrum span
+			neighborShading: 1, // Default to count alive
+			// Vitality defaults (standard behavior)
+			vitalityMode: 'none',
+			vitalityThreshold: 1.0,
+			vitalityGhostFactor: 0.0,
+			vitalitySigmoidSharpness: 10.0,
+			vitalityDecayPower: 1.0
 		};
 
 		this.initializePipelines();
@@ -216,7 +229,7 @@ export class Simulation {
 		// Compute params buffer (6 u32 values, padded to 32 bytes)
 		this.computeParamsBuffer = this.device.createBuffer({
 			label: 'Compute Params Buffer',
-			size: 32,
+			size: 64, // 16 values: 8 u32 + 5 vitality params + 3 padding
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
 
@@ -285,18 +298,47 @@ export class Simulation {
 		}
 	}
 
+	private getVitalityModeIndex(): number {
+		switch (this.view.vitalityMode) {
+			case 'none': return 0;
+			case 'threshold': return 1;
+			case 'ghost': return 2;
+			case 'sigmoid': return 3;
+			case 'decay': return 4;
+			default: return 0;
+		}
+	}
+
 	private updateComputeParams(): void {
-		const params = new Uint32Array([
-			this.width,
-			this.height,
-			this.rule.birthMask,
-			this.rule.surviveMask,
-			this.rule.numStates,
-			boundaryModeToIndex(this.view.boundaryMode),
-			this.getNeighborhoodIndex(),
-			0 // padding for 16-byte alignment
-		]);
-		this.device.queue.writeBuffer(this.computeParamsBuffer, 0, params);
+		// Use ArrayBuffer with DataView for mixed types
+		const buffer = new ArrayBuffer(64);
+		const view = new DataView(buffer);
+		
+		// First 7 u32 values (offsets 0-24)
+		view.setUint32(0, this.width, true);
+		view.setUint32(4, this.height, true);
+		view.setUint32(8, this.rule.birthMask, true);
+		view.setUint32(12, this.rule.surviveMask, true);
+		view.setUint32(16, this.rule.numStates, true);
+		view.setUint32(20, boundaryModeToIndex(this.view.boundaryMode), true);
+		view.setUint32(24, this.getNeighborhoodIndex(), true);
+		
+		// Vitality mode (offset 28)
+		view.setUint32(28, this.getVitalityModeIndex(), true);
+		
+		// Vitality float params (offsets 32-48)
+		view.setFloat32(32, this.view.vitalityThreshold, true);
+		view.setFloat32(36, this.view.vitalityGhostFactor, true);
+		view.setFloat32(40, this.view.vitalitySigmoidSharpness, true);
+		view.setFloat32(44, this.view.vitalityDecayPower, true);
+		
+		// Padding (offsets 48-64)
+		view.setUint32(48, 0, true);
+		view.setUint32(52, 0, true);
+		view.setUint32(56, 0, true);
+		view.setUint32(60, 0, true);
+		
+		this.device.queue.writeBuffer(this.computeParamsBuffer, 0, buffer);
 	}
 
 	private updateRenderParams(canvasWidth: number, canvasHeight: number): void {
@@ -694,10 +736,16 @@ export class Simulation {
 	 */
 	setView(view: Partial<ViewState>): void {
 		const boundaryChanged = view.boundaryMode !== undefined && view.boundaryMode !== this.view.boundaryMode;
+		const vitalityChanged = (view.vitalityMode !== undefined && view.vitalityMode !== this.view.vitalityMode) ||
+			(view.vitalityThreshold !== undefined && view.vitalityThreshold !== this.view.vitalityThreshold) ||
+			(view.vitalityGhostFactor !== undefined && view.vitalityGhostFactor !== this.view.vitalityGhostFactor) ||
+			(view.vitalitySigmoidSharpness !== undefined && view.vitalitySigmoidSharpness !== this.view.vitalitySigmoidSharpness) ||
+			(view.vitalityDecayPower !== undefined && view.vitalityDecayPower !== this.view.vitalityDecayPower);
+		
 		this.view = { ...this.view, ...view };
 		
-		// If boundary mode changed, update compute params
-		if (boundaryChanged) {
+		// If boundary mode or vitality settings changed, update compute params
+		if (boundaryChanged || vitalityChanged) {
 			this.updateComputeParams();
 		}
 	}

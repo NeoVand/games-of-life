@@ -268,7 +268,13 @@
 			boundaryMode: simState.boundaryMode,
 			spectrumMode: getSpectrumModeIndex(simState.spectrumMode),
 			spectrumFrequency: simState.spectrumFrequency,
-			neighborShading: getNeighborShadingIndex(simState.neighborShading)
+			neighborShading: getNeighborShadingIndex(simState.neighborShading),
+			// Vitality influence settings
+			vitalityMode: simState.vitalityMode,
+			vitalityThreshold: simState.vitalityThreshold,
+			vitalityGhostFactor: simState.vitalityGhostFactor,
+			vitalitySigmoidSharpness: simState.vitalitySigmoidSharpness,
+			vitalityDecayPower: simState.vitalityDecayPower
 		});
 
 		// Always render
