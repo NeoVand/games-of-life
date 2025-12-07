@@ -448,12 +448,13 @@ export class Simulation {
 		const h = this.height;
 		
 		// Determine which boundaries wrap and flip based on mode
-		const wrapsX = mode === 'cylinder_h' || mode === 'torus' || mode === 'mobius_h' || 
-		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
-		const wrapsY = mode === 'cylinder_v' || mode === 'torus' || mode === 'mobius_v' || 
-		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
-		const flipsX = mode === 'mobius_h' || mode === 'klein_h' || mode === 'projective';
-		const flipsY = mode === 'mobius_v' || mode === 'klein_v' || mode === 'projective';
+		// Modes: cylinderX, torus, mobiusX, kleinX, kleinY, projectivePlane
+		const wrapsX = mode === 'cylinderX' || mode === 'torus' || mode === 'mobiusX' || 
+		               mode === 'kleinX' || mode === 'kleinY' || mode === 'projectivePlane';
+		const wrapsY = mode === 'cylinderY' || mode === 'torus' || mode === 'mobiusY' || 
+		               mode === 'kleinX' || mode === 'kleinY' || mode === 'projectivePlane';
+		const flipsX = mode === 'mobiusX' || mode === 'kleinX' || mode === 'projectivePlane';
+		const flipsY = mode === 'mobiusY' || mode === 'kleinY' || mode === 'projectivePlane';
 		
 		let fx = x;
 		let fy = y;
@@ -989,29 +990,30 @@ export class Simulation {
 	/**
 	 * Normalize view offset to stay within a reasonable range for wrapping boundary modes.
 	 * This prevents floating-point precision issues during very long pans.
-	 * Only normalizes when offset exceeds 10x the grid size to avoid visible jumps.
+	 * Normalizes when offset exceeds 3x the grid size to keep values small.
 	 */
 	private normalizeOffset(): void {
 		const mode = this.view.boundaryMode;
 		
 		// Check if boundary mode wraps horizontally
-		const wrapsX = mode === 'cylinder_h' || mode === 'torus' || mode === 'mobius_h' || 
-		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+		// Modes: cylinderX, torus, mobiusX, kleinX, kleinY, projectivePlane
+		const wrapsX = mode === 'cylinderX' || mode === 'torus' || mode === 'mobiusX' || 
+		               mode === 'kleinX' || mode === 'kleinY' || mode === 'projectivePlane';
 		// Check if boundary mode wraps vertically
-		const wrapsY = mode === 'cylinder_v' || mode === 'torus' || mode === 'mobius_v' || 
-		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+		// Modes: cylinderY, torus, mobiusY, kleinX, kleinY, projectivePlane
+		const wrapsY = mode === 'cylinderY' || mode === 'torus' || mode === 'mobiusY' || 
+		               mode === 'kleinX' || mode === 'kleinY' || mode === 'projectivePlane';
 		
-		// Only normalize when offset gets very large (10x grid size) to avoid precision issues
-		// This prevents visible jumps during normal panning while still preventing
-		// floating-point precision degradation after extremely long panning sessions
-		const threshold = 10;
+		// Normalize when offset exceeds 3x grid size to prevent precision issues
+		// while keeping the view stable
+		const threshold = 3;
 		
-		// Normalize X offset only when it exceeds threshold
+		// Normalize X offset when it exceeds threshold
 		if (wrapsX && Math.abs(this.view.offsetX) > this.width * threshold) {
 			this.view.offsetX = ((this.view.offsetX % this.width) + this.width) % this.width;
 		}
 		
-		// Normalize Y offset only when it exceeds threshold
+		// Normalize Y offset when it exceeds threshold
 		if (wrapsY && Math.abs(this.view.offsetY) > this.height * threshold) {
 			this.view.offsetY = ((this.view.offsetY % this.height) + this.height) % this.height;
 		}
