@@ -154,7 +154,7 @@
 			<button
 				id="tour-brush-btn"
 				class="control-btn"
-				class:active={simState.toolMode === 'brush' || showBrushSlider}
+				class:active={(simState.toolMode === 'brush' && !simState.isSpaceHeld) || showBrushSlider}
 				onclick={toggleBrush}
 				data-tooltip="Brush (B)"
 			>
@@ -250,7 +250,7 @@
 		<button 
 			id="tour-pan-btn" 
 			class="control-btn" 
-			class:active={simState.toolMode === 'pan'}
+			class:active={simState.toolMode === 'pan' || simState.isSpaceHeld}
 			onclick={() => simState.toolMode = simState.toolMode === 'pan' ? 'brush' : 'pan'} 
 			data-tooltip="Pan Mode (Hold Space)"
 			aria-label="Pan Mode"

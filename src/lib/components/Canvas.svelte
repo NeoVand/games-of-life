@@ -38,7 +38,6 @@
 	// Mouse state
 	let isDrawing = $state(false);
 	let isPanning = $state(false);
-	let isSpaceHeld = $state(false); // Space key temporarily activates pan mode
 	let mouseInCanvas = $state(false);
 	let gridMouseX = $state(0);
 	let gridMouseY = $state(0);
@@ -48,7 +47,7 @@
 	let continuousDrawInterval: ReturnType<typeof setInterval> | null = null;
 	
 	// Effective tool mode: pan if pan mode selected OR space is held
-	const effectiveToolMode = $derived(isSpaceHeld ? 'pan' : simState.toolMode);
+	const effectiveToolMode = $derived(simState.isSpaceHeld ? 'pan' : simState.toolMode);
 
 	// Touch state
 	let touchMode: 'none' | 'draw' | 'pan' | 'pinch' = 'none';
@@ -282,14 +281,14 @@
 		if (e.key === ' ') {
 			// Space key temporarily activates pan mode
 			e.preventDefault();
-			isSpaceHeld = true;
+			simState.isSpaceHeld = true;
 		}
 	}
 
 	function handleKeyUp(e: KeyboardEvent) {
 		if (e.key === ' ') {
 			e.preventDefault();
-			isSpaceHeld = false;
+			simState.isSpaceHeld = false;
 		}
 	}
 

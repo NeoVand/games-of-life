@@ -17,6 +17,7 @@ let currentRule = $state<CARule>(getDefaultRule());
 // Tool mode - either 'brush' (drawing) or 'pan' (navigation)
 export type ToolMode = 'brush' | 'pan';
 let toolMode = $state<ToolMode>('brush');
+let isSpaceHeld = $state(false); // Track if space is held for temporary pan mode
 
 // Brush types - how cells are filled
 export type BrushType = 'solid' | 'gradient';
@@ -530,6 +531,13 @@ export function getSimulationState() {
 		},
 		set toolMode(value: ToolMode) {
 			toolMode = value;
+		},
+
+		get isSpaceHeld() {
+			return isSpaceHeld;
+		},
+		set isSpaceHeld(value: boolean) {
+			isSpaceHeld = value;
 		},
 
 		get currentRule() {
