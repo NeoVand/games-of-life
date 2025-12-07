@@ -81,24 +81,29 @@
 				<!-- Mobile Touch Controls -->
 				<div class="touch-controls">
 					<section class="shortcut-group">
-						<h3>Drawing</h3>
+						<h3>Tools</h3>
 						<div class="shortcut-row">
 							<span class="gesture-icon">
 								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M12 19V5M5 12l7-7 7 7" />
+									<path d="M18.37 2.63L14 7l-1.59-1.59a2 2 0 00-2.82 0L8 7l9 9 1.59-1.59a2 2 0 000-2.82L17 10l4.37-4.37a2.12 2.12 0 10-3-3z" />
+									<path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-10" />
 								</svg>
 							</span>
-							<span class="gesture-label">Tap / Drag</span>
-							<span class="gesture-desc">Draw or erase cells</span>
+							<span class="gesture-label">Brush mode</span>
+							<span class="gesture-desc">Tap to draw/erase</span>
 						</div>
 						<div class="shortcut-row">
 							<span class="gesture-icon">
 								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<circle cx="12" cy="12" r="6" fill="currentColor" />
+									<path d="M12 2v20M2 12h20" />
+									<path d="M12 2l-3 3M12 2l3 3" />
+									<path d="M12 22l-3-3M12 22l3-3" />
+									<path d="M2 12l3-3M2 12l3 3" />
+									<path d="M22 12l-3-3M22 12l-3 3" />
 								</svg>
 							</span>
-							<span class="gesture-label">Brush menu</span>
-							<span class="gesture-desc">Toggle draw/erase</span>
+							<span class="gesture-label">Pan mode</span>
+							<span class="gesture-desc">Tap to pan around</span>
 						</div>
 					</section>
 
@@ -143,8 +148,8 @@
 
 					<section class="shortcut-group">
 						<h3>Tips</h3>
-						<div class="tip">Use the toolbar buttons for all controls</div>
-						<div class="tip">Tap brush icon to switch draw/erase</div>
+						<div class="tip">Use pan mode icon to switch between drawing and panning</div>
+						<div class="tip">Tap brush icon to switch draw/erase mode</div>
 						<div class="tip">Pinch with two fingers to zoom</div>
 					</section>
 				</div>
@@ -155,7 +160,7 @@
 					<div class="column">
 						<section class="shortcut-group">
 							<h3>Simulation</h3>
-							<div class="shortcut"><kbd>Space</kbd><span>Play / Pause</span></div>
+							<div class="shortcut"><kbd>Enter</kbd><span>Play / Pause</span></div>
 							<div class="shortcut"><kbd>S</kbd><span>Step one generation</span></div>
 							<div class="shortcut"><kbd>,</kbd> <kbd>.</kbd><span>Speed -/+</span></div>
 						</section>
@@ -169,6 +174,7 @@
 
 						<section class="shortcut-group">
 							<h3>Drawing</h3>
+							<div class="shortcut"><kbd>B</kbd><span>Toggle brush/pan mode</span></div>
 							<div class="shortcut"><kbd>Click</kbd><span>Draw cells</span></div>
 							<div class="shortcut"><kbd>Right-click</kbd><span>Erase cells</span></div>
 							<div class="shortcut"><kbd>[</kbd> <kbd>]</kbd><span>Brush size -/+</span></div>
@@ -179,8 +185,8 @@
 					<div class="column">
 						<section class="shortcut-group">
 							<h3>Navigation</h3>
+							<div class="shortcut"><kbd>Space</kbd> hold<span>Temporary pan</span></div>
 							<div class="shortcut"><kbd>Scroll</kbd><span>Zoom in/out</span></div>
-							<div class="shortcut"><kbd>Shift</kbd>+<kbd>Drag</kbd><span>Pan</span></div>
 							<div class="shortcut"><kbd>F</kbd><span>Fit to screen</span></div>
 							<div class="shortcut"><kbd>G</kbd><span>Toggle grid lines</span></div>
 						</section>

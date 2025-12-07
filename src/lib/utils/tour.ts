@@ -395,6 +395,14 @@ const icons = {
 		<path d="M20 14v4a2 2 0 01-2 2h-4"/>
 		<path d="M4 10V6a2 2 0 012-2h4"/>
 		<path d="M20 10V6a2 2 0 00-2-2h-4"/>
+	</svg>`,
+	// Pan/move icon
+	pan: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
+		<path d="M12 2v20M2 12h20"/>
+		<path d="M12 2l-3 3M12 2l3 3"/>
+		<path d="M12 22l-3-3M12 22l3-3"/>
+		<path d="M2 12l3-3M2 12l3 3"/>
+		<path d="M22 12l-3-3M22 12l-3 3"/>
 	</svg>`
 };
 
@@ -452,8 +460,8 @@ function getTourSteps(): DriveStep[] {
 			popover: {
 				title: titleWithIcon(icons.canvas, 'The Canvas'),
 				description: mobile 
-					? 'This is where cells live and evolve. Tap to draw cells, pinch to zoom, and drag with two fingers to pan around.'
-					: 'This is where cells live and evolve. Click to draw, right-click to erase, scroll to zoom, and Shift+drag to pan.',
+					? 'This is where cells live and evolve. Use the pan/brush toggle to switch between drawing and navigating. Pinch to zoom.'
+					: 'This is where cells live and evolve. Click to draw, right-click to erase, scroll to zoom, and hold Space to pan.',
 				side: 'over',
 				align: 'center'
 			},
@@ -471,7 +479,7 @@ function getTourSteps(): DriveStep[] {
 			popover: {
 				title: titleWithIcon(icons.play, 'Playback Controls'),
 				description: createGroupDescription([
-					{ icon: icons.play, label: 'Play/Pause', shortcut: 'Space' },
+					{ icon: icons.play, label: 'Play/Pause', shortcut: 'Enter' },
 					{ icon: icons.step, label: 'Step forward', shortcut: 'S' },
 					{ icon: icons.lightning, label: 'Adjust speed', shortcut: '< >' }
 				], 'Control the simulation timing.', mobile),
@@ -500,9 +508,10 @@ function getTourSteps(): DriveStep[] {
 			popover: {
 				title: titleWithIcon(icons.camera, 'View Controls'),
 				description: createGroupDescription([
+					{ icon: icons.pan, label: 'Pan/Brush toggle', shortcut: 'B' },
 					{ icon: icons.fit, label: 'Fit to screen', shortcut: 'F' },
 					{ icon: icons.camera, label: 'Take screenshot' }
-				], 'Capture and navigate the view.', mobile),
+				], 'Navigate and capture the view.', mobile),
 				side: popoverSide,
 				align: 'center'
 			}
@@ -526,10 +535,10 @@ function getTourSteps(): DriveStep[] {
 			popover: {
 				title: titleWithIcon(icons.check, 'Ready to Explore!'),
 				description: mobile
-					? 'You\'re all set! Draw on the canvas and try different rules for amazing patterns!'
+					? 'You\'re all set! Use the pan tool to navigate and brush tool to draw. Try different rules for amazing patterns!'
 					: `<div class="tour-shortcuts">
-						<div class="tour-shortcut-row"><kbd>Space</kbd> <span>Play/Pause</span></div>
-						<div class="tour-shortcut-row"><kbd>C</kbd> <span>Cycle colors</span> <kbd>Shift</kbd>+<kbd>C</kbd> <span>Cycle spectrum</span></div>
+						<div class="tour-shortcut-row"><kbd>Enter</kbd> <span>Play/Pause</span> <kbd>Space</kbd> <span>Hold to pan</span></div>
+						<div class="tour-shortcut-row"><kbd>B</kbd> <span>Toggle brush/pan</span> <kbd>C</kbd> <span>Cycle colors</span></div>
 						<div class="tour-shortcut-row"><kbd>T</kbd> <span>Toggle theme</span> <kbd>R</kbd> <span>Reinitialize</span></div>
 						<div class="tour-shortcut-row"><kbd>E</kbd> <span>Edit rules</span> <kbd>?</kbd> <span>All shortcuts</span></div>
 					</div>`,

@@ -261,9 +261,16 @@
 		}
 
 		switch (e.code) {
-			case 'Space':
+			case 'Enter':
+				// Enter/Return toggles play/pause
 				e.preventDefault();
 				simState.togglePlay();
+				break;
+			case 'KeyB':
+				// B toggles brush tool mode
+				if (!e.ctrlKey && !e.metaKey) {
+					simState.toolMode = simState.toolMode === 'brush' ? 'pan' : 'brush';
+				}
 				break;
 			case 'KeyC':
 				if (!e.ctrlKey && !e.metaKey) {

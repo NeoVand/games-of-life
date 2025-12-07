@@ -125,13 +125,13 @@
 							Quick Start
 						</h3>
 						<ul>
-							<li><kbd>Space</kbd> Play / Pause simulation</li>
+							<li><kbd>Enter</kbd> Play / Pause simulation</li>
+							<li><kbd>B</kbd> Toggle brush/pan mode</li>
 							<li><kbd>Click</kbd> Draw cells · <kbd>Right-click</kbd> Erase</li>
-							<li><kbd>Scroll</kbd> Zoom · <kbd>Shift+Drag</kbd> Pan · <kbd>F</kbd> Fit</li>
+							<li><kbd>Scroll</kbd> Zoom · <kbd>Space</kbd> hold Pan · <kbd>F</kbd> Fit</li>
 							<li><kbd>E</kbd> Edit rules · <kbd>I</kbd> Initialize grid</li>
 							<li><kbd>R</kbd> Reinitialize · <kbd>D</kbd> Delete/Clear grid</li>
 							<li><kbd>T</kbd> Toggle theme · <kbd>C</kbd> Cycle colors</li>
-							<li><kbd>[ ]</kbd> Brush size · <kbd>, .</kbd> Speed</li>
 						</ul>
 					</div>
 				</div>

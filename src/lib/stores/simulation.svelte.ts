@@ -14,6 +14,10 @@ let brushState = $state(1); // 1 = draw alive, 0 = erase
 let brushType = $state<BrushType>('solid'); // Brush fill type
 let currentRule = $state<CARule>(getDefaultRule());
 
+// Tool mode - either 'brush' (drawing) or 'pan' (navigation)
+export type ToolMode = 'brush' | 'pan';
+let toolMode = $state<ToolMode>('brush');
+
 // Brush types - how cells are filled
 export type BrushType = 'solid' | 'gradient';
 
@@ -519,6 +523,13 @@ export function getSimulationState() {
 		},
 		set brushType(value: BrushType) {
 			brushType = value;
+		},
+
+		get toolMode() {
+			return toolMode;
+		},
+		set toolMode(value: ToolMode) {
+			toolMode = value;
 		},
 
 		get currentRule() {

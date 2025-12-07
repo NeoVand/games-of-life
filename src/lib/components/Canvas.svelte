@@ -38,7 +38,7 @@
 	// Mouse state
 	let isDrawing = $state(false);
 	let isPanning = $state(false);
-	let isShiftHeld = $state(false);
+	let isSpaceHeld = $state(false); // Space key temporarily activates pan mode
 	let mouseInCanvas = $state(false);
 	let gridMouseX = $state(0);
 	let gridMouseY = $state(0);
@@ -46,6 +46,9 @@
 	let lastMouseY = 0;
 	let drawingState = 1; // 1 = draw, 0 = erase
 	let continuousDrawInterval: ReturnType<typeof setInterval> | null = null;
+	
+	// Effective tool mode: pan if pan mode selected OR space is held
+	const effectiveToolMode = $derived(isSpaceHeld ? 'pan' : simState.toolMode);
 
 	// Touch state
 	let touchMode: 'none' | 'draw' | 'pan' | 'pinch' = 'none';
@@ -228,7 +231,7 @@
 		}
 
 		// Sync view state including brush preview
-		const showBrush = (mouseInCanvas && !isShiftHeld && !isPanning) || uiState.showBrushPopup;
+		const showBrush = (mouseInCanvas && effectiveToolMode === 'brush' && !isPanning) || uiState.showBrushPopup;
 		// When brush popup is open and mouse not in canvas, show brush at center of grid
 		const brushX = uiState.showBrushPopup && !mouseInCanvas 
 			? Math.floor(simState.gridWidth / 2) 
@@ -276,17 +279,17 @@
 
 	// Keyboard handlers for shift key
 	function handleKeyDown(e: KeyboardEvent) {
-		if (e.key === 'Shift') {
-			isShiftHeld = true;
+		if (e.key === ' ') {
+			// Space key temporarily activates pan mode
+			e.preventDefault();
+			isSpaceHeld = true;
 		}
 	}
 
 	function handleKeyUp(e: KeyboardEvent) {
-		if (e.key === 'Shift') {
-			isShiftHeld = false;
-			if (!isPanning) {
-				// Reset cursor if not actively panning
-			}
+		if (e.key === ' ') {
+			e.preventDefault();
+			isSpaceHeld = false;
 		}
 	}
 
@@ -325,17 +328,37 @@
 		lastMouseX = e.clientX;
 		lastMouseY = e.clientY;
 
-		// Middle mouse button or shift+left = pan
-		if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+		// Middle mouse button = always pan
+		if (e.button === 1) {
 			isPanning = true;
 			e.preventDefault();
 			return;
 		}
 
-		// Left click = draw, right click = erase
-		if (e.button === 0 || e.button === 2) {
+		// Left click behavior depends on tool mode
+		if (e.button === 0) {
+			if (effectiveToolMode === 'pan') {
+				isPanning = true;
+				e.preventDefault();
+				return;
+			}
+			// Brush mode - draw
 			isDrawing = true;
-			drawingState = e.button === 0 ? simState.brushState : 0;
+			drawingState = simState.brushState;
+			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
+			gridMouseX = gridPos.x;
+			gridMouseY = gridPos.y;
+			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, drawingState, simState.brushType);
+			
+			// Start continuous drawing for hold-to-draw
+			startContinuousDrawing();
+			return;
+		}
+		
+		// Right click = erase (always, regardless of mode)
+		if (e.button === 2) {
+			isDrawing = true;
+			drawingState = 0;
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
 			gridMouseX = gridPos.x;
 			gridMouseY = gridPos.y;
@@ -450,9 +473,6 @@
 		touchStartTime = performance.now();
 
 		if (touches.length === 1) {
-			// Single touch - prepare for drawing but DON'T paint yet
-			// Wait for touchmove to confirm it's a draw gesture, not the start of a pinch
-			touchMode = 'draw';
 			const touch = touches[0];
 			const rect = canvas.getBoundingClientRect();
 			const x = (touch.clientX - rect.left) * (canvasWidth / rect.width);
@@ -461,16 +481,25 @@
 			lastTouchX = touch.clientX;
 			lastTouchY = touch.clientY;
 
-			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
-			gridMouseX = gridPos.x;
-			gridMouseY = gridPos.y;
-			drawingState = simState.brushState; // Use current brush state for touch
-			// NOTE: Don't paint here - paint on first touchmove to avoid accidental marks
-			// when starting a two-finger pinch/pan gesture
+			// Single touch behavior depends on tool mode
+			if (effectiveToolMode === 'pan') {
+				// Pan mode - single touch pans
+				touchMode = 'pan';
+			} else {
+				// Brush mode - single touch draws
+				touchMode = 'draw';
+				const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
+				gridMouseX = gridPos.x;
+				gridMouseY = gridPos.y;
+				drawingState = simState.brushState; // Use current brush state for touch
+				simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, drawingState, simState.brushType);
+				
+				// Start continuous drawing for hold-to-draw on touch
+				startContinuousDrawing();
+			}
 		} else if (touches.length === 2) {
 			// Two fingers - start pinch/pan, stop drawing
 			stopContinuousDrawing();
-			touchDrawStarted = false; // Reset draw state
 			touchMode = 'pinch';
 			lastPinchDistance = getTouchDistance(touches);
 			const center = getTouchCenter(touches);
@@ -478,9 +507,6 @@
 			lastTouchY = center.y;
 		}
 	}
-
-	// Track if we've started drawing (to know when to start continuous draw)
-	let touchDrawStarted = false;
 
 	function handleTouchMove(e: TouchEvent) {
 		if (!simulation) return;
@@ -490,7 +516,7 @@
 		const rect = canvas.getBoundingClientRect();
 
 		if (touches.length === 1 && touchMode === 'draw') {
-			// Single finger drawing
+			// Single finger drawing (only in brush mode)
 			const touch = touches[0];
 			const x = (touch.clientX - rect.left) * (canvasWidth / rect.width);
 			const y = (touch.clientY - rect.top) * (canvasHeight / rect.height);
@@ -498,15 +524,16 @@
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
 			gridMouseX = gridPos.x;
 			gridMouseY = gridPos.y;
-			
-			// Start continuous drawing on first move (confirms it's a draw, not pinch)
-			if (!touchDrawStarted) {
-				touchDrawStarted = true;
-				startContinuousDrawing();
-			}
-			
 			simulation.paintBrush(gridPos.x, gridPos.y, simState.brushSize, simState.brushState, simState.brushType);
 			
+			lastTouchX = touch.clientX;
+			lastTouchY = touch.clientY;
+		} else if (touches.length === 1 && touchMode === 'pan') {
+			// Single finger panning (in pan mode or after pinch)
+			const touch = touches[0];
+			const deltaX = touch.clientX - lastTouchX;
+			const deltaY = touch.clientY - lastTouchY;
+			simulation.pan(deltaX, deltaY, rect.width, rect.height);
 			lastTouchX = touch.clientX;
 			lastTouchY = touch.clientY;
 		} else if (touches.length === 2 && touchMode === 'pinch') {
@@ -536,14 +563,6 @@
 			const touch = touches[0];
 			lastTouchX = touch.clientX;
 			lastTouchY = touch.clientY;
-		} else if (touches.length === 1 && touchMode === 'pan') {
-			// Single finger panning (after pinch)
-			const touch = touches[0];
-			const deltaX = touch.clientX - lastTouchX;
-			const deltaY = touch.clientY - lastTouchY;
-			simulation.pan(deltaX, deltaY, rect.width, rect.height);
-			lastTouchX = touch.clientX;
-			lastTouchY = touch.clientY;
 		}
 	}
 
@@ -556,17 +575,17 @@
 		if (touches.length === 0) {
 			// All fingers lifted
 			stopContinuousDrawing();
-			if (touchMode === 'draw' && touchDrawStarted && !simState.isPlaying) {
+			if (touchMode === 'draw' && !simState.isPlaying) {
 				// After drawing while paused, update the count
 				simulation.countAliveCellsAsync().then(count => {
 					simState.aliveCells = count;
 				});
 			}
 			touchMode = 'none';
-			touchDrawStarted = false; // Reset draw state
 			lastPinchDistance = 0;
-		} else if (touches.length === 1 && touchMode === 'pinch') {
-			// Went from 2 to 1 finger - continue as pan (not draw!)
+		} else if (touches.length === 1 && (touchMode === 'pinch' || touchMode === 'draw')) {
+			// Went from 2 to 1 finger - continue as pan (never accidentally draw after pinch)
+			stopContinuousDrawing();
 			touchMode = 'pan';
 			const touch = touches[0];
 			lastTouchX = touch.clientX;
@@ -919,7 +938,7 @@
 		oncontextmenu={handleContextMenu}
 		class:hidden={!!error}
 		class:panning={isPanning}
-		class:pan-ready={isShiftHeld && !isPanning}
+		class:pan-ready={effectiveToolMode === 'pan' && !isPanning}
 	></canvas>
 </div>
 

@@ -41,6 +41,8 @@
 	}
 
 	function toggleBrush() {
+		// Clicking brush button always activates brush mode
+		simState.toolMode = 'brush';
 		const wasOpen = showBrushSlider;
 		closeAllPopups();
 		uiState.showBrushPopup = !wasOpen;
@@ -80,7 +82,7 @@
 			id="tour-play-btn"
 			class="control-btn primary"
 			onclick={() => simState.togglePlay()}
-			data-tooltip={simState.isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+			data-tooltip={simState.isPlaying ? 'Pause (Enter)' : 'Play (Enter)'}
 		>
 			{#if simState.isPlaying}
 				<svg viewBox="0 0 24 24" fill="currentColor">
@@ -152,9 +154,9 @@
 			<button
 				id="tour-brush-btn"
 				class="control-btn"
+				class:active={simState.toolMode === 'brush' || showBrushSlider}
 				onclick={toggleBrush}
-				data-tooltip="Brush"
-				class:active={showBrushSlider}
+				data-tooltip="Brush (B)"
 			>
 				{#if simState.brushState === 1}
 					<!-- Paint brush icon for draw mode -->
@@ -244,6 +246,25 @@
 
 	<!-- GROUP 3: Camera Controls -->
 	<div class="button-group" id="tour-camera-group">
+		<!-- Pan Tool -->
+		<button 
+			id="tour-pan-btn" 
+			class="control-btn" 
+			class:active={simState.toolMode === 'pan'}
+			onclick={() => simState.toolMode = simState.toolMode === 'pan' ? 'brush' : 'pan'} 
+			data-tooltip="Pan Mode (Hold Space)"
+			aria-label="Pan Mode"
+		>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<!-- Move/arrows icon for panning -->
+				<path d="M12 2v20M2 12h20" />
+				<path d="M12 2l-3 3M12 2l3 3" />
+				<path d="M12 22l-3-3M12 22l3-3" />
+				<path d="M2 12l3-3M2 12l3 3" />
+				<path d="M22 12l-3-3M22 12l-3 3" />
+			</svg>
+		</button>
+
 		<!-- Reset View / Zoom to Fit -->
 		<button id="tour-fit-btn" class="control-btn" onclick={onresetview} data-tooltip="Fit to Screen (F)">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
