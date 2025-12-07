@@ -233,10 +233,10 @@ export class Simulation {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
 
-		// Render params buffer (19 f32 values = 76 bytes, aligned to 80)
+		// Render params buffer (24 f32 values = 96 bytes, aligned to 16)
 		this.renderParamsBuffer = this.device.createBuffer({
 			label: 'Render Params Buffer',
-			size: 80,
+			size: 96,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
 
@@ -362,7 +362,11 @@ export class Simulation {
 			this.getNeighborhoodIndex(), // neighborhood type for rendering
 			this.view.spectrumMode, // spectrum mode for color transitions
 			this.view.spectrumFrequency, // how many times to repeat the spectrum
-			this.view.neighborShading // neighbor shading mode: 0=off, 1=alive, 2=vitality
+			this.view.neighborShading, // neighbor shading mode: 0=off, 1=alive, 2=vitality
+			boundaryModeToIndex(this.view.boundaryMode), // boundary mode for seamless panning
+			0.0, // padding1
+			0.0, // padding2
+			0.0  // padding3
 		]);
 		this.device.queue.writeBuffer(this.renderParamsBuffer, 0, params);
 	}
@@ -892,6 +896,34 @@ export class Simulation {
 
 		this.view.offsetX -= (deltaX / canvasWidth) * cellsVisibleX;
 		this.view.offsetY -= (deltaY / canvasHeight) * cellsVisibleY;
+		
+		// Normalize offset for wrapping boundary modes to prevent precision issues
+		this.normalizeOffset();
+	}
+
+	/**
+	 * Normalize view offset to stay within one grid period for wrapping boundary modes.
+	 * This prevents floating-point precision issues during very long pans.
+	 */
+	private normalizeOffset(): void {
+		const mode = this.view.boundaryMode;
+		
+		// Check if boundary mode wraps horizontally
+		const wrapsX = mode === 'cylinder_h' || mode === 'torus' || mode === 'mobius_h' || 
+		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+		// Check if boundary mode wraps vertically
+		const wrapsY = mode === 'cylinder_v' || mode === 'torus' || mode === 'mobius_v' || 
+		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+		
+		// Normalize X offset to [0, width) for wrapping modes
+		if (wrapsX) {
+			this.view.offsetX = ((this.view.offsetX % this.width) + this.width) % this.width;
+		}
+		
+		// Normalize Y offset to [0, height) for wrapping modes
+		if (wrapsY) {
+			this.view.offsetY = ((this.view.offsetY % this.height) + this.height) % this.height;
+		}
 	}
 
 	/**

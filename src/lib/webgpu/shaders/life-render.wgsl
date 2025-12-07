@@ -27,6 +27,10 @@ struct RenderParams {
     spectrum_mode: f32,  // 0-5=smooth, 6-11=color-reactive, 12-17=banded
     spectrum_frequency: f32, // How many times to repeat the spectrum (1.0 = normal)
     neighbor_shading: f32, // 0=off, 1=count alive, 2=sum vitality
+    boundary_mode: f32,  // 0=plane, 1=cylinderX, 2=cylinderY, 3=torus, 4=mobiusX, 5=mobiusY, 6=kleinX, 7=kleinY, 8=projective
+    _padding1: f32,      // Padding for 16-byte alignment
+    _padding2: f32,
+    _padding3: f32,
 }
 
 @group(0) @binding(0) var<uniform> params: RenderParams;
@@ -58,13 +62,75 @@ fn vertex_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     return output;
 }
 
-// Get cell state at grid position (with bounds checking)
+// Get cell state at grid position with boundary-aware wrapping for seamless panning
 fn get_cell_state(grid_x: i32, grid_y: i32) -> u32 {
-    if (grid_x < 0 || grid_x >= i32(params.grid_width) || 
-        grid_y < 0 || grid_y >= i32(params.grid_height)) {
+    let w = i32(params.grid_width);
+    let h = i32(params.grid_height);
+    let mode = u32(params.boundary_mode);
+    
+    var fx = grid_x;
+    var fy = grid_y;
+    
+    // Check if we're out of bounds
+    let out_left = grid_x < 0;
+    let out_right = grid_x >= w;
+    let out_top = grid_y < 0;
+    let out_bottom = grid_y >= h;
+    let out_x = out_left || out_right;
+    let out_y = out_top || out_bottom;
+    
+    // Handle horizontal boundary
+    if (out_x) {
+        // Modes that wrap horizontally: 1 (cylinderX), 3 (torus), 4 (mobiusX), 6 (kleinX), 7 (kleinY), 8 (projective)
+        let wraps_x = mode == 1u || mode == 3u || mode == 4u || mode == 6u || mode == 7u || mode == 8u;
+        
+        if (!wraps_x) {
+            // No horizontal wrap - cell is dead (plane or vertical-only modes)
+            return 0u;
+        }
+        
+        // Wrap x coordinate (handle negative values correctly)
+        fx = ((grid_x % w) + w) % w;
+        
+        // Check if this is a flipping wrap (möbius-like in X direction)
+        // Modes with X-flip: 4 (mobiusX), 6 (kleinX), 8 (projective)
+        let flips_x = mode == 4u || mode == 6u || mode == 8u;
+        
+        if (flips_x) {
+            // Flip y when wrapping across x boundary
+            fy = h - 1 - grid_y;
+        }
+    }
+    
+    // Handle vertical boundary
+    if (out_y) {
+        // Modes that wrap vertically: 2 (cylinderY), 3 (torus), 5 (mobiusY), 6 (kleinX), 7 (kleinY), 8 (projective)
+        let wraps_y = mode == 2u || mode == 3u || mode == 5u || mode == 6u || mode == 7u || mode == 8u;
+        
+        if (!wraps_y) {
+            // No vertical wrap - cell is dead
+            return 0u;
+        }
+        
+        // Wrap y coordinate
+        fy = ((fy % h) + h) % h;
+        
+        // Check if this is a flipping wrap (möbius-like in Y direction)
+        // Modes with Y-flip: 5 (mobiusY), 7 (kleinY), 8 (projective)
+        let flips_y = mode == 5u || mode == 7u || mode == 8u;
+        
+        if (flips_y) {
+            // Flip x when wrapping across y boundary
+            fx = w - 1 - fx;
+        }
+    }
+    
+    // Final bounds check after all transformations (safety)
+    if (fx < 0 || fx >= w || fy < 0 || fy >= h) {
         return 0u;
     }
-    return cell_state[u32(grid_x) + u32(grid_y) * u32(params.grid_width)];
+    
+    return cell_state[u32(fx) + u32(fy) * u32(params.grid_width)];
 }
 
 // Check if a cell is "alive" (state == 1)
