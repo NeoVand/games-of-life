@@ -440,72 +440,69 @@ export class Simulation {
 	 * Transform coordinates based on boundary mode.
 	 * Returns null if the coordinate is out of bounds for non-wrapping modes.
 	 * For wrapping modes, returns the transformed (wrapped/flipped) coordinates.
+	 * This logic must match the render shader's get_cell_state function exactly.
 	 */
 	private transformCoordinate(x: number, y: number): { x: number; y: number } | null {
 		const mode = this.view.boundaryMode;
 		const w = this.width;
 		const h = this.height;
 		
+		// Determine which boundaries wrap and flip based on mode
+		const wrapsX = mode === 'cylinder_h' || mode === 'torus' || mode === 'mobius_h' || 
+		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+		const wrapsY = mode === 'cylinder_v' || mode === 'torus' || mode === 'mobius_v' || 
+		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+		const flipsX = mode === 'mobius_h' || mode === 'klein_h' || mode === 'projective';
+		const flipsY = mode === 'mobius_v' || mode === 'klein_v' || mode === 'projective';
+		
 		let fx = x;
 		let fy = y;
 		
-		// Check if we're out of bounds
-		const outLeft = x < 0;
-		const outRight = x >= w;
-		const outTop = y < 0;
-		const outBottom = y >= h;
-		const outX = outLeft || outRight;
-		const outY = outTop || outBottom;
+		// Count how many times we cross each boundary (for proper flipping)
+		let xWraps = 0;
+		let yWraps = 0;
 		
-		// Handle horizontal boundary
-		if (outX) {
-			// Modes that wrap horizontally: cylinder_h, torus, mobius_h, klein_h, klein_v, projective
-			const wrapsX = mode === 'cylinder_h' || mode === 'torus' || mode === 'mobius_h' || 
-			               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
-			
+		// Handle X coordinate
+		if (fx < 0 || fx >= w) {
 			if (!wrapsX) {
-				// No horizontal wrap - coordinate is invalid
-				return null;
+				return null; // No wrap - out of bounds
 			}
-			
-			// Wrap x coordinate (handle negative values correctly)
-			fx = ((x % w) + w) % w;
-			
-			// Check if this is a flipping wrap (möbius-like in X direction)
-			// Modes with X-flip: mobius_h, klein_h, projective
-			const flipsX = mode === 'mobius_h' || mode === 'klein_h' || mode === 'projective';
-			
-			if (flipsX) {
-				// Flip y when wrapping across x boundary
-				fy = h - 1 - y;
+			// Count wraps and normalize
+			if (fx < 0) {
+				xWraps = Math.floor((-fx - 1) / w) + 1;
+				fx = ((fx % w) + w) % w;
+			} else {
+				xWraps = Math.floor(fx / w);
+				fx = fx % w;
 			}
 		}
 		
-		// Handle vertical boundary
-		if (outY) {
-			// Modes that wrap vertically: cylinder_v, torus, mobius_v, klein_h, klein_v, projective
-			const wrapsY = mode === 'cylinder_v' || mode === 'torus' || mode === 'mobius_v' || 
-			               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
-			
+		// Handle Y coordinate
+		if (fy < 0 || fy >= h) {
 			if (!wrapsY) {
-				// No vertical wrap - coordinate is invalid
-				return null;
+				return null; // No wrap - out of bounds
 			}
-			
-			// Wrap y coordinate
-			fy = ((fy % h) + h) % h;
-			
-			// Check if this is a flipping wrap (möbius-like in Y direction)
-			// Modes with Y-flip: mobius_v, klein_v, projective
-			const flipsY = mode === 'mobius_v' || mode === 'klein_v' || mode === 'projective';
-			
-			if (flipsY) {
-				// Flip x when wrapping across y boundary
-				fx = w - 1 - fx;
+			// Count wraps and normalize
+			if (fy < 0) {
+				yWraps = Math.floor((-fy - 1) / h) + 1;
+				fy = ((fy % h) + h) % h;
+			} else {
+				yWraps = Math.floor(fy / h);
+				fy = fy % h;
 			}
 		}
 		
-		// Final bounds check after all transformations (safety)
+		// Apply flips based on number of boundary crossings
+		// Odd number of X-wraps with flip mode -> flip Y
+		if (flipsX && (xWraps & 1) === 1) {
+			fy = h - 1 - fy;
+		}
+		// Odd number of Y-wraps with flip mode -> flip X
+		if (flipsY && (yWraps & 1) === 1) {
+			fx = w - 1 - fx;
+		}
+		
+		// Final bounds check (should always pass, but safety first)
 		if (fx < 0 || fx >= w || fy < 0 || fy >= h) {
 			return null;
 		}

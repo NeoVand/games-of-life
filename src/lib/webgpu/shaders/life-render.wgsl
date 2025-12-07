@@ -71,61 +71,61 @@ fn get_cell_state(grid_x: i32, grid_y: i32) -> u32 {
     var fx = grid_x;
     var fy = grid_y;
     
-    // Check if we're out of bounds
-    let out_left = grid_x < 0;
-    let out_right = grid_x >= w;
-    let out_top = grid_y < 0;
-    let out_bottom = grid_y >= h;
-    let out_x = out_left || out_right;
-    let out_y = out_top || out_bottom;
+    // Determine which boundaries need wrapping based on mode
+    // Modes that wrap horizontally: 1 (cylinderX), 3 (torus), 4 (mobiusX), 6 (kleinX), 7 (kleinY), 8 (projective)
+    let wraps_x = mode == 1u || mode == 3u || mode == 4u || mode == 6u || mode == 7u || mode == 8u;
+    // Modes that wrap vertically: 2 (cylinderY), 3 (torus), 5 (mobiusY), 6 (kleinX), 7 (kleinY), 8 (projective)
+    let wraps_y = mode == 2u || mode == 3u || mode == 5u || mode == 6u || mode == 7u || mode == 8u;
+    // Modes with X-flip when wrapping X: 4 (mobiusX), 6 (kleinX), 8 (projective)
+    let flips_x = mode == 4u || mode == 6u || mode == 8u;
+    // Modes with Y-flip when wrapping Y: 5 (mobiusY), 7 (kleinY), 8 (projective)
+    let flips_y = mode == 5u || mode == 7u || mode == 8u;
     
-    // Handle horizontal boundary
-    if (out_x) {
-        // Modes that wrap horizontally: 1 (cylinderX), 3 (torus), 4 (mobiusX), 6 (kleinX), 7 (kleinY), 8 (projective)
-        let wraps_x = mode == 1u || mode == 3u || mode == 4u || mode == 6u || mode == 7u || mode == 8u;
-        
+    // Count how many times we cross each boundary (for proper flipping)
+    var x_wraps = 0;
+    var y_wraps = 0;
+    
+    // Handle X coordinate
+    if (fx < 0 || fx >= w) {
         if (!wraps_x) {
-            // No horizontal wrap - cell is dead (plane or vertical-only modes)
-            return 0u;
+            return 0u; // No wrap - out of bounds
         }
-        
-        // Wrap x coordinate (handle negative values correctly)
-        fx = ((grid_x % w) + w) % w;
-        
-        // Check if this is a flipping wrap (möbius-like in X direction)
-        // Modes with X-flip: 4 (mobiusX), 6 (kleinX), 8 (projective)
-        let flips_x = mode == 4u || mode == 6u || mode == 8u;
-        
-        if (flips_x) {
-            // Flip y when wrapping across x boundary
-            fy = h - 1 - grid_y;
+        // Count wraps and normalize
+        if (fx < 0) {
+            x_wraps = (-fx - 1) / w + 1;
+            fx = ((fx % w) + w) % w;
+        } else {
+            x_wraps = fx / w;
+            fx = fx % w;
         }
     }
     
-    // Handle vertical boundary
-    if (out_y) {
-        // Modes that wrap vertically: 2 (cylinderY), 3 (torus), 5 (mobiusY), 6 (kleinX), 7 (kleinY), 8 (projective)
-        let wraps_y = mode == 2u || mode == 3u || mode == 5u || mode == 6u || mode == 7u || mode == 8u;
-        
+    // Handle Y coordinate  
+    if (fy < 0 || fy >= h) {
         if (!wraps_y) {
-            // No vertical wrap - cell is dead
-            return 0u;
+            return 0u; // No wrap - out of bounds
         }
-        
-        // Wrap y coordinate
-        fy = ((fy % h) + h) % h;
-        
-        // Check if this is a flipping wrap (möbius-like in Y direction)
-        // Modes with Y-flip: 5 (mobiusY), 7 (kleinY), 8 (projective)
-        let flips_y = mode == 5u || mode == 7u || mode == 8u;
-        
-        if (flips_y) {
-            // Flip x when wrapping across y boundary
-            fx = w - 1 - fx;
+        // Count wraps and normalize
+        if (fy < 0) {
+            y_wraps = (-fy - 1) / h + 1;
+            fy = ((fy % h) + h) % h;
+        } else {
+            y_wraps = fy / h;
+            fy = fy % h;
         }
     }
     
-    // Final bounds check after all transformations (safety)
+    // Apply flips based on number of boundary crossings
+    // Odd number of X-wraps with flip mode -> flip Y
+    if (flips_x && (x_wraps & 1) == 1) {
+        fy = h - 1 - fy;
+    }
+    // Odd number of Y-wraps with flip mode -> flip X
+    if (flips_y && (y_wraps & 1) == 1) {
+        fx = w - 1 - fx;
+    }
+    
+    // Final bounds check (should always pass, but safety first)
     if (fx < 0 || fx >= w || fy < 0 || fy >= h) {
         return 0u;
     }
