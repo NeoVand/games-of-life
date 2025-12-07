@@ -902,8 +902,9 @@ export class Simulation {
 	}
 
 	/**
-	 * Normalize view offset to stay within one grid period for wrapping boundary modes.
+	 * Normalize view offset to stay within a reasonable range for wrapping boundary modes.
 	 * This prevents floating-point precision issues during very long pans.
+	 * Only normalizes when offset exceeds 10x the grid size to avoid visible jumps.
 	 */
 	private normalizeOffset(): void {
 		const mode = this.view.boundaryMode;
@@ -915,13 +916,18 @@ export class Simulation {
 		const wrapsY = mode === 'cylinder_v' || mode === 'torus' || mode === 'mobius_v' || 
 		               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
 		
-		// Normalize X offset to [0, width) for wrapping modes
-		if (wrapsX) {
+		// Only normalize when offset gets very large (10x grid size) to avoid precision issues
+		// This prevents visible jumps during normal panning while still preventing
+		// floating-point precision degradation after extremely long panning sessions
+		const threshold = 10;
+		
+		// Normalize X offset only when it exceeds threshold
+		if (wrapsX && Math.abs(this.view.offsetX) > this.width * threshold) {
 			this.view.offsetX = ((this.view.offsetX % this.width) + this.width) % this.width;
 		}
 		
-		// Normalize Y offset to [0, height) for wrapping modes
-		if (wrapsY) {
+		// Normalize Y offset only when it exceeds threshold
+		if (wrapsY && Math.abs(this.view.offsetY) > this.height * threshold) {
 			this.view.offsetY = ((this.view.offsetY % this.height) + this.height) % this.height;
 		}
 	}
