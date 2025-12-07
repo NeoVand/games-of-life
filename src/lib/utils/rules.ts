@@ -964,6 +964,24 @@ export const RULE_PRESETS: CARule[] = [
 		}
 	},
 	{
+		name: 'Hex2 Neo Diagonal Growth',
+		birthMask: 2148, // 2, 5, 6, 11
+		surviveMask: 2592, // 5, 9, 11
+		numStates: 256,
+		ruleString: 'B2,5,6,11/S5,9,11/C256',
+		neighborhood: 'extendedHexagonal',
+		category: 'artistic',
+		description: 'Diagonal growth motifs with strong ghost damping',
+		density: 0.2,
+		vitality: {
+			mode: 'ghost',
+			threshold: 1.0,
+			ghostFactor: -0.7,
+			sigmoidSharpness: 10.0,
+			decayPower: 1.0
+		}
+	},
+	{
 		name: 'Hex2 Neo Brain 2',
 		birthMask: 0b0001101000, // 3, 5, 6
 		surviveMask: 0b0111100000, // 5, 6, 7, 8
