@@ -89,6 +89,7 @@
 	 * Calculate grid dimensions from scale.
 	 * Grids are now always square - seamless panning handles filling any screen aspect ratio.
 	 * For hexagonal grids, we add extra rows to compensate for visual compression.
+	 * IMPORTANT: Hex grid height must be EVEN for proper torus wrapping (row parity must match at boundaries).
 	 */
 	function calculateGridDimensions(scale: GridScale, _screenWidth: number, _screenHeight: number, isHexagonal: boolean = false): { width: number; height: number } {
 		const scaleConfig = GRID_SCALES.find(s => s.name === scale) ?? GRID_SCALES[2]; // Default to medium
@@ -98,7 +99,15 @@
 		// So we need ~15.5% more rows to fill the same visual height as width
 		// This keeps the VISUAL aspect ratio close to square
 		const HEX_HEIGHT_RATIO = 0.866025404; // sqrt(3)/2
-		const height = isHexagonal ? Math.round(size / HEX_HEIGHT_RATIO) : size;
+		let height = isHexagonal ? Math.round(size / HEX_HEIGHT_RATIO) : size;
+		
+		// CRITICAL: For hex grids, height must be EVEN for proper torus boundary wrapping.
+		// In odd-r hex layout, row parity determines neighbor offsets. When wrapping vertically,
+		// row -1 (conceptually odd) must wrap to row height-1 (also odd) for correct neighbors.
+		// This only works if height is even: row 0=even, row height-1=odd.
+		if (isHexagonal && (height & 1) === 1) {
+			height += 1; // Make it even
+		}
 		
 		return { width: size, height };
 	}
