@@ -17,12 +17,13 @@ A WebGPU-powered cellular automaton simulator. Runs entirely on the GPU for smoo
 - **Multiple Grid Types** — Square and hexagonal grids with different neighborhood sizes
 - **5 Neighborhood Types** — Moore (8), Von Neumann (4), Extended Moore (24), Hexagonal (6), Extended Hexagonal (18)
 - **9 Boundary Conditions** — Plane, Cylinder, Torus, Möbius Strip, Klein Bottle, Projective Plane
-- **Multi-State Rules** — Up to 64 states with colorful decay trails
-- **6 Color Spectrum Modes** — Hue Shift, Rainbow, Warm, Cool, Monochrome, Fire
+- **Multi-State Rules** — Up to 1024 states with colorful decay trails
+- **18 Color Spectrum Modes** — From thermal gradients to neon bands
 - **50+ Rule Presets** — From classic Conway's Life to artistic hexagonal patterns
 - **Live Rule Editor** — Real-time preview as you tweak birth/survive conditions
+- **Vitality Influence** — Dying cells can affect neighbor counting for complex dynamics
 - **Continuous Seeding** — Auto-spawn patterns to keep simulations alive
-- **Touch Support** — Pinch to zoom, two-finger pan on mobile devices
+- **Touch Support** — Pinch to zoom, pan mode for navigation on mobile
 
 ## How It Works
 
@@ -80,11 +81,12 @@ Requires a browser with WebGPU support (Chrome 113+, Edge 113+, Safari 18+, or F
 
 | Key | Action |
 |-----|--------|
-| `Space` | Play/Pause |
+| `Enter` | Play/Pause |
 | `S` | Step forward |
+| `B` | Toggle brush/pan mode |
 | `Click` / `Right-click` | Draw / Erase |
 | `Scroll` | Zoom |
-| `Shift+Drag` | Pan |
+| `Space` (hold) | Pan |
 | `E` | Edit rules |
 | `I` | Initialize grid |
 | `R` | Reinitialize |
