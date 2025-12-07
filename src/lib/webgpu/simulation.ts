@@ -437,12 +437,100 @@ export class Simulation {
 	}
 
 	/**
-	 * Set a single cell state
+	 * Transform coordinates based on boundary mode.
+	 * Returns null if the coordinate is out of bounds for non-wrapping modes.
+	 * For wrapping modes, returns the transformed (wrapped/flipped) coordinates.
+	 */
+	private transformCoordinate(x: number, y: number): { x: number; y: number } | null {
+		const mode = this.view.boundaryMode;
+		const w = this.width;
+		const h = this.height;
+		
+		let fx = x;
+		let fy = y;
+		
+		// Check if we're out of bounds
+		const outLeft = x < 0;
+		const outRight = x >= w;
+		const outTop = y < 0;
+		const outBottom = y >= h;
+		const outX = outLeft || outRight;
+		const outY = outTop || outBottom;
+		
+		// Handle horizontal boundary
+		if (outX) {
+			// Modes that wrap horizontally: cylinder_h, torus, mobius_h, klein_h, klein_v, projective
+			const wrapsX = mode === 'cylinder_h' || mode === 'torus' || mode === 'mobius_h' || 
+			               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+			
+			if (!wrapsX) {
+				// No horizontal wrap - coordinate is invalid
+				return null;
+			}
+			
+			// Wrap x coordinate (handle negative values correctly)
+			fx = ((x % w) + w) % w;
+			
+			// Check if this is a flipping wrap (möbius-like in X direction)
+			// Modes with X-flip: mobius_h, klein_h, projective
+			const flipsX = mode === 'mobius_h' || mode === 'klein_h' || mode === 'projective';
+			
+			if (flipsX) {
+				// Flip y when wrapping across x boundary
+				fy = h - 1 - y;
+			}
+		}
+		
+		// Handle vertical boundary
+		if (outY) {
+			// Modes that wrap vertically: cylinder_v, torus, mobius_v, klein_h, klein_v, projective
+			const wrapsY = mode === 'cylinder_v' || mode === 'torus' || mode === 'mobius_v' || 
+			               mode === 'klein_h' || mode === 'klein_v' || mode === 'projective';
+			
+			if (!wrapsY) {
+				// No vertical wrap - coordinate is invalid
+				return null;
+			}
+			
+			// Wrap y coordinate
+			fy = ((fy % h) + h) % h;
+			
+			// Check if this is a flipping wrap (möbius-like in Y direction)
+			// Modes with Y-flip: mobius_v, klein_v, projective
+			const flipsY = mode === 'mobius_v' || mode === 'klein_v' || mode === 'projective';
+			
+			if (flipsY) {
+				// Flip x when wrapping across y boundary
+				fx = w - 1 - fx;
+			}
+		}
+		
+		// Final bounds check after all transformations (safety)
+		if (fx < 0 || fx >= w || fy < 0 || fy >= h) {
+			return null;
+		}
+		
+		return { x: Math.floor(fx), y: Math.floor(fy) };
+	}
+
+	/**
+	 * Set a single cell state with boundary-aware coordinate transformation.
+	 * Handles wrapping/flipping for all boundary modes.
 	 */
 	setCell(x: number, y: number, state: number): void {
-		if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
-		const index = x + y * this.width;
-		this.pendingPaints.set(index, state);
+		// First try direct coordinates (most common case)
+		if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+			const index = Math.floor(x) + Math.floor(y) * this.width;
+			this.pendingPaints.set(index, state);
+			return;
+		}
+		
+		// Out of bounds - try to transform based on boundary mode
+		const transformed = this.transformCoordinate(Math.floor(x), Math.floor(y));
+		if (transformed) {
+			const index = transformed.x + transformed.y * this.width;
+			this.pendingPaints.set(index, state);
+		}
 	}
 
 	/**
