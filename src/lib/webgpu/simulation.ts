@@ -1067,20 +1067,10 @@ export class Simulation {
 			zoom = effectiveGridWidth;
 		}
 		
-		this.view = {
-			offsetX,
-			offsetY,
-			zoom,
-			showGrid: this.view.showGrid,
-			isLightTheme: this.view.isLightTheme,
-			aliveColor: this.view.aliveColor,
-			brushX: this.view.brushX,
-			brushY: this.view.brushY,
-			brushRadius: this.view.brushRadius,
-			boundaryMode: this.view.boundaryMode,
-			spectrumMode: this.view.spectrumMode,
-			neighborShading: this.view.neighborShading
-		};
+		// Only update position/zoom, preserve all other view settings
+		this.view.offsetX = offsetX;
+		this.view.offsetY = offsetY;
+		this.view.zoom = zoom;
 	}
 
 	/**

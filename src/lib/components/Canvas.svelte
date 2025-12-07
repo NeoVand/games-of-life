@@ -110,9 +110,11 @@
 		const resizeObserver = new ResizeObserver(handleResize);
 		resizeObserver.observe(container);
 
-		// Orientation change is handled automatically by the ResizeObserver
-		// which updates canvas dimensions. The seamless panning handles the rest -
-		// no need to reset view or modify the grid in any way.
+		// Orientation change is handled automatically:
+		// - ResizeObserver updates canvas dimensions
+		// - Seamless panning fills any viewport shape
+		// - View (zoom, offset) stays the same, keeping center point stable
+		// No special handling needed!
 
 		// Add touch event listeners with { passive: false } to allow preventDefault
 		canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
