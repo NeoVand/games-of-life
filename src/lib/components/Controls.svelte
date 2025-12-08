@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { getSimulationState, getUIState, BRUSH_TYPES } from '../stores/simulation.svelte.js';
+	import { onMount, onDestroy } from 'svelte';
+	import { getSimulationState, getUIState, BRUSH_TYPES, getSimulationRef } from '../stores/simulation.svelte.js';
 	import { openModal, getModalStates } from '../stores/modalManager.svelte.js';
 	import HeartIcon from './HeartIcon.svelte';
+	import { canUndo, canRedo, undo as historyUndo, redo as historyRedo, subscribeHistory } from '../stores/history.js';
 
 	interface Props {
 		onclear: () => void;
@@ -27,6 +29,9 @@
 
 	// Use UI state for brush popup so Canvas can also track it
 	let showBrushSlider = $derived(uiState.showBrushPopup);
+	let historyUndoable = $state(false);
+	let historyRedoable = $state(false);
+	let unsubscribeHistory: (() => void) | null = null;
 
 	// Close all popups
 	function closeAllPopups() {
@@ -66,6 +71,34 @@
 		closeAllPopups();
 		onhelp();
 	}
+
+	function refreshHistoryFlags() {
+		historyUndoable = canUndo();
+		historyRedoable = canRedo();
+	}
+
+	async function handleUndo() {
+		const sim = getSimulationRef();
+		if (!sim) return;
+		const ok = await historyUndo(sim);
+		if (ok) refreshHistoryFlags();
+	}
+
+	async function handleRedo() {
+		const sim = getSimulationRef();
+		if (!sim) return;
+		const ok = await historyRedo(sim);
+		if (ok) refreshHistoryFlags();
+	}
+
+	onMount(() => {
+		refreshHistoryFlags();
+		unsubscribeHistory = subscribeHistory(() => refreshHistoryFlags());
+	});
+
+	onDestroy(() => {
+		if (unsubscribeHistory) unsubscribeHistory();
+	});
 </script>
 
 <!-- Invisible backdrop to close popups when clicking outside -->
@@ -243,7 +276,53 @@
 		</button>
 	</div>
 
-	<!-- GROUP 3: Camera Controls -->
+	<!-- GROUP 3: History Controls -->
+	<div class="button-group" id="tour-history-group">
+		<button
+			id="tour-history-timeline-btn"
+			class="control-btn"
+			onclick={() => openModal('historyTimeline')}
+			data-tooltip="Timeline"
+			aria-label="Timeline"
+		>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="6" cy="6" r="2"/>
+				<circle cx="18" cy="10" r="2"/>
+				<circle cx="12" cy="18" r="2"/>
+				<path d="M6 8v2a4 4 0 004 4h2"/>
+				<path d="M16 10h-2a4 4 0 00-4 4v2"/>
+			</svg>
+		</button>
+
+		<button
+			id="tour-history-undo-btn"
+			class="control-btn"
+			onclick={handleUndo}
+			data-tooltip="Undo (Ctrl/Cmd+Z)"
+			aria-label="Undo"
+			disabled={!historyUndoable}
+		>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M9 9l-4 4 4 4" />
+				<path d="M5 13h7a4 4 0 1 0-1.17-7.8" />
+			</svg>
+		</button>
+		<button
+			id="tour-history-redo-btn"
+			class="control-btn"
+			onclick={handleRedo}
+			data-tooltip="Redo (Ctrl/Cmd+Shift+Z)"
+			aria-label="Redo"
+			disabled={!historyRedoable}
+		>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M15 9l4 4-4 4" />
+				<path d="M19 13h-7a4 4 0 1 1 1.17-7.8" />
+			</svg>
+		</button>
+	</div>
+
+	<!-- GROUP 4: Camera Controls -->
 	<div class="button-group" id="tour-camera-group">
 		<!-- Pan Tool -->
 		<button 

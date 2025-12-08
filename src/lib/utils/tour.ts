@@ -384,6 +384,24 @@ const icons = {
 	trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
 		<path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
 	</svg>`,
+	// Timeline/branches icon (branching)
+	timeline: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon" stroke-linecap="round" stroke-linejoin="round">
+		<circle cx="6" cy="6" r="2"/>
+		<circle cx="18" cy="10" r="2"/>
+		<circle cx="12" cy="18" r="2"/>
+		<path d="M6 8v2a4 4 0 004 4h2"/>
+		<path d="M16 10h-2a4 4 0 00-4 4v2"/>
+	</svg>`,
+	// Undo icon (matching toolbar)
+	undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M9 9l-4 4 4 4"/>
+		<path d="M5 13h7a4 4 0 1 0-1.17-7.8"/>
+	</svg>`,
+	// Redo icon (matching toolbar)
+	redo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M15 9l4 4-4 4"/>
+		<path d="M19 13h-7a4 4 0 1 1 1.17-7.8"/>
+	</svg>`,
 	// Camera/screenshot icon
 	camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
 		<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z"/>
@@ -502,7 +520,21 @@ function getTourSteps(): DriveStep[] {
 				align: 'center'
 			}
 		},
-		// 5. Camera group
+		// 5. History group
+		{
+			element: '#tour-history-group',
+			popover: {
+				title: titleWithIcon(icons.timeline, 'History & Branches'),
+				description: createGroupDescription([
+					{ icon: icons.timeline, label: 'Timeline & branches' },
+					{ icon: icons.undo, label: 'Undo strokes' },
+					{ icon: icons.redo, label: 'Redo / branch from past' }
+				], 'Manage stroke history and branching states.', mobile),
+				side: popoverSide,
+				align: 'center'
+			}
+		},
+		// 6. Camera group
 		{
 			element: '#tour-camera-group',
 			popover: {
@@ -516,7 +548,7 @@ function getTourSteps(): DriveStep[] {
 				align: 'center'
 			}
 		},
-		// 6. Info group
+		// 7. Info group
 		{
 			element: '#tour-info-group',
 			popover: {
@@ -530,7 +562,7 @@ function getTourSteps(): DriveStep[] {
 				align: 'center'
 			}
 		},
-		// 7. Final step
+		// 8. Final step
 		{
 			popover: {
 				title: titleWithIcon(icons.check, 'Ready to Explore!'),

@@ -143,12 +143,10 @@
 				</div>
 				<div class="footer-buttons">
 					<button class="tour-btn" onclick={handleStartTour}>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<circle cx="6" cy="6" r="2"/>
-							<circle cx="18" cy="10" r="2"/>
-							<circle cx="12" cy="18" r="2"/>
-							<path d="M6 8v2a4 4 0 004 4h2"/>
-							<path d="M16 10h-2a4 4 0 00-4 4v2"/>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M3 6l7-2 7 2 4-1v13l-4 1-7-2-7 2V5z" />
+							<path d="M10 4v13" />
+							<path d="M17 6v13" />
 						</svg>
 						<span>Take a Tour</span>
 					</button>

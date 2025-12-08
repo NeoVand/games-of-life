@@ -3,8 +3,10 @@
 	import { initWebGPU, type WebGPUContext, type WebGPUError } from '../webgpu/context.js';
 	import { Simulation } from '../webgpu/simulation.js';
 	import { getSimulationState, getUIState, GRID_SCALES, type GridScale, type SpectrumMode, type BrushShape, setSimulationRef } from '../stores/simulation.svelte.js';
+import { addSnapshot, resetHistory } from '../stores/history.js';
 	import { isTourActive } from '../utils/tour.js';
 	import { isModalOpen } from '../stores/modalManager.svelte.js';
+	import { openModal } from '../stores/modalManager.svelte.js';
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
@@ -54,6 +56,7 @@
 	let lastMouseY = 0;
 	let drawingState = 1; // 1 = draw, 0 = erase
 	let continuousDrawInterval: ReturnType<typeof setInterval> | null = null;
+let strokeTracked = false;
 	
 	// Effective tool mode: pan if pan mode selected OR space is held
 	const effectiveToolMode = $derived(simState.isSpaceHeld ? 'pan' : simState.toolMode);
@@ -197,6 +200,7 @@
 			rule: simState.currentRule
 		});
 		setSimulationRef(simulation);
+		await resetHistory(simulation);
 
 		// Apply the selected initialization method
 		applyLastInitialization();
@@ -345,6 +349,7 @@
 		
 		// Disable drawing during tour
 		if (isTourActive()) return;
+		const brushEditorOpen = isModalOpen('brushEditor');
 		
 		// Mark that user has interacted (dismiss click hint)
 		simState.hasInteracted = true;
@@ -371,6 +376,9 @@
 				return;
 			}
 			// Brush mode - draw
+			if (!brushEditorOpen) {
+				strokeTracked = true;
+			}
 			isDrawing = true;
 			drawingState = simState.brushState;
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
@@ -385,6 +393,9 @@
 		
 		// Right click = erase (always, regardless of mode)
 		if (e.button === 2) {
+			if (!brushEditorOpen) {
+				strokeTracked = true;
+			}
 			isDrawing = true;
 			drawingState = 0;
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
@@ -424,17 +435,22 @@
 		}
 	}
 
-	function handleMouseUp() {
+	async function handleMouseUp() {
 		stopContinuousDrawing();
-		
-		if (isDrawing && simulation && !simState.isPlaying) {
-			// After painting while paused, update the count
-			simulation.countAliveCellsAsync().then(count => {
-				simState.aliveCells = count;
-			});
-		}
+		const brushEditorOpen = isModalOpen('brushEditor');
+			if (isDrawing && simulation && !simState.isPlaying) {
+				// After painting while paused, update the count
+				simulation.countAliveCellsAsync().then(count => {
+					simState.aliveCells = count;
+				});
+			}
+			if (strokeTracked && simulation && !brushEditorOpen) {
+			// Fire-and-forget to avoid blocking UI
+			addSnapshot(simulation, 'Stroke');
+			}
 		isDrawing = false;
 		isPanning = false;
+		strokeTracked = false;
 	}
 
 	function handleMouseEnter() {
@@ -483,7 +499,7 @@
 		};
 	}
 
-	function handleTouchStart(e: TouchEvent) {
+	async function handleTouchStart(e: TouchEvent) {
 		if (!simulation) return;
 		
 		// Disable drawing during tour
@@ -493,6 +509,7 @@
 		}
 		
 		e.preventDefault();
+		const brushEditorOpen = isModalOpen('brushEditor');
 		
 		// Mark that user has interacted (dismiss click hint)
 		simState.hasInteracted = true;
@@ -515,6 +532,10 @@
 				touchMode = 'pan';
 			} else {
 				// Brush mode - single touch draws
+				if (!brushEditorOpen) {
+					await beginStroke(simulation);
+					strokeTracked = true;
+				}
 				touchMode = 'draw';
 				const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
 				gridMouseX = gridPos.x;
@@ -594,9 +615,10 @@
 		}
 	}
 
-	function handleTouchEnd(e: TouchEvent) {
+	async function handleTouchEnd(e: TouchEvent) {
 		if (!simulation) return;
 		e.preventDefault();
+		const brushEditorOpen = isModalOpen('brushEditor');
 
 		const touches = e.touches;
 
@@ -609,8 +631,12 @@
 					simState.aliveCells = count;
 				});
 			}
+			if (strokeTracked && simulation && !brushEditorOpen) {
+				addSnapshot(simulation, 'Stroke');
+			}
 			touchMode = 'none';
 			lastPinchDistance = 0;
+			strokeTracked = false;
 		} else if (touches.length === 1 && (touchMode === 'pinch' || touchMode === 'draw')) {
 			// Went from 2 to 1 finger - continue as pan (never accidentally draw after pinch)
 			stopContinuousDrawing();
@@ -645,8 +671,9 @@
 	}
 
 	// Apply the last selected initialization method
-	function applyLastInitialization() {
+	async function applyLastInitialization() {
 		if (!simulation) return;
+		await resetHistory(simulation);
 		
 		const pattern = simState.lastInitPattern;
 		
@@ -968,6 +995,8 @@
 		class:panning={isPanning}
 		class:pan-ready={effectiveToolMode === 'pan' && !isPanning}
 	></canvas>
+
+	<!-- History / Branch toolbar -->
 </div>
 
 <style>
@@ -1035,4 +1064,5 @@
 		color: #888;
 		font-size: 0.9rem;
 	}
+
 </style>
