@@ -1254,8 +1254,9 @@ export class Simulation {
 	}
 
 	/**
-	 * Reset view to show entire grid, fitting it to the canvas height
-	 * This ensures the full grid height is visible, centered horizontally.
+	 * Reset view to show entire grid, fitting it completely within the canvas.
+	 * The grid is centered both horizontally and vertically.
+	 * This works consistently regardless of canvas orientation (portrait/landscape).
 	 * @param canvasWidth - Canvas width in pixels (optional, uses stored value if not provided)
 	 * @param canvasHeight - Canvas height in pixels (optional, uses stored value if not provided)
 	 */
@@ -1272,32 +1273,39 @@ export class Simulation {
 		
 		let zoom: number;
 		let offsetX = 0;
-		const offsetY = 0; // Always start at top of grid
+		let offsetY = 0;
 		
 		if (canvasWidth && canvasHeight) {
 			const canvasAspect = canvasWidth / canvasHeight;
+			const gridAspect = effectiveGridWidth / effectiveGridHeight;
 			
-			// Always fit to HEIGHT: zoom so that the entire grid height is visible
-			// This means: cellsVisibleY = effectiveGridHeight
-			// Since cellsVisibleY = zoom / canvasAspect, we get:
-			// zoom = effectiveGridHeight * canvasAspect
-			zoom = effectiveGridHeight * canvasAspect;
-			
-			// Calculate how many cells are visible horizontally
-			const cellsVisibleX = zoom;
-			
-			// Center horizontally if the grid is narrower than the visible area
-			// (happens on landscape screens with a tall grid)
-			if (cellsVisibleX > effectiveGridWidth) {
-				// More horizontal space than grid - center the grid
-				offsetX = (effectiveGridWidth - cellsVisibleX) / 2;
+			// Fit ENTIRE grid into canvas (no clipping)
+			// zoom = cells visible across canvas width
+			// cellsVisibleY = zoom / canvasAspect
+			// 
+			// For grid to fit horizontally: zoom >= gridWidth
+			// For grid to fit vertically: zoom / canvasAspect >= gridHeight
+			//                             zoom >= gridHeight * canvasAspect
+			// 
+			// Take the max to ensure both dimensions fit
+			if (gridAspect >= canvasAspect) {
+				// Grid is relatively wider than canvas - fit to width
+				zoom = effectiveGridWidth;
 			} else {
-				// Grid is wider than visible - start at left edge, centered
-				offsetX = (effectiveGridWidth - cellsVisibleX) / 2;
+				// Grid is relatively taller than canvas - fit to height
+				zoom = effectiveGridHeight * canvasAspect;
 			}
+			
+			// Calculate how many cells are visible in each dimension
+			const cellsVisibleX = zoom;
+			const cellsVisibleY = zoom / canvasAspect;
+			
+			// Center the grid both horizontally and vertically
+			offsetX = (effectiveGridWidth - cellsVisibleX) / 2;
+			offsetY = (effectiveGridHeight - cellsVisibleY) / 2;
 		} else {
-			// Fallback: assume square canvas, fit to grid height
-			zoom = effectiveGridHeight;
+			// Fallback: assume square canvas, fit to grid width
+			zoom = effectiveGridWidth;
 		}
 		
 		// Only update position/zoom, preserve all other view settings
