@@ -953,10 +953,13 @@ let brushEditorSnapshotTaken = $state(false);
 let brushEditorEdited = $state(false);
 let ruleEditorSnapshotTaken = $state(false);
 let ruleEditorEdited = $state(false);
+let brushEditorPreSnapshot: Uint32Array | null = null;
+let ruleEditorPreSnapshot: Uint32Array | null = null;
 
 export function resetBrushEditorSession() {
 	brushEditorSnapshotTaken = false;
 	brushEditorEdited = false;
+	brushEditorPreSnapshot = null;
 }
 
 export function markBrushEditorSnapshotTaken() {
@@ -975,9 +978,17 @@ export function wasBrushEditorEdited() {
 	return brushEditorEdited;
 }
 
+export function setBrushEditorPreSnapshot(snap: Uint32Array | null) {
+	brushEditorPreSnapshot = snap;
+}
+export function getBrushEditorPreSnapshot(): Uint32Array | null {
+	return brushEditorPreSnapshot;
+}
+
 export function resetRuleEditorSession() {
 	ruleEditorSnapshotTaken = false;
 	ruleEditorEdited = false;
+	ruleEditorPreSnapshot = null;
 }
 
 export function markRuleEditorSnapshotTaken() {
@@ -994,6 +1005,13 @@ export function wasRuleEditorSnapshotTaken() {
 
 export function wasRuleEditorEdited() {
 	return ruleEditorEdited;
+}
+
+export function setRuleEditorPreSnapshot(snap: Uint32Array | null) {
+	ruleEditorPreSnapshot = snap;
+}
+export function getRuleEditorPreSnapshot(): Uint32Array | null {
+	return ruleEditorPreSnapshot;
 }
 
 export function getUIState() {

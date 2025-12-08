@@ -4,7 +4,7 @@
 </script>
 
 <script lang="ts">
-import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef, resetRuleEditorSession, markRuleEditorSnapshotTaken, wasRuleEditorSnapshotTaken, markRuleEditorEdited, wasRuleEditorEdited } from '../stores/simulation.svelte.js';
+import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef, resetRuleEditorSession, markRuleEditorSnapshotTaken, wasRuleEditorSnapshotTaken, markRuleEditorEdited, wasRuleEditorEdited, setRuleEditorPreSnapshot, getRuleEditorPreSnapshot } from '../stores/simulation.svelte.js';
 	import { 
 		RULE_PRESETS, 
 		RULE_CATEGORIES, 
@@ -21,7 +21,7 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
 	import BoundaryIcon from './BoundaryIcon.svelte';
 	import { onMount, onDestroy } from 'svelte';
-import { addSnapshot, getHeadId } from '../stores/history.js';
+import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 
 	interface Props {
 		onclose: () => void;
@@ -284,6 +284,10 @@ import { addSnapshot, getHeadId } from '../stores/history.js';
 
 	onMount(() => {
 	resetRuleEditorSession();
+	const sim = getSimulationRef();
+	if (sim) {
+		sim.getCellDataAsync().then(setRuleEditorPreSnapshot).catch(() => {});
+	}
 		if (previewCanvas) {
 			previewCtx = previewCanvas.getContext('2d');
 			randomizePreview();
@@ -893,7 +897,8 @@ import { addSnapshot, getHeadId } from '../stores/history.js';
 		if (!parsed) { error = 'Invalid rule'; return; }
 		const sim = getSimulationRef();
 		if (sim && wasRuleEditorSnapshotTaken() && wasRuleEditorEdited()) {
-			addSnapshot(sim, 'Rule change', 'rule', getHeadId());
+			const before = getRuleEditorPreSnapshot();
+			addSnapshotWithBefore(sim, before, 'Rule change', 'rule', getHeadId());
 			sim.clearUndo();
 		}
 		resetRuleEditorSession();

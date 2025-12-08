@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { getSimulationState, BRUSH_SHAPES, BRUSH_TYPES, BRUSH_FALLOFFS, type BrushShape, type BrushType, type BrushFalloff, DEFAULT_BRUSH_CONFIG, getSimulationRef, resetBrushEditorSession, wasBrushEditorSnapshotTaken, wasBrushEditorEdited } from '../stores/simulation.svelte.js';
-	import { addSnapshot, getHeadId } from '../stores/history.js';
+	import { getSimulationState, BRUSH_SHAPES, BRUSH_TYPES, BRUSH_FALLOFFS, type BrushShape, type BrushType, type BrushFalloff, DEFAULT_BRUSH_CONFIG, getSimulationRef, resetBrushEditorSession, wasBrushEditorSnapshotTaken, wasBrushEditorEdited, setBrushEditorPreSnapshot, getBrushEditorPreSnapshot } from '../stores/simulation.svelte.js';
+	import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 	import { onMount, onDestroy } from 'svelte';
 	import { draggable, centerInViewport } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
@@ -17,8 +17,13 @@
 	const modalState = $derived(getModalState('brushEditor'));
 	let modalEl: HTMLDivElement | null = null;
 
-	onMount(() => {
+	onMount(async () => {
 		resetBrushEditorSession();
+		const sim = getSimulationRef();
+		if (sim) {
+			const snap = await sim.getCellDataAsync().catch(() => null);
+			setBrushEditorPreSnapshot(snap);
+		}
 	});
 
 	onDestroy(() => {
@@ -47,7 +52,8 @@
 		if (sim && wasBrushEditorSnapshotTaken()) {
 			// If edits happened, record to history and clear the temp snapshot
 			if (wasBrushEditorEdited()) {
-				addSnapshot(sim, 'Brush editor', 'brush', getHeadId());
+				const before = getBrushEditorPreSnapshot();
+				addSnapshotWithBefore(sim, before, 'Brush editor', 'brush', getHeadId());
 			}
 			sim.clearUndo();
 		}
