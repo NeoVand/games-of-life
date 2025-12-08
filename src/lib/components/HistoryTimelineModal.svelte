@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { getSimulationRef } from '../stores/simulation.svelte.js';
-	import { getNodes, getHeadId, jumpToNode, renameNode, deleteNode, getRootId, getMaxHistory, subscribeHistory, type HistoryNode } from '../stores/history.js';
+	import { getNodes, getHeadId, jumpToNode, renameNode, deleteNode, getRootId, getMaxHistory, subscribeHistory, clearHistory, type HistoryNode } from '../stores/history.js';
 	import { draggable, centerInViewport } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
 
@@ -422,6 +422,19 @@ function cancelEdit() {
 
 		<div class="footer">
 			<span class="hint">{layoutNodes.length} / {maxHistory} snapshots</span>
+			{#if layoutNodes.length > 1}
+				<button 
+					type="button" 
+					class="clear-btn" 
+					onclick={() => { clearHistory(); refresh(); }}
+					title="Clear history - make current state the new root"
+				>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+						<path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z" />
+					</svg>
+					Clear
+				</button>
+			{/if}
 		</div>
 	</div>
 </div>
@@ -710,10 +723,35 @@ function cancelEdit() {
 		stroke-linejoin: round;
 	}
 	.footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		padding: 0.4rem 0.75rem;
 		border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
 		color: var(--ui-text, #6b7280);
 		font-size: 0.68rem;
 		flex-shrink: 0;
+	}
+	.clear-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.25rem 0.5rem;
+		background: transparent;
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 4px;
+		color: var(--ui-text, #6b7280);
+		font-size: 0.62rem;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.clear-btn:hover {
+		background: rgba(239, 68, 68, 0.1);
+		border-color: rgba(239, 68, 68, 0.4);
+		color: #ef4444;
+	}
+	.clear-btn svg {
+		width: 12px;
+		height: 12px;
 	}
 </style>

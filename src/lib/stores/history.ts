@@ -68,6 +68,7 @@ export async function resetHistory(sim?: Simulation) {
 	rootId = null;
 	counter = 0;
 	if (sim) {
+		const simState = getSimulationState();
 		const snap = await sim.getCellDataAsync();
 		const id = genId();
 		const node: HistoryNode = {
@@ -76,12 +77,40 @@ export async function resetHistory(sim?: Simulation) {
 			name: 'Start',
 			createdAt: Date.now(),
 			kind: 'brush',
-			snapshot: snap
+			snapshot: snap,
+			rule: { ...simState.currentRule },
+			boundaryMode: simState.boundaryMode
 		};
 		nodes.set(id, node);
 		headId = id;
 		rootId = id;
 	}
+	notifyListeners();
+}
+
+/**
+ * Clear all history except the current head, which becomes the new root.
+ * Useful for cleaning up history and starting fresh from the current state.
+ */
+export function clearHistory(): void {
+	if (!headId) return;
+	
+	const currentHead = nodes.get(headId);
+	if (!currentHead) return;
+	
+	// Make head the new root by clearing its parent
+	const newRoot: HistoryNode = {
+		...currentHead,
+		parentId: null,
+		name: 'Start' // Rename to "Start" as it's now the root
+	};
+	
+	// Clear all nodes and add only the new root
+	nodes.clear();
+	nodes.set(newRoot.id, newRoot);
+	rootId = newRoot.id;
+	headId = newRoot.id;
+	
 	notifyListeners();
 }
 
@@ -313,11 +342,20 @@ export function deleteNode(id: string) {
 export function jumpToNode(sim: Simulation, id: string): boolean {
 	const node = nodes.get(id);
 	if (!node) return false;
+	
+	// Restore grid state
 	sim.setCellData(node.snapshot);
+	
+	// Restore rule and boundary mode (with fallback for legacy nodes)
 	const simState = getSimulationState();
-	simState.currentRule = node.rule;
-	simState.boundaryMode = node.boundaryMode;
-	sim.setRule(node.rule);
+	if (node.rule) {
+		simState.currentRule = node.rule;
+		sim.setRule(node.rule);
+	}
+	if (node.boundaryMode) {
+		simState.boundaryMode = node.boundaryMode;
+	}
+	
 	headId = id;
 	markNavJump();
 	notifyListeners();
