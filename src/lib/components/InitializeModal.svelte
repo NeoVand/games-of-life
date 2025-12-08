@@ -774,7 +774,7 @@
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-<div class="modal-backdrop" onwheel={(e) => {
+<div class="modal-backdrop" style="z-index: {modalState.zIndex};" onwheel={(e) => {
 	// Only forward wheel events if scrolling on the backdrop itself (not inside modal content)
 	if (e.target !== e.currentTarget) return;
 	
@@ -793,7 +793,6 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div 
 		class="modal"
-		style="z-index: {modalState.zIndex};"
 		onclick={handleModalClick}
 		use:draggable={{ 
 			handle: '.header', 
@@ -1118,7 +1117,6 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 1000;
 		pointer-events: none; /* Allow clicks to pass through to canvas */
 	}
 

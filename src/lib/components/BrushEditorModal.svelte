@@ -16,6 +16,24 @@
 	// Modal dragging state
 	const modalState = $derived(getModalState('brushEditor'));
 	let modalEl: HTMLDivElement | null = null;
+	
+	// Track if we've initialized the center position
+	let initialPosition = $state<{ x: number; y: number } | null>(null);
+	
+	// Compute initial position - center of viewport for first open
+	$effect(() => {
+		if (!modalState.position && modalEl && !initialPosition) {
+			// Calculate center position
+			const rect = modalEl.getBoundingClientRect();
+			const centerX = (window.innerWidth - rect.width) / 2;
+			const centerY = (window.innerHeight - rect.height) / 2;
+			initialPosition = { x: centerX, y: centerY };
+			// Also save it so it persists
+			setModalPosition('brushEditor', initialPosition);
+		} else if (modalState.position) {
+			initialPosition = modalState.position;
+		}
+	});
 
 	onMount(async () => {
 		resetBrushEditorSession();
@@ -110,17 +128,18 @@
 <svelte:window onkeydown={(e) => e.key === 'Escape' && cancelAndClose()} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-<div class="modal-backdrop">
+<div class="modal-backdrop" style="z-index: {modalState.zIndex};">
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div 
 		class="modal"
+		class:centered={!initialPosition}
 		bind:this={modalEl}
-		style="z-index: {modalState.zIndex};"
+		style={initialPosition ? `transform: translate(${initialPosition.x}px, ${initialPosition.y}px);` : ''}
 		onclick={handleModalClick}
 		use:draggable={{ 
 			handle: '.header', 
 			bounds: true,
-			initialPosition: modalState.position ?? (modalEl ? centerInViewport(modalEl) : null),
+			initialPosition: initialPosition,
 			onDragEnd: handleDragEnd
 		}}
 	>
@@ -276,7 +295,6 @@
 	.modal-backdrop {
 		position: fixed;
 		inset: 0;
-		z-index: 1000;
 		pointer-events: none;
 	}
 
@@ -295,7 +313,13 @@
 		position: fixed;
 		top: 0;
 		left: 0;
-		transform: translate(0, 0);
+	}
+
+	/* Center the modal when no saved position exists */
+	.modal.centered {
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
 	}
 
 	.modal:global(.dragging) {

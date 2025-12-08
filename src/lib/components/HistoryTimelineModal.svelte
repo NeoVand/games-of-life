@@ -238,11 +238,11 @@ function cancelEdit() {
 	}
 </script>
 
-<div class="modal-backdrop" role="presentation">
+<div class="modal-backdrop" role="presentation" style="z-index: {modalState.zIndex};">
 	<div
 		class="modal"
 		bind:this={modalEl}
-		style={`z-index: ${modalState.zIndex}; ${modalState.position ? `transform: translate(${modalState.position.x}px, ${modalState.position.y}px);` : ''}`}
+		style={modalState.position ? `transform: translate(${modalState.position.x}px, ${modalState.position.y}px);` : ''}
 		onclick={handleModalClick}
 		onkeydown={(e) => e.key === 'Escape' && closeModal()}
 		role="dialog"
@@ -444,7 +444,6 @@ function cancelEdit() {
 		position: fixed;
 		inset: 0;
 		pointer-events: none;
-		z-index: 1100;
 	}
 	.modal {
 		position: fixed;

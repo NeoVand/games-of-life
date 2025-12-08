@@ -701,59 +701,66 @@ export class Simulation {
 		};
 		
 		// Get the cell state to paint based on brush type and alpha
+		// Returns -1 to indicate "don't change this cell" (for additive behavior)
 		const getCellState = (alpha: number, cellX: number, cellY: number, dist: number): number => {
-			if (state === 0) return 0; // Erase mode
-			if (alpha <= 0) return 0;
+			if (state === 0) return 0; // Erase mode always returns 0
+			if (alpha <= 0) return -1; // Don't paint if no alpha
 			
 			switch (brushType) {
 				case 'gradient': {
-					// True gradient: state varies based on distance from center
-					// Center = fully alive (state 1), edge = dying states
+					// Gradient: center is fully alive, edges fade to dying/dead states
+					// alpha incorporates falloff, so center has high alpha, edges low
 					if (numStates <= 2) {
-						// For 2-state rules, use probability based on distance
-						return Math.random() < alpha * (1 - dist * 0.7) ? 1 : 0;
+						// For 2-state rules, probabilistic based on combined alpha
+						const prob = alpha * (1 - dist * 0.5);
+						return Math.random() < prob ? 1 : -1; // -1 = don't change
 					}
-					// For multi-state, use distance to determine vitality
-					// dist=0 (center) -> state 1 (alive)
-					// dist=1 (edge) -> higher states (more dead)
-					const vitality = alpha * (1 - dist);
-					if (vitality > 0.8) return 1;
-					if (vitality < 0.1) return 0;
-					// Map vitality to state (higher state = more dead)
-					const dyingState = 2 + Math.floor((1 - vitality) * (numStates - 2));
-					return Math.min(dyingState, numStates);
+					// For multi-state, map alpha to vitality states
+					// High alpha = state 1 (alive), low alpha = higher states (dying)
+					const vitality = alpha * (1 - dist * 0.3);
+					if (vitality > 0.7) return 1; // Fully alive
+					if (vitality < 0.15) return -1; // Don't paint at very low vitality
+					// Map to dying states (2 to numStates-1)
+					const stateRange = numStates - 2;
+					const dyingState = 2 + Math.floor((1 - vitality) * stateRange * 0.8);
+					return Math.min(dyingState, numStates - 1);
 				}
 				case 'noise': {
 					// Coherent noise pattern - creates organic clusters
-					const noiseScale = Math.max(3, radius / 4); // Scale noise with brush size
+					const noiseScale = Math.max(4, radius / 3);
 					const n1 = valueNoise(cellX, cellY, noiseScale);
-					const n2 = valueNoise(cellX * 2.1, cellY * 1.7, noiseScale * 0.5);
-					const noise = (n1 + n2 * 0.5) / 1.5; // Multi-octave noise
+					const n2 = valueNoise(cellX * 2.3 + 100, cellY * 1.9 + 50, noiseScale * 0.6);
+					const noise = (n1 * 0.6 + n2 * 0.4); // Multi-octave noise
 					
-					// Threshold creates distinct patches
-					const threshold = 0.5 - alpha * 0.3; // More alpha = more fill
-					if (noise > threshold) {
-						if (numStates > 2 && noise > threshold + 0.2) {
-							return 1; // Fully alive in dense areas
-						}
-						return Math.random() < 0.7 ? 1 : Math.min(2, numStates);
+					// Combine noise with alpha for smooth edges
+					const combined = noise * alpha;
+					if (combined < 0.25) return -1;
+					
+					if (numStates > 2) {
+						// Multi-state: noise affects vitality
+						if (combined > 0.6) return 1;
+						const dyingState = 2 + Math.floor((1 - combined) * (numStates - 2) * 0.7);
+						return Math.min(dyingState, numStates - 1);
 					}
-					return 0;
+					return 1;
 				}
 				case 'spray': {
-					// Very sparse scattered cells - like airbrush dots
-					// density controls how many dots (0.1 = very sparse, 1.0 = dense)
-					const sparsity = 1 - density * density; // Square for more control at low end
-					if (Math.random() > sparsity * 0.95 + 0.04) { // Always at least 4% chance
-						return alpha > 0.5 ? 1 : 0;
+					// Sparse scattered dots - density controls coverage
+					const sparsity = Math.pow(1 - density, 2);
+					const threshold = sparsity * 0.92 + 0.05;
+					if (Math.random() > threshold) {
+						// Use alpha to determine if this dot gets painted
+						return Math.random() < alpha ? 1 : -1;
 					}
-					return 0;
+					return -1;
 				}
 				case 'solid':
 				default:
-					// Solid fill: all cells within brush get the state
-					// intensity affects the alpha threshold
-					return 1;
+					// Solid fill respects falloff - probabilistic at edges
+					// This makes falloff actually do something!
+					if (alpha >= 0.95) return 1; // Full strength at center
+					// Probabilistic fill based on alpha (from falloff)
+					return Math.random() < alpha ? 1 : -1;
 			}
 		};
 		
@@ -790,7 +797,8 @@ export class Simulation {
 					if (result.inside) {
 						const alpha = getFalloffAlpha(result.dist);
 						const cellState = getCellState(alpha, cellX, cellY, result.dist);
-						if (cellState > 0 || state === 0) {
+						// -1 means "don't change this cell" (for probabilistic/additive brushes)
+						if (cellState >= 0) {
 							this.setCell(cellX, cellY, cellState);
 						}
 					}
@@ -808,7 +816,8 @@ export class Simulation {
 					if (result.inside) {
 						const alpha = getFalloffAlpha(result.dist);
 						const cellState = getCellState(alpha, cellX, cellY, result.dist);
-						if (cellState > 0 || state === 0) {
+						// -1 means "don't change this cell" (for probabilistic/additive brushes)
+						if (cellState >= 0) {
 							this.setCell(cellX, cellY, cellState);
 						}
 					}
