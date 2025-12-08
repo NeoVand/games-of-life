@@ -708,22 +708,39 @@ export class Simulation {
 			
 			switch (brushType) {
 				case 'gradient': {
-					// Gradient: center is fully alive, edges fade to dying/dead states
-					// alpha incorporates falloff, so center has high alpha, edges low
+					// Gradient: density decreases dramatically from center to edge
+					// This creates a visible "fading" effect, not just slightly fewer cells
+					
+					// Use squared distance for more dramatic center-heavy distribution
+					const distSq = dist * dist;
+					// Combine with alpha (from falloff) for additional control
+					const gradientFactor = alpha * (1 - distSq);
+					
 					if (numStates <= 2) {
-						// For 2-state rules, probabilistic based on combined alpha
-						const prob = alpha * (1 - dist * 0.5);
-						return Math.random() < prob ? 1 : -1; // -1 = don't change
+						// For 2-state rules: dense center, very sparse edges
+						// Apply cubic falloff for dramatic visual difference
+						const prob = gradientFactor * gradientFactor; // square again for more dramatic effect
+						if (prob < 0.05) return -1; // Don't paint at very low probability
+						return Math.random() < prob ? 1 : -1;
 					}
-					// For multi-state, map alpha to vitality states
-					// High alpha = state 1 (alive), low alpha = higher states (dying)
-					const vitality = alpha * (1 - dist * 0.3);
-					if (vitality > 0.7) return 1; // Fully alive
-					if (vitality < 0.15) return -1; // Don't paint at very low vitality
-					// Map to dying states (2 to numStates-1)
-					const stateRange = numStates - 2;
-					const dyingState = 2 + Math.floor((1 - vitality) * stateRange * 0.8);
-					return Math.min(dyingState, numStates - 1);
+					
+					// For multi-state: paint different vitality states based on distance
+					// Center = fully alive (state 1), edges = more dying states
+					if (gradientFactor < 0.1) return -1; // Don't paint at very edge
+					
+					if (gradientFactor > 0.8) {
+						// Center core: fully alive
+						return 1;
+					} else if (gradientFactor > 0.5) {
+						// Inner ring: mostly alive with some dying
+						return Math.random() < 0.7 ? 1 : 2;
+					} else {
+						// Outer ring: dying states, sparser
+						if (Math.random() > gradientFactor * 2) return -1; // Skip some cells
+						const stateRange = numStates - 2;
+						const dyingState = 2 + Math.floor((1 - gradientFactor) * stateRange * 0.6);
+						return Math.min(dyingState, numStates - 1);
+					}
 				}
 				case 'noise': {
 					// Coherent noise pattern - creates organic clusters
