@@ -25,6 +25,11 @@ let nodes = new Map<string, HistoryNode>();
 let headId: string | null = null;
 let rootId: string | null = null;
 let counter = 0;
+// Track how we navigated last to decide pruning behavior
+// 'normal' = new nodes appended linearly
+// 'undo' = we moved back with undo/redo (prune future on next add)
+// 'jump' = user jumped to an arbitrary node (do NOT prune future when branching)
+let lastNav: 'normal' | 'undo' | 'jump' = 'normal';
 
 // Simple subscription system for reactive updates
 type HistoryListener = () => void;
@@ -96,6 +101,31 @@ function enforceLimit() {
 	}
 }
 
+function deleteSubtree(id: string) {
+	getChildren(id).forEach(child => deleteSubtree(child.id));
+	nodes.delete(id);
+}
+
+// Prune any future/redo branches when we're extending the current head (e.g., after undo).
+// For branching operations (when parentIdOverride is provided), we skip pruning.
+function pruneFutureFrom(parentId: string | null) {
+	if (!parentId) return;
+	const children = getChildren(parentId);
+	children.forEach(child => deleteSubtree(child.id));
+}
+
+function markNavUndo() {
+	lastNav = 'undo';
+}
+
+function markNavJump() {
+	lastNav = 'jump';
+}
+
+function markNavNormal() {
+	lastNav = 'normal';
+}
+
 export async function addSnapshot(sim: Simulation, name = 'Stroke', kind: HistoryKind = 'brush', parentIdOverride?: string | null) {
 	ensureRoot(sim);
 	const simState = getSimulationState();
@@ -111,8 +141,15 @@ export async function addSnapshot(sim: Simulation, name = 'Stroke', kind: Histor
 		rule: { ...simState.currentRule },
 		boundaryMode: simState.boundaryMode
 	};
+	// If we're extending the current head (no explicit parent override) AND last nav was undo,
+	// drop redo branches. If last nav was jump, we branch instead and keep existing children.
+	if (!parentIdOverride && headId && lastNav === 'undo') {
+		pruneFutureFrom(headId);
+	}
+
 	nodes.set(id, node);
 	headId = id;
+	markNavNormal();
 	enforceLimit();
 	notifyListeners();
 }
@@ -127,6 +164,12 @@ export async function addSnapshotWithBefore(
 	ensureRoot(sim);
 	const simState = getSimulationState();
 	const parentId = parentIdOverride ?? headId;
+
+	// If we're extending the current head (no explicit parent override) AND last nav was undo,
+	// drop redo branches. If last nav was jump, we branch instead and keep existing children.
+	if (!parentIdOverride && parentId && lastNav === 'undo') {
+		pruneFutureFrom(parentId);
+	}
 
 	const beforeSnap = beforeSnapshot ?? (await sim.getCellDataAsync());
 	const beforeId = genId();
@@ -157,6 +200,7 @@ export async function addSnapshotWithBefore(
 	nodes.set(afterId, afterNode);
 
 	headId = afterId;
+	markNavNormal();
 	enforceLimit();
 	notifyListeners();
 }
@@ -185,6 +229,7 @@ export async function undo(sim: Simulation): Promise<boolean> {
 	simState.boundaryMode = parent.boundaryMode;
 	sim.setRule(parent.rule);
 	headId = parent.id;
+	markNavUndo();
 	notifyListeners();
 	return true;
 }
@@ -201,6 +246,7 @@ export async function redo(sim: Simulation): Promise<boolean> {
 	simState.boundaryMode = next.boundaryMode;
 	sim.setRule(next.rule);
 	headId = next.id;
+	markNavUndo();
 	notifyListeners();
 	return true;
 }
@@ -259,6 +305,7 @@ export function jumpToNode(sim: Simulation, id: string): boolean {
 	simState.boundaryMode = node.boundaryMode;
 	sim.setRule(node.rule);
 	headId = id;
+	markNavJump();
 	notifyListeners();
 	return true;
 }

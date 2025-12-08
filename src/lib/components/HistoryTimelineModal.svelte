@@ -22,9 +22,9 @@
 	let rootId = $state<string | null>(null);
 
 	// Layout parameters
-	const ROW_HEIGHT = 48;
-	const COL_WIDTH = 18;
-	const DOT_SIZE = 10;
+	const ROW_HEIGHT = 52;
+	const COL_WIDTH = 20;
+	const DOT_SIZE = 14;
 	const LINE_LEFT = 20; // Left margin for the rail
 
 	// Tree layout structure
@@ -139,6 +139,12 @@ let editingValue = $state('');
 	function getY(row: number): number {
 		return row * ROW_HEIGHT + ROW_HEIGHT / 2;
 	}
+
+	// Icon paths for history kinds (only for non-pre nodes)
+	const iconPaths: Record<string, string> = {
+		brush: 'M18.37 2.63 14 7l-1.59-1.59a2 2 0 0 0-2.82 0L8 7l9 9 1.59-1.59a2 2 0 0 0 0-2.82L17 10l4.37-4.37a2.12 2.12 0 1 0-3-3Z M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-10',
+		rule: 'M16.5 3c-2.5 0-4 1.5-4.7 4l-1.3 4H7.5c-.5 0-1 .4-1 1s.5 1 1 1h2.3l-1.6 5.5C7.7 20 6.8 21 5.5 21c-.5 0-.9-.1-1.2-.3-.4-.2-.9-.1-1.1.3-.2.4-.1.9.3 1.1.6.3 1.3.5 2 .5 2.5 0 4-1.5 4.8-4.2L12 13h3.5c.5 0 1-.4 1-1s-.5-1-1-1h-2.8l1.1-3.5c.5-1.7 1.4-2.5 2.7-2.5.4 0 .8.1 1.1.2.4.2.9 0 1.1-.4.2-.4 0-.9-.4-1.1-.6-.4-1.4-.7-2.3-.7Z'
+	};
 
 	// Generate SVG paths for connections
 	function getConnectionPaths(): string[] {
@@ -286,25 +292,49 @@ function cancelEdit() {
 							<path d={path} class="conn-line" />
 						{/each}
 
-						<!-- Node dots -->
+						<!-- Node dots with icons -->
 						{#each layoutNodes as ln}
 							{@const x = getX(ln.col)}
 							{@const y = getY(ln.row)}
 							{@const isHead = ln.node.id === headId}
 							{@const isSelected = ln.node.id === selectedId}
-							<!-- Outer ring for head -->
+							{@const isPre = ln.node.name.toLowerCase().includes('(pre)')}
+							{@const showIcon = iconPaths[ln.node.kind] && !isPre}
+
 							{#if isHead}
-								<circle cx={x} cy={y} r={DOT_SIZE / 2 + 3} class="head-ring" />
+								<g class="node-dot-group">
+									{#if showIcon}
+										<g transform={`translate(${x} ${y})`}>
+											<path d={iconPaths[ln.node.kind]} class="node-icon-outline head-icon" transform="translate(-11 -11) scale(0.92)" />
+											<path d={iconPaths[ln.node.kind]} class="node-icon head-icon" transform="translate(-11 -11) scale(0.85)" />
+										</g>
+									{/if}
+								</g>
+							{:else if isPre}
+								<g class="node-dot-group">
+									<circle 
+										cx={x} 
+										cy={y} 
+										r={DOT_SIZE / 2 - 2} 
+										class="node-dot pre"
+									/>
+								</g>
+							{:else}
+								{#if showIcon}
+									<g class="node-dot-group icon-only" transform={`translate(${x} ${y})`}>
+										<path d={iconPaths[ln.node.kind]} class="node-icon-outline" transform="translate(-11 -11) scale(0.93)" />
+										<path d={iconPaths[ln.node.kind]} class="node-icon" transform="translate(-11 -11) scale(0.86)" />
+									</g>
+								{:else}
+									<circle 
+										cx={x} 
+										cy={y} 
+										r={DOT_SIZE / 2 - 2} 
+										class="node-dot"
+										class:selected={isSelected}
+									/>
+								{/if}
 							{/if}
-							<!-- Main dot -->
-							<circle 
-								cx={x} 
-								cy={y} 
-								r={DOT_SIZE / 2} 
-								class="node-dot" 
-								class:head={isHead}
-								class:selected={isSelected}
-							/>
 						{/each}
 					</svg>
 
@@ -412,7 +442,7 @@ function cancelEdit() {
 		left: 0;
 		min-width: 280px;
 		max-width: 360px;
-		max-height: 65vh;
+		max-height: 55vh;
 		display: flex;
 		flex-direction: column;
 		background: var(--ui-bg, rgba(12, 12, 18, 0.95));
@@ -483,6 +513,18 @@ function cancelEdit() {
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding: 0.4rem;
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in srgb, var(--ui-text, #6b7280) 40%, transparent) transparent;
+	}
+	.body::-webkit-scrollbar {
+		width: 8px;
+	}
+	.body::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	.body::-webkit-scrollbar-thumb {
+		background: color-mix(in srgb, var(--ui-text, #6b7280) 40%, transparent);
+		border-radius: 999px;
 	}
 	.empty {
 		padding: 1.5rem 1rem;
@@ -501,8 +543,8 @@ function cancelEdit() {
 	.conn-line {
 		fill: none;
 		/* use theme-aware text color for contrast in both themes */
-		stroke: color-mix(in srgb, var(--ui-text, #4b5563) 65%, transparent);
-		stroke-width: 2;
+		stroke: color-mix(in srgb, var(--ui-text, #4b5563) 45%, transparent);
+		stroke-width: 1.8;
 		stroke-linecap: round;
 	}
 	.node-dot {
@@ -512,16 +554,24 @@ function cancelEdit() {
 		stroke-width: 1.2;
 		transition: all 0.12s ease;
 	}
-	.node-dot.head,
-	.node-dot.selected {
-		fill: var(--ui-accent, #2dd4bf);
-		stroke: color-mix(in srgb, var(--ui-accent, #2dd4bf) 60%, var(--ui-bg, #0f1115) 40%);
+	.node-dot.pre {
+		fill: color-mix(in srgb, var(--ui-text, #6b7280) 70%, var(--ui-bg, #0f1115) 30%);
+		stroke: var(--ui-bg, #0f1115);
 	}
-	.head-ring {
+	.node-icon {
+		fill: currentColor;
+		stroke: none;
+		color: color-mix(in srgb, var(--ui-text, #6b7280) 80%, var(--ui-bg, #0f1115) 20%);
+	}
+	.head-icon {
+		color: var(--ui-accent, #2dd4bf);
+	}
+	.node-icon-outline {
 		fill: none;
-		stroke: color-mix(in srgb, var(--ui-accent, #2dd4bf) 70%, transparent);
-		stroke-width: 1.8;
-		opacity: 0.6;
+		stroke: color-mix(in srgb, var(--ui-bg, #0f1115) 65%, transparent);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 	.labels {
 		position: absolute;
@@ -545,7 +595,7 @@ function cancelEdit() {
 		background: rgba(255, 255, 255, 0.04);
 	}
 	.node-row.selected {
-		background: rgba(var(--ui-accent-rgb, 45, 212, 191), 0.1);
+		background: var(--ui-accent-bg, rgba(var(--ui-accent-rgb, 45, 212, 191), 0.12));
 	}
 	.node-row:focus-visible {
 		outline: 1px solid rgba(var(--ui-accent-rgb, 45, 212, 191), 0.5);

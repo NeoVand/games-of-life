@@ -893,7 +893,7 @@ import { addSnapshot, getHeadId } from '../stores/history.js';
 		if (!parsed) { error = 'Invalid rule'; return; }
 		const sim = getSimulationRef();
 		if (sim && wasRuleEditorSnapshotTaken() && wasRuleEditorEdited()) {
-			addSnapshot(sim, 'Rule change', 'brush', getHeadId());
+			addSnapshot(sim, 'Rule change', 'rule', getHeadId());
 			sim.clearUndo();
 		}
 		resetRuleEditorSession();
