@@ -281,7 +281,8 @@
 		<button
 			id="tour-history-timeline-btn"
 			class="control-btn"
-			onclick={() => openModal('historyTimeline')}
+			class:active={modalStates.historyTimeline.isOpen}
+			onclick={() => modalStates.historyTimeline.isOpen ? closeModal('historyTimeline') : openModal('historyTimeline')}
 			data-tooltip="Timeline"
 			aria-label="Timeline"
 		>

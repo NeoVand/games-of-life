@@ -951,6 +951,8 @@ export function getSimulationRef(): Simulation | null {
 // Brush editor session flags (track whether we took a snapshot and edited)
 let brushEditorSnapshotTaken = $state(false);
 let brushEditorEdited = $state(false);
+let ruleEditorSnapshotTaken = $state(false);
+let ruleEditorEdited = $state(false);
 
 export function resetBrushEditorSession() {
 	brushEditorSnapshotTaken = false;
@@ -971,6 +973,27 @@ export function wasBrushEditorSnapshotTaken() {
 
 export function wasBrushEditorEdited() {
 	return brushEditorEdited;
+}
+
+export function resetRuleEditorSession() {
+	ruleEditorSnapshotTaken = false;
+	ruleEditorEdited = false;
+}
+
+export function markRuleEditorSnapshotTaken() {
+	ruleEditorSnapshotTaken = true;
+}
+
+export function markRuleEditorEdited() {
+	ruleEditorEdited = true;
+}
+
+export function wasRuleEditorSnapshotTaken() {
+	return ruleEditorSnapshotTaken;
+}
+
+export function wasRuleEditorEdited() {
+	return ruleEditorEdited;
 }
 
 export function getUIState() {

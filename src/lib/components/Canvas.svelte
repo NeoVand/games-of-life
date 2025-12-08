@@ -3,7 +3,7 @@
 	import { initWebGPU, type WebGPUContext, type WebGPUError } from '../webgpu/context.js';
 import { Simulation } from '../webgpu/simulation.js';
 import { getSimulationState, getUIState, GRID_SCALES, type GridScale, type SpectrumMode, type BrushShape, setSimulationRef, wasBrushEditorSnapshotTaken, markBrushEditorSnapshotTaken, markBrushEditorEdited } from '../stores/simulation.svelte.js';
-import { addSnapshot, resetHistory } from '../stores/history.js';
+import { addSnapshotWithBefore, resetHistory } from '../stores/history.js';
 	import { isTourActive } from '../utils/tour.js';
 	import { isModalOpen } from '../stores/modalManager.svelte.js';
 	import { openModal } from '../stores/modalManager.svelte.js';
@@ -57,6 +57,7 @@ import { addSnapshot, resetHistory } from '../stores/history.js';
 	let drawingState = 1; // 1 = draw, 0 = erase
 	let continuousDrawInterval: ReturnType<typeof setInterval> | null = null;
 let strokeTracked = false;
+let pendingStrokeBefore: Uint32Array | null = null;
 	
 	// Effective tool mode: pan if pan mode selected OR space is held
 	const effectiveToolMode = $derived(simState.isSpaceHeld ? 'pan' : simState.toolMode);
@@ -383,12 +384,16 @@ let strokeTracked = false;
 				return;
 			}
 			// Brush mode - draw
-			if (brushEditorOpen) {
-				ensureBrushEditorSnapshot();
-				markBrushEditorEdited();
-			} else {
-				strokeTracked = true;
-			}
+			(async () => {
+				if (brushEditorOpen) {
+					ensureBrushEditorSnapshot();
+					markBrushEditorEdited();
+				} else {
+					// Capture pre-stroke snapshot for precise undo (async, fire-and-forget)
+					pendingStrokeBefore = await simulation.getCellDataAsync();
+					strokeTracked = true;
+				}
+			})();
 			isDrawing = true;
 			drawingState = simState.brushState;
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
@@ -403,12 +408,15 @@ let strokeTracked = false;
 		
 		// Right click = erase (always, regardless of mode)
 		if (e.button === 2) {
-			if (brushEditorOpen) {
-				ensureBrushEditorSnapshot();
-				markBrushEditorEdited();
-			} else {
-				strokeTracked = true;
-			}
+			(async () => {
+				if (brushEditorOpen) {
+					ensureBrushEditorSnapshot();
+					markBrushEditorEdited();
+				} else {
+					pendingStrokeBefore = await simulation.getCellDataAsync();
+					strokeTracked = true;
+				}
+			})();
 			isDrawing = true;
 			drawingState = 0;
 			const gridPos = simulation.screenToGrid(x, y, canvasWidth, canvasHeight);
@@ -459,7 +467,8 @@ let strokeTracked = false;
 			}
 			if (strokeTracked && simulation && !brushEditorOpen) {
 			// Fire-and-forget to avoid blocking UI
-			addSnapshot(simulation, 'Stroke');
+			await addSnapshotWithBefore(simulation, pendingStrokeBefore, 'Stroke');
+			pendingStrokeBefore = null;
 			}
 		isDrawing = false;
 		isPanning = false;
@@ -648,7 +657,8 @@ let strokeTracked = false;
 				});
 			}
 			if (strokeTracked && simulation && !brushEditorOpen) {
-				addSnapshot(simulation, 'Stroke');
+				await addSnapshotWithBefore(simulation, pendingStrokeBefore, 'Stroke');
+				pendingStrokeBefore = null;
 			}
 			touchMode = 'none';
 			lastPinchDistance = 0;

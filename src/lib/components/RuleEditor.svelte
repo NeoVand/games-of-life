@@ -4,7 +4,7 @@
 </script>
 
 <script lang="ts">
-	import { getSimulationState, BOUNDARY_MODES, type BoundaryMode } from '../stores/simulation.svelte.js';
+import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef, resetRuleEditorSession, markRuleEditorSnapshotTaken, wasRuleEditorSnapshotTaken, markRuleEditorEdited, wasRuleEditorEdited } from '../stores/simulation.svelte.js';
 	import { 
 		RULE_PRESETS, 
 		RULE_CATEGORIES, 
@@ -21,6 +21,7 @@
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
 	import BoundaryIcon from './BoundaryIcon.svelte';
 	import { onMount, onDestroy } from 'svelte';
+import { addSnapshot, getHeadId } from '../stores/history.js';
 
 	interface Props {
 		onclose: () => void;
@@ -54,6 +55,8 @@
 	);
 	
 	function selectBoundaryMode(mode: BoundaryMode) {
+		ensureRuleSnapshot();
+		markRuleEditorEdited();
 		simState.boundaryMode = mode;
 	}
 
@@ -270,7 +273,17 @@
 		return surviveToggles.reduce((mask, on, i) => (on ? mask | (1 << i) : mask), 0);
 	}
 
+	function ensureRuleSnapshot() {
+		if (!wasRuleEditorSnapshotTaken()) {
+			const sim = getSimulationRef();
+			sim?.snapshotUndo().then(() => {
+				markRuleEditorSnapshotTaken();
+			}).catch(() => {});
+		}
+	}
+
 	onMount(() => {
+	resetRuleEditorSession();
 		if (previewCanvas) {
 			previewCtx = previewCanvas.getContext('2d');
 			randomizePreview();
@@ -279,6 +292,7 @@
 
 	onDestroy(() => {
 		if (previewAnimationId) cancelAnimationFrame(previewAnimationId);
+	resetRuleEditorSession();
 	});
 
 	// Re-render preview when theme or color changes
@@ -856,6 +870,9 @@
 		const parsed = parseRule(ruleString);
 		if (!parsed) return; // Don't apply invalid rules
 		
+		ensureRuleSnapshot();
+		markRuleEditorEdited();
+
 		const preset = RULE_PRESETS.find((r) => r.ruleString === parsed.ruleString);
 		const rule: CARule = { 
 			...parsed, 
@@ -874,12 +891,25 @@
 	function applyRule() {
 		const parsed = parseRule(ruleString);
 		if (!parsed) { error = 'Invalid rule'; return; }
-		// Changes are already applied via live preview, just close
+		const sim = getSimulationRef();
+		if (sim && wasRuleEditorSnapshotTaken() && wasRuleEditorEdited()) {
+			addSnapshot(sim, 'Rule change', 'brush', getHeadId());
+			sim.clearUndo();
+		}
+		resetRuleEditorSession();
 		onclose();
 	}
 	
 	// Called when user clicks the X button - revert to original rule
 	function cancelAndClose() {
+		const sim = getSimulationRef();
+		if (sim && wasRuleEditorSnapshotTaken()) {
+			if (wasRuleEditorEdited()) {
+				sim.undoLast().catch(() => {});
+			} else {
+				sim.clearUndo();
+			}
+		}
 		// Revert to the original rule
 		simState.currentRule = originalRule;
 		// Revert boundary mode
@@ -890,6 +920,7 @@
 		} else {
 			onrulechange(); // Still need to apply the reverted rule
 		}
+		resetRuleEditorSession();
 		onclose();
 	}
 

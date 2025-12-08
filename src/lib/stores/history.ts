@@ -1,9 +1,12 @@
 import type { Simulation } from '../webgpu/simulation.js';
+import type { CARule } from '../utils/rules.js';
+import type { BoundaryMode } from './simulation.svelte.js';
+import { getSimulationState } from './simulation.svelte.js';
 
 // Branch-aware history with snapshots per node (full-grid snapshots).
 // Future: optimize to region patches and thumbnails.
 
-export type HistoryKind = 'brush';
+export type HistoryKind = 'brush' | 'rule';
 
 export interface HistoryNode {
 	id: string;
@@ -12,6 +15,8 @@ export interface HistoryNode {
 	createdAt: number;
 	kind: HistoryKind;
 	snapshot: Uint32Array;
+	rule: CARule;
+	boundaryMode: BoundaryMode;
 }
 
 const MAX_HISTORY = 12;
@@ -93,6 +98,7 @@ function enforceLimit() {
 
 export async function addSnapshot(sim: Simulation, name = 'Stroke', kind: HistoryKind = 'brush', parentIdOverride?: string | null) {
 	ensureRoot(sim);
+	const simState = getSimulationState();
 	const snap = await sim.getCellDataAsync();
 	const id = genId();
 	const node: HistoryNode = {
@@ -101,10 +107,56 @@ export async function addSnapshot(sim: Simulation, name = 'Stroke', kind: Histor
 		name,
 		createdAt: Date.now(),
 		kind,
-		snapshot: snap
+		snapshot: snap,
+		rule: { ...simState.currentRule },
+		boundaryMode: simState.boundaryMode
 	};
 	nodes.set(id, node);
 	headId = id;
+	enforceLimit();
+	notifyListeners();
+}
+
+export async function addSnapshotWithBefore(
+	sim: Simulation,
+	beforeSnapshot: Uint32Array | null,
+	name = 'Stroke',
+	kind: HistoryKind = 'brush',
+	parentIdOverride?: string | null
+) {
+	ensureRoot(sim);
+	const simState = getSimulationState();
+	const parentId = parentIdOverride ?? headId;
+
+	const beforeSnap = beforeSnapshot ?? (await sim.getCellDataAsync());
+	const beforeId = genId();
+	const beforeNode: HistoryNode = {
+		id: beforeId,
+		parentId,
+		name: `${name} (pre)`,
+		createdAt: Date.now(),
+		kind,
+		snapshot: beforeSnap,
+		rule: { ...simState.currentRule },
+		boundaryMode: simState.boundaryMode
+	};
+	nodes.set(beforeId, beforeNode);
+
+	const afterSnap = await sim.getCellDataAsync();
+	const afterId = genId();
+	const afterNode: HistoryNode = {
+		id: afterId,
+		parentId: beforeId,
+		name,
+		createdAt: Date.now(),
+		kind,
+		snapshot: afterSnap,
+		rule: { ...simState.currentRule },
+		boundaryMode: simState.boundaryMode
+	};
+	nodes.set(afterId, afterNode);
+
+	headId = afterId;
 	enforceLimit();
 	notifyListeners();
 }
@@ -128,6 +180,10 @@ export async function undo(sim: Simulation): Promise<boolean> {
 	const parent = nodes.get(cur.parentId);
 	if (!parent) return false;
 	sim.setCellData(parent.snapshot);
+	const simState = getSimulationState();
+	simState.currentRule = parent.rule;
+	simState.boundaryMode = parent.boundaryMode;
+	sim.setRule(parent.rule);
 	headId = parent.id;
 	notifyListeners();
 	return true;
@@ -140,6 +196,10 @@ export async function redo(sim: Simulation): Promise<boolean> {
 	// pick most recent child
 	const next = children[children.length - 1];
 	sim.setCellData(next.snapshot);
+	const simState = getSimulationState();
+	simState.currentRule = next.rule;
+	simState.boundaryMode = next.boundaryMode;
+	sim.setRule(next.rule);
 	headId = next.id;
 	notifyListeners();
 	return true;
@@ -194,6 +254,10 @@ export function jumpToNode(sim: Simulation, id: string): boolean {
 	const node = nodes.get(id);
 	if (!node) return false;
 	sim.setCellData(node.snapshot);
+	const simState = getSimulationState();
+	simState.currentRule = node.rule;
+	simState.boundaryMode = node.boundaryMode;
+	sim.setRule(node.rule);
 	headId = id;
 	notifyListeners();
 	return true;
