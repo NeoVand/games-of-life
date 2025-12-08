@@ -220,12 +220,12 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		// Apply the selected initialization method
 		applyLastInitialization();
 		
-		// Set initial view to fit the grid height to the canvas
+		// Set initial view to fit the grid to the canvas (no animation on initial load)
 		// Use viewport dimensions since canvas may not be sized yet
 		const dpr = window.devicePixelRatio || 1;
 		const initialCanvasWidth = viewport.width * dpr;
 		const initialCanvasHeight = viewport.height * dpr;
-		simulation.resetView(initialCanvasWidth, initialCanvasHeight);
+		simulation.resetView(initialCanvasWidth, initialCanvasHeight, false);
 
 		// Start animation loop
 		animationLoop(performance.now());
@@ -257,6 +257,9 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		animationId = requestAnimationFrame(animationLoop);
 
 		if (!simulation || canvasWidth === 0 || canvasHeight === 0) return;
+
+		// Update view animation (smooth transitions for fit-to-screen, etc.)
+		simulation.updateViewAnimation();
 
 		// Run simulation steps if playing
 		if (simState.isPlaying) {
@@ -897,8 +900,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			});
 			applyLastInitialization();
 			
-			// Reset view to fit the new grid
-			simulation.resetView(canvasWidth, canvasHeight);
+			// Reset view to fit the new grid (no animation since grid was recreated)
+			simulation.resetView(canvasWidth, canvasHeight, false);
 		} else {
 			// Same neighborhood type, just update the rule
 			simulation.setRule(simState.currentRule);
@@ -1000,8 +1003,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		});
 		applyLastInitialization();
 		
-		// Reset view to fit the new grid
-		simulation.resetView(canvasWidth, canvasHeight);
+		// Reset view to fit the new grid (no animation since grid was recreated)
+		simulation.resetView(canvasWidth, canvasHeight, false);
 	}
 </script>
 

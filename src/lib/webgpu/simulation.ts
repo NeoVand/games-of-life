@@ -1253,17 +1253,24 @@ export class Simulation {
 		}
 	}
 
+	// Animation state for smooth view transitions
+	private viewAnimation: {
+		active: boolean;
+		startTime: number;
+		duration: number;
+		startZoom: number;
+		startOffsetX: number;
+		startOffsetY: number;
+		targetZoom: number;
+		targetOffsetX: number;
+		targetOffsetY: number;
+	} | null = null;
+
 	/**
-	 * Reset view to show entire grid, fitting it completely within the canvas.
-	 * The grid is centered both horizontally and vertically.
-	 * This works consistently regardless of canvas orientation (portrait/landscape).
-	 * @param canvasWidth - Canvas width in pixels (optional, uses stored value if not provided)
-	 * @param canvasHeight - Canvas height in pixels (optional, uses stored value if not provided)
+	 * Calculate the target view state for fitting the entire grid
 	 */
-	resetView(canvasWidth?: number, canvasHeight?: number): void {
-		// For hexagonal grids, the visual coordinate system is different:
-		// - X: columns with odd rows offset by 0.5
-		// - Y: rows * sqrt(3)/2 (rows are closer together)
+	private calculateFitView(canvasWidth?: number, canvasHeight?: number): { zoom: number; offsetX: number; offsetY: number } {
+		// For hexagonal grids, the visual coordinate system is different
 		const HEX_HEIGHT_RATIO = 0.866025404; // sqrt(3)/2
 		const isHex = this.rule.neighborhood === 'hexagonal' || this.rule.neighborhood === 'extendedHexagonal';
 		
@@ -1280,19 +1287,9 @@ export class Simulation {
 			const gridAspect = effectiveGridWidth / effectiveGridHeight;
 			
 			// Fit ENTIRE grid into canvas (no clipping)
-			// zoom = cells visible across canvas width
-			// cellsVisibleY = zoom / canvasAspect
-			// 
-			// For grid to fit horizontally: zoom >= gridWidth
-			// For grid to fit vertically: zoom / canvasAspect >= gridHeight
-			//                             zoom >= gridHeight * canvasAspect
-			// 
-			// Take the max to ensure both dimensions fit
 			if (gridAspect >= canvasAspect) {
-				// Grid is relatively wider than canvas - fit to width
 				zoom = effectiveGridWidth;
 			} else {
-				// Grid is relatively taller than canvas - fit to height
 				zoom = effectiveGridHeight * canvasAspect;
 			}
 			
@@ -1304,14 +1301,102 @@ export class Simulation {
 			offsetX = (effectiveGridWidth - cellsVisibleX) / 2;
 			offsetY = (effectiveGridHeight - cellsVisibleY) / 2;
 		} else {
-			// Fallback: assume square canvas, fit to grid width
 			zoom = effectiveGridWidth;
 		}
 		
-		// Only update position/zoom, preserve all other view settings
-		this.view.offsetX = offsetX;
-		this.view.offsetY = offsetY;
-		this.view.zoom = zoom;
+		return { zoom, offsetX, offsetY };
+	}
+
+	/**
+	 * Smooth ease-out cubic function for natural deceleration
+	 */
+	private easeOutCubic(t: number): number {
+		return 1 - Math.pow(1 - t, 3);
+	}
+
+	/**
+	 * Update view animation - call this in the render loop
+	 */
+	updateViewAnimation(): void {
+		if (!this.viewAnimation || !this.viewAnimation.active) return;
+		
+		const elapsed = performance.now() - this.viewAnimation.startTime;
+		const progress = Math.min(elapsed / this.viewAnimation.duration, 1);
+		const eased = this.easeOutCubic(progress);
+		
+		// Interpolate zoom (use logarithmic interpolation for smoother zoom)
+		const logStartZoom = Math.log(this.viewAnimation.startZoom);
+		const logTargetZoom = Math.log(this.viewAnimation.targetZoom);
+		this.view.zoom = Math.exp(logStartZoom + (logTargetZoom - logStartZoom) * eased);
+		
+		// Interpolate offset linearly
+		this.view.offsetX = this.viewAnimation.startOffsetX + 
+			(this.viewAnimation.targetOffsetX - this.viewAnimation.startOffsetX) * eased;
+		this.view.offsetY = this.viewAnimation.startOffsetY + 
+			(this.viewAnimation.targetOffsetY - this.viewAnimation.startOffsetY) * eased;
+		
+		// Animation complete
+		if (progress >= 1) {
+			this.view.zoom = this.viewAnimation.targetZoom;
+			this.view.offsetX = this.viewAnimation.targetOffsetX;
+			this.view.offsetY = this.viewAnimation.targetOffsetY;
+			this.viewAnimation.active = false;
+		}
+	}
+
+	/**
+	 * Check if view animation is currently active
+	 */
+	isAnimating(): boolean {
+		return this.viewAnimation?.active ?? false;
+	}
+
+	/**
+	 * Reset view to show entire grid with smooth animation.
+	 * The grid is centered both horizontally and vertically.
+	 * @param canvasWidth - Canvas width in pixels
+	 * @param canvasHeight - Canvas height in pixels  
+	 * @param animate - Whether to animate the transition (default: true)
+	 * @param duration - Animation duration in ms (default: 300)
+	 */
+	resetView(canvasWidth?: number, canvasHeight?: number, animate: boolean = true, duration: number = 300): void {
+		const target = this.calculateFitView(canvasWidth, canvasHeight);
+		
+		// Check if we're already at the target (within small tolerance)
+		const zoomDiff = Math.abs(this.view.zoom - target.zoom) / target.zoom;
+		const offsetXDiff = Math.abs(this.view.offsetX - target.offsetX);
+		const offsetYDiff = Math.abs(this.view.offsetY - target.offsetY);
+		const isAlreadyAtTarget = zoomDiff < 0.001 && offsetXDiff < 0.5 && offsetYDiff < 0.5;
+		
+		if (isAlreadyAtTarget) {
+			// Snap to exact target and skip animation
+			this.view.zoom = target.zoom;
+			this.view.offsetX = target.offsetX;
+			this.view.offsetY = target.offsetY;
+			this.viewAnimation = null;
+			return;
+		}
+		
+		if (animate && duration > 0) {
+			// Start smooth animation
+			this.viewAnimation = {
+				active: true,
+				startTime: performance.now(),
+				duration,
+				startZoom: this.view.zoom,
+				startOffsetX: this.view.offsetX,
+				startOffsetY: this.view.offsetY,
+				targetZoom: target.zoom,
+				targetOffsetX: target.offsetX,
+				targetOffsetY: target.offsetY
+			};
+		} else {
+			// Instant transition
+			this.view.zoom = target.zoom;
+			this.view.offsetX = target.offsetX;
+			this.view.offsetY = target.offsetY;
+			this.viewAnimation = null;
+		}
 	}
 
 	/**
