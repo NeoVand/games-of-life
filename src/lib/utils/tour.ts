@@ -526,8 +526,8 @@ function getTourSteps(): DriveStep[] {
 			popover: {
 				title: titleWithIcon(icons.timeline, 'History & Branches'),
 				description: createGroupDescription([
-					{ icon: icons.timeline, label: 'Timeline & branches' },
 					{ icon: icons.undo, label: 'Undo strokes' },
+					{ icon: icons.timeline, label: 'Timeline & branches' },
 					{ icon: icons.redo, label: 'Redo / branch from past' }
 				], 'Manage stroke history and branching states.', mobile),
 				side: popoverSide,

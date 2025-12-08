@@ -57,7 +57,14 @@ import { addSnapshotWithBefore, resetHistory } from '../stores/history.js';
 	let drawingState = 1; // 1 = draw, 0 = erase
 	let continuousDrawInterval: ReturnType<typeof setInterval> | null = null;
 let strokeTracked = false;
-let pendingStrokeBefore: Uint32Array | null = null;
+let pendingStrokeBefore: Promise<Uint32Array> | null = null;
+	function capturePreStroke() {
+		if (!simulation) return;
+		if (!pendingStrokeBefore) {
+			// Start capture asynchronously; we'll await when finishing the stroke
+			pendingStrokeBefore = simulation.getCellDataAsync().catch(() => null as unknown as Uint32Array);
+		}
+	}
 	
 	// Effective tool mode: pan if pan mode selected OR space is held
 	const effectiveToolMode = $derived(simState.isSpaceHeld ? 'pan' : simState.toolMode);
@@ -390,7 +397,7 @@ let pendingStrokeBefore: Uint32Array | null = null;
 					markBrushEditorEdited();
 				} else {
 					// Capture pre-stroke snapshot for precise undo (async, fire-and-forget)
-					pendingStrokeBefore = await simulation.getCellDataAsync();
+					capturePreStroke();
 					strokeTracked = true;
 				}
 			})();
@@ -413,7 +420,7 @@ let pendingStrokeBefore: Uint32Array | null = null;
 					ensureBrushEditorSnapshot();
 					markBrushEditorEdited();
 				} else {
-					pendingStrokeBefore = await simulation.getCellDataAsync();
+					capturePreStroke();
 					strokeTracked = true;
 				}
 			})();
@@ -466,8 +473,9 @@ let pendingStrokeBefore: Uint32Array | null = null;
 				});
 			}
 			if (strokeTracked && simulation && !brushEditorOpen) {
-			// Fire-and-forget to avoid blocking UI
-			await addSnapshotWithBefore(simulation, pendingStrokeBefore, 'Stroke');
+			// Await to ensure before snapshot resolves; then clear
+			const before = pendingStrokeBefore ? await pendingStrokeBefore : null;
+			await addSnapshotWithBefore(simulation, before, 'Stroke');
 			pendingStrokeBefore = null;
 			}
 		isDrawing = false;
@@ -657,7 +665,8 @@ let pendingStrokeBefore: Uint32Array | null = null;
 				});
 			}
 			if (strokeTracked && simulation && !brushEditorOpen) {
-				await addSnapshotWithBefore(simulation, pendingStrokeBefore, 'Stroke');
+				const before = pendingStrokeBefore ? await pendingStrokeBefore : null;
+				await addSnapshotWithBefore(simulation, before, 'Stroke');
 				pendingStrokeBefore = null;
 			}
 			touchMode = 'none';

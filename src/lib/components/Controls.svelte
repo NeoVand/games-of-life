@@ -279,6 +279,20 @@
 	<!-- GROUP 3: History Controls -->
 	<div class="button-group" id="tour-history-group">
 		<button
+			id="tour-history-undo-btn"
+			class="control-btn"
+			onclick={handleUndo}
+			data-tooltip="Undo (Ctrl/Cmd+Z)"
+			aria-label="Undo"
+			disabled={!historyUndoable}
+		>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M9 9l-4 4 4 4" />
+				<path d="M5 13h7a4 4 0 1 0-1.17-7.8" />
+			</svg>
+		</button>
+
+		<button
 			id="tour-history-timeline-btn"
 			class="control-btn"
 			class:active={modalStates.historyTimeline.isOpen}
@@ -292,20 +306,6 @@
 				<circle cx="12" cy="18" r="2"/>
 				<path d="M6 8v2a4 4 0 004 4h2"/>
 				<path d="M16 10h-2a4 4 0 00-4 4v2"/>
-			</svg>
-		</button>
-
-		<button
-			id="tour-history-undo-btn"
-			class="control-btn"
-			onclick={handleUndo}
-			data-tooltip="Undo (Ctrl/Cmd+Z)"
-			aria-label="Undo"
-			disabled={!historyUndoable}
-		>
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M9 9l-4 4 4 4" />
-				<path d="M5 13h7a4 4 0 1 0-1.17-7.8" />
 			</svg>
 		</button>
 		<button
