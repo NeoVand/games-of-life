@@ -74,6 +74,13 @@ export class Simulation {
 	private computeParamsBuffer!: GPUBuffer;
 	private renderParamsBuffer!: GPUBuffer;
 	private readbackBuffer!: GPUBuffer;
+	private textBitmapBuffer!: GPUBuffer;
+
+	// Text bitmap state
+	private textBitmapWidth = 0;
+	private textBitmapHeight = 0;
+	private textBitmapData: Uint8Array | null = null; // CPU copy for painting
+	private currentTextSettings = { text: '', font: '', bold: false, italic: false, size: 0 };
 
 	// Double-buffer step counter
 	private stepCount = 0;
@@ -185,6 +192,11 @@ export class Simulation {
 					binding: 1,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: { type: 'read-only-storage' }
+				},
+				{
+					binding: 2,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: { type: 'read-only-storage' }
 				}
 			]
 		});
@@ -242,11 +254,19 @@ export class Simulation {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
 
-		// Render params buffer (25 f32 values = 100 bytes, aligned to 112 for 16-byte alignment)
+		// Render params buffer (27 f32 values = 108 bytes, aligned to 112 for 16-byte alignment)
 		this.renderParamsBuffer = this.device.createBuffer({
 			label: 'Render Params Buffer',
-			size: 112,
+			size: 128, // Increased to fit text bitmap dimensions
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+		});
+
+		// Text bitmap buffer - starts with a minimal size, updated when text changes
+		// Max size: 256x64 = 16384 bytes (should be enough for any reasonable text)
+		this.textBitmapBuffer = this.device.createBuffer({
+			label: 'Text Bitmap Buffer',
+			size: 2048 * 512, // Much larger: 2048 wide x 512 tall for large brush sizes
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
 		});
 
 		// Initialize with current rule
@@ -282,7 +302,8 @@ export class Simulation {
 				layout: this.renderBindGroupLayout,
 				entries: [
 					{ binding: 0, resource: { buffer: this.renderParamsBuffer } },
-					{ binding: 1, resource: { buffer: this.cellBuffers[0] } }
+					{ binding: 1, resource: { buffer: this.cellBuffers[0] } },
+					{ binding: 2, resource: { buffer: this.textBitmapBuffer } }
 				]
 			}),
 			this.device.createBindGroup({
@@ -290,7 +311,8 @@ export class Simulation {
 				layout: this.renderBindGroupLayout,
 				entries: [
 					{ binding: 0, resource: { buffer: this.renderParamsBuffer } },
-					{ binding: 1, resource: { buffer: this.cellBuffers[1] } }
+					{ binding: 1, resource: { buffer: this.cellBuffers[1] } },
+					{ binding: 2, resource: { buffer: this.textBitmapBuffer } }
 				]
 			})
 		];
@@ -373,12 +395,93 @@ export class Simulation {
 			this.view.spectrumFrequency, // how many times to repeat the spectrum
 			this.view.neighborShading, // neighbor shading mode: 0=off, 1=alive, 2=vitality
 			boundaryModeToIndex(this.view.boundaryMode), // boundary mode for seamless panning
-			this.view.brushShape, // 0-17: see ViewState for shape list
+			this.view.brushShape, // 0-16: see ViewState for shape list
 			this.view.brushRotation, // rotation in radians
 			this.view.brushAspectRatio, // aspect ratio
-			this.view.axisProgress // axis animation progress (0 = center dot, 1 = full lines)
+			this.view.axisProgress, // axis animation progress (0 = center dot, 1 = full lines)
+			this.textBitmapWidth, // text bitmap width in cells
+			this.textBitmapHeight // text bitmap height in cells
 		]);
 		this.device.queue.writeBuffer(this.renderParamsBuffer, 0, params);
+	}
+
+	/**
+	 * Update the text bitmap for text brush preview
+	 */
+	updateTextBitmap(text: string, font: string, bold: boolean, italic: boolean, brushSize: number): void {
+		// Check if we need to regenerate
+		const settingsKey = `${text}|${font}|${bold}|${italic}|${brushSize}`;
+		const currentKey = `${this.currentTextSettings.text}|${this.currentTextSettings.font}|${this.currentTextSettings.bold}|${this.currentTextSettings.italic}|${this.currentTextSettings.size}`;
+		if (settingsKey === currentKey) return;
+
+		this.currentTextSettings = { text, font, bold, italic, size: brushSize };
+
+		if (!text) {
+			this.textBitmapWidth = 0;
+			this.textBitmapHeight = 0;
+			return;
+		}
+
+		// Create a canvas to rasterize text
+		const textCanvas = document.createElement('canvas');
+		const textCtx = textCanvas.getContext('2d');
+		if (!textCtx) return;
+
+		// Calculate font size based on brush radius - must match paintBrush exactly
+		const fontSize = Math.max(16, Math.floor(brushSize * 2));
+		const fontFamily = font === 'pixel' ? '"Press Start 2P", monospace' : font;
+		const fontStyle = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${fontSize}px ${fontFamily}`;
+		textCtx.font = fontStyle;
+
+		// Measure text
+		const metrics = textCtx.measureText(text);
+		const textWidth = Math.ceil(metrics.width);
+		const textHeight = Math.ceil(fontSize * 1.2);
+
+		// Set canvas size (add padding) - no artificial limits
+		textCanvas.width = Math.min(2048, textWidth + 4);
+		textCanvas.height = Math.min(512, textHeight + 4);
+
+		// Re-apply font after resize
+		textCtx.font = fontStyle;
+		textCtx.fillStyle = 'white';
+		textCtx.textBaseline = 'middle';
+		textCtx.fillText(text, 2, textCanvas.height / 2);
+
+		// Get pixel data and create bitmap
+		const imageData = textCtx.getImageData(0, 0, textCanvas.width, textCanvas.height);
+		const pixels = imageData.data;
+
+		// Create bitmap - simple byte array (1 byte per pixel)
+		const bitmapWidth = textCanvas.width;
+		const bitmapHeight = textCanvas.height;
+		const totalPixels = bitmapWidth * bitmapHeight;
+		
+		// Create CPU copy for painting (simple byte array)
+		const cpuBitmap = new Uint8Array(totalPixels);
+		for (let i = 0; i < totalPixels; i++) {
+			cpuBitmap[i] = pixels[i * 4 + 3] > 127 ? 1 : 0;
+		}
+		
+		// Pack into Uint32Array for GPU (4 bytes = 1 u32)
+		const numWords = Math.ceil(totalPixels / 4);
+		const gpuBitmap = new Uint32Array(numWords);
+		for (let y = 0; y < bitmapHeight; y++) {
+			for (let x = 0; x < bitmapWidth; x++) {
+				const linearIndex = y * bitmapWidth + x;
+				if (cpuBitmap[linearIndex]) {
+					const wordIndex = Math.floor(linearIndex / 4);
+					const byteOffset = linearIndex % 4;
+					gpuBitmap[wordIndex] |= (1 << (byteOffset * 8));
+				}
+			}
+		}
+
+		// Store dimensions, CPU copy, and upload to GPU
+		this.textBitmapWidth = bitmapWidth;
+		this.textBitmapHeight = bitmapHeight;
+		this.textBitmapData = cpuBitmap;
+		this.device.queue.writeBuffer(this.textBitmapBuffer, 0, gpuBitmap);
 	}
 
 	/**
@@ -564,6 +667,11 @@ export class Simulation {
 			intensity?: number;
 			aspectRatio?: number;
 			softness?: number;
+			// Text brush options
+			text?: string;
+			textFont?: string;
+			textBold?: boolean;
+			textItalic?: boolean;
 		}
 	): void {
 		const HEX_HEIGHT_RATIO = 0.866025404; // sqrt(3)/2
@@ -704,18 +812,6 @@ export class Simulation {
 					inside = dist <= 1;
 					break;
 				}
-				case 'gear': {
-					// Gear/cog with teeth
-					const gangle = Math.atan2(ay, ax);
-					const gr = Math.sqrt(ax * ax + ay * ay);
-					const teeth = 8;
-					const toothDepth = 0.25;
-					const toothFactor = Math.cos(teeth * gangle) > 0.3 ? 1 : (1 - toothDepth);
-					const effectiveR = r * toothFactor;
-					dist = gr / r;
-					inside = gr <= effectiveR && gr >= r * 0.4;
-					break;
-				}
 				case 'wave': {
 					// Sine wave band
 					const waveFreq = 3;
@@ -726,16 +822,7 @@ export class Simulation {
 					inside = Math.abs(ax) <= r && Math.abs(ay - centerY) <= bandWidth;
 					break;
 				}
-				case 'checker': {
-					// Checkerboard pattern
-					const cellSize = r / 3;
-					const cx = Math.floor((ax + r) / cellSize);
-					const cy = Math.floor((ay + r) / cellSize);
-					dist = Math.sqrt(ax * ax + ay * ay) / r;
-					inside = dist <= 1 && (cx + cy) % 2 === 0;
-					break;
-				}
-				case 'dots': {
+			case 'dots': {
 					// Grid of circular dots
 					const dotSpacing = r / 2.5;
 					const dotRadius = dotSpacing * 0.35;
@@ -879,6 +966,65 @@ export class Simulation {
 		
 		const brushCenterX = Math.floor(centerX);
 		const brushCenterY = Math.floor(centerY);
+		
+		// Special handling for text brush - use SAME logic as shader
+		if (shape === 'text') {
+			// Ensure bitmap is up-to-date with current settings
+			const text = config?.text || 'LIFE';
+			const font = config?.textFont || 'monospace';
+			const bold = config?.textBold || false;
+			const italic = config?.textItalic || false;
+			this.updateTextBitmap(text, font, bold, italic, radius);
+			
+			const bw = this.textBitmapWidth;
+			const bh = this.textBitmapHeight;
+			const bitmap = this.textBitmapData;
+			
+			if (!bitmap || bw === 0 || bh === 0) {
+				return;
+			}
+			
+			// Scale: maps grid cell offsets to bitmap pixel offsets
+			// Note: shader uses (r * 2) / bh but paintBrush needs just radius / bh
+			// to match the actual preview size
+			const scale = radius / bh;
+			const halfWidth = bw * 0.5;
+			const halfHeight = bh * 0.5;
+			
+			// Calculate extent in grid cells
+			const gridHalfWidth = Math.ceil(halfWidth * scale) + 1;
+			const gridHalfHeight = Math.ceil(halfHeight * scale) + 1;
+			
+			// Iterate over grid cells like the shader does
+			for (let dy = -gridHalfHeight; dy <= gridHalfHeight; dy++) {
+				for (let dx = -gridHalfWidth; dx <= gridHalfWidth; dx++) {
+					// Apply rotation (same as shader)
+					const rx = dx * cos + dy * sin;
+					const ry = -dx * sin + dy * cos;
+					
+					// Map to bitmap coords (EXACT same formula as shader)
+					const bx = (rx / scale) + halfWidth;
+					const by = (ry / scale) + halfHeight;
+					
+					// Check bounds
+					if (bx < 0 || bx >= bw || by < 0 || by >= bh) {
+						continue;
+					}
+					
+					// Sample the bitmap
+					const ix = Math.floor(bx);
+					const iy = Math.floor(by);
+					const pixelIndex = iy * bw + ix;
+					
+					if (bitmap[pixelIndex] > 0) {
+						const cellX = brushCenterX + dx;
+						const cellY = brushCenterY + dy;
+						this.setCell(cellX, cellY, state);
+					}
+				}
+			}
+			return;
+		}
 		
 		if (isHex) {
 			// For hexagonal grids, use visual distance

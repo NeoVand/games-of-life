@@ -28,14 +28,17 @@ struct RenderParams {
     spectrum_frequency: f32, // How many times to repeat the spectrum (1.0 = normal)
     neighbor_shading: f32, // 0=off, 1=count alive, 2=sum vitality
     boundary_mode: f32,  // 0=plane, 1=cylinderX, 2=cylinderY, 3=torus, 4=mobiusX, 5=mobiusY, 6=kleinX, 7=kleinY, 8=projective
-    brush_shape: f32,    // 0-17: circle, square, diamond, hexagon, ring, triangle, line, cross, star, heart, spiral, flower, burst, gear, wave, checker, dots, scatter
+    brush_shape: f32,    // 0-16: circle, square, diamond, hexagon, ring, triangle, line, cross, star, heart, spiral, flower, burst, wave, dots, scatter, text
     brush_rotation: f32, // Rotation in radians
     brush_aspect: f32,   // Width/height aspect ratio
     axis_progress: f32,  // 0.0 = center dot only, 1.0 = full axis lines (for animation)
+    text_bitmap_width: f32,  // Width of text bitmap in pixels
+    text_bitmap_height: f32, // Height of text bitmap in pixels
 }
 
 @group(0) @binding(0) var<uniform> params: RenderParams;
 @group(0) @binding(1) var<storage, read> cell_state: array<u32>;
+@group(0) @binding(2) var<storage, read> text_bitmap: array<u32>;
 
 // Full-screen triangle vertices (oversized triangle that covers entire viewport)
 @vertex
@@ -880,12 +883,6 @@ fn is_in_brush(cell_x: i32, cell_y: i32) -> bool {
         dy = f32(cell_y) - floor(brush_center_y);
     }
     
-    // Quick bounds check
-    let max_extent = r * max(aspect, 1.0 / aspect) + 1.0;
-    if (abs(dx) > max_extent || abs(dy) > max_extent) {
-        return false;
-    }
-    
     // Apply rotation
     let cos_r = cos(rotation);
     let sin_r = sin(rotation);
@@ -1029,37 +1026,16 @@ fn is_in_brush(cell_x: i32, cell_y: i32) -> bool {
         let effective_r = r * (0.3 + 0.7 * ray_factor);
         return br <= effective_r;
     }
-    // 13: Gear (cog with teeth)
+    // 13: Wave (sine wave band)
     else if (shape == 13) {
-        let gangle = atan2(ay, ax);
-        let gr = sqrt(ax * ax + ay * ay);
-        let teeth = 8.0;
-        let tooth_depth = 0.25;
-        var tooth_factor = 1.0;
-        if (cos(teeth * gangle) <= 0.3) {
-            tooth_factor = 1.0 - tooth_depth;
-        }
-        let effective_r = r * tooth_factor;
-        return gr <= effective_r && gr >= r * 0.4;
-    }
-    // 14: Wave (sine wave band)
-    else if (shape == 14) {
         let wave_freq = 3.0;
         let wave_amp = r * 0.3;
         let center_y = sin(ax / r * PI * wave_freq) * wave_amp;
         let band_width = r * 0.25;
         return abs(ax) <= r && abs(ay - center_y) <= band_width;
     }
-    // 15: Checker (checkerboard pattern)
-    else if (shape == 15) {
-        let cell_size = r / 3.0;
-        let cx = i32(floor((ax + r) / cell_size));
-        let cy = i32(floor((ay + r) / cell_size));
-        let dist = sqrt(ax * ax + ay * ay);
-        return dist <= r && ((cx + cy) % 2) == 0;
-    }
-    // 16: Dots (grid of circular dots)
-    else if (shape == 16) {
+    // 14: Dots (grid of circular dots)
+    else if (shape == 14) {
         let dot_spacing = r / 2.5;
         let dot_radius = dot_spacing * 0.35;
         let nearest_x = round(ax / dot_spacing) * dot_spacing;
@@ -1068,8 +1044,8 @@ fn is_in_brush(cell_x: i32, cell_y: i32) -> bool {
         let dist = sqrt(ax * ax + ay * ay);
         return dist <= r && dot_dist <= dot_radius;
     }
-    // 17: Scatter (show sparse dots pattern in preview)
-    else if (shape == 17) {
+    // 15: Scatter (show sparse dots pattern in preview)
+    else if (shape == 15) {
         let dist = sqrt(ax * ax + ay * ay);
         if (dist > r) { return false; }
         // Show a sparse dot pattern to indicate scatter
@@ -1085,6 +1061,46 @@ fn is_in_brush(cell_x: i32, cell_y: i32) -> bool {
             return dot_dist <= dot_radius;
         }
         return false;
+    }
+    // 16: Text (sample from text bitmap)
+    else if (shape == 16) {
+        let bw = params.text_bitmap_width;
+        let bh = params.text_bitmap_height;
+        
+        if (bw < 1.0 || bh < 1.0) {
+            // No text bitmap, show a placeholder rectangle
+            return abs(rx) <= r && abs(ry) <= r * 0.3;
+        }
+        
+        // Map cell position to bitmap coordinates
+        // Use rx, ry (rotated but NOT aspect-adjusted) since text has its own natural aspect
+        // Scale factor: brush radius corresponds to text height
+        let scale = (r * 2.0) / bh;
+        
+        // Calculate the scaled text dimensions in grid cells
+        let half_width = bw * 0.5;
+        let half_height = bh * 0.5;
+        
+        // Map rotated position to bitmap coordinates
+        let bx = (rx / scale) + half_width;
+        let by = (ry / scale) + half_height;
+        
+        // Check bounds (no circular clipping - just rectangular bounds of the bitmap)
+        if (bx < 0.0 || bx >= bw || by < 0.0 || by >= bh) {
+            return false;
+        }
+        
+        // Sample the bitmap (packed as u32, 4 bytes per element)
+        let ix = i32(bx);
+        let iy = i32(by);
+        let pixel_index = iy * i32(bw) + ix;
+        let word_index = pixel_index / 4;
+        let byte_offset = u32(pixel_index % 4);
+        
+        let word = text_bitmap[word_index];
+        let byte_val = (word >> (byte_offset * 8u)) & 0xFFu;
+        
+        return byte_val > 0u;
     }
     
     // Default to circle

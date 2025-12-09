@@ -35,7 +35,7 @@ import { addSnapshotWithBefore, resetHistory } from '../stores/history.js';
 		const shapes: BrushShape[] = [
 			'circle', 'square', 'diamond', 'hexagon', 'ring', 'triangle',
 			'line', 'cross', 'star', 'heart', 'spiral', 'flower',
-			'burst', 'gear', 'wave', 'checker', 'dots', 'scatter'
+			'burst', 'wave', 'dots', 'scatter', 'text'
 		];
 		return shapes.indexOf(shape);
 	}
@@ -86,7 +86,12 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			rotation: simState.brushRotation,
 			density: simState.brushDensity,
 			intensity: simState.brushIntensity,
-			aspectRatio: simState.brushAspectRatio
+			aspectRatio: simState.brushAspectRatio,
+			// Text brush options
+			text: simState.brushText,
+			textFont: simState.brushTextFont,
+			textBold: simState.brushTextBold,
+			textItalic: simState.brushTextItalic
 		};
 	}
 
@@ -306,6 +311,18 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		const brushY = brushPopupOrModalOpen && !mouseInCanvas 
 			? Math.floor(simState.gridHeight / 2) 
 			: gridMouseY;
+		
+		// Update text bitmap when text brush is active
+		if (simState.brushShape === 'text' && showBrush) {
+			simulation.updateTextBitmap(
+				simState.brushText,
+				simState.brushTextFont,
+				simState.brushTextBold,
+				simState.brushTextItalic,
+				simState.brushSize
+			);
+		}
+		
 		simulation.setView({
 			showGrid: simState.showGrid,
 			isLightTheme: simState.isLightTheme,
@@ -352,6 +369,10 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 
 	// Keyboard handlers for shift key
 	function handleKeyDown(e: KeyboardEvent) {
+		// Ignore if typing in an input field
+		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+			return;
+		}
 		if (e.key === ' ') {
 			// Space key temporarily activates pan mode
 			e.preventDefault();
@@ -360,6 +381,10 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 	}
 
 	function handleKeyUp(e: KeyboardEvent) {
+		// Ignore if typing in an input field
+		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+			return;
+		}
 		if (e.key === ' ') {
 			e.preventDefault();
 			simState.isSpaceHeld = false;

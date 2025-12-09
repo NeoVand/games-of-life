@@ -18,6 +18,14 @@ let brushRotation = $state(0); // 0-360 degrees
 let brushDensity = $state(0.5); // 0-1 for spray/scatter
 let brushIntensity = $state(1.0); // 0-1 overall strength
 let brushAspectRatio = $state(1.0); // 0.25-4.0 for elongated shapes
+
+// Text brush settings
+let brushText = $state('LIFE'); // Text content (max 20 chars)
+export type TextFont = 'monospace' | 'sans-serif' | 'serif' | 'pixel';
+let brushTextFont = $state<TextFont>('monospace');
+let brushTextBold = $state(false);
+let brushTextItalic = $state(false);
+
 let currentRule = $state<CARule>(getDefaultRule());
 
 // Tool mode - either 'brush' (drawing) or 'pan' (navigation)
@@ -36,11 +44,11 @@ export const BRUSH_TYPES: { id: BrushType; name: string; description: string }[]
 ];
 
 // Brush shapes - the geometry of the brush
-// 18 shapes in 3 rows of 6
+// 17 shapes in 3 rows (6, 6, 5)
 export type BrushShape = 
 	| 'circle' | 'square' | 'diamond' | 'hexagon' | 'ring' | 'triangle'
 	| 'line' | 'cross' | 'star' | 'heart' | 'spiral' | 'flower'
-	| 'burst' | 'gear' | 'wave' | 'checker' | 'dots' | 'scatter';
+	| 'burst' | 'wave' | 'dots' | 'scatter' | 'text';
 
 export interface BrushShapeInfo {
 	id: BrushShape;
@@ -67,11 +75,10 @@ export const BRUSH_SHAPES: BrushShapeInfo[] = [
 	{ id: 'flower', name: 'Flower', icon: 'flower', description: 'Petal pattern', rotatable: true },
 	// Row 3: Textured/pattern shapes
 	{ id: 'burst', name: 'Burst', icon: 'burst', description: 'Explosion rays', rotatable: true },
-	{ id: 'gear', name: 'Gear', icon: 'gear', description: 'Cog teeth', rotatable: true },
 	{ id: 'wave', name: 'Wave', icon: 'wave', description: 'Sine wave', rotatable: true },
-	{ id: 'checker', name: 'Check', icon: 'checker', description: 'Checkerboard' },
 	{ id: 'dots', name: 'Dots', icon: 'dots', description: 'Grid of dots' },
-	{ id: 'scatter', name: 'Scatter', icon: 'scatter', description: 'Random spray' }
+	{ id: 'scatter', name: 'Scatter', icon: 'scatter', description: 'Random spray' },
+	{ id: 'text', name: 'Text', icon: 'text', description: 'Custom text', rotatable: true }
 ];
 
 // Complete brush configuration
@@ -650,6 +657,35 @@ export function getSimulationState() {
 		},
 		set brushAspectRatio(value: number) {
 			brushAspectRatio = Math.max(0.25, Math.min(4, value));
+		},
+
+		// Text brush settings
+		get brushText() {
+			return brushText;
+		},
+		set brushText(value: string) {
+			brushText = value.slice(0, 20); // Max 20 characters
+		},
+
+		get brushTextFont() {
+			return brushTextFont;
+		},
+		set brushTextFont(value: TextFont) {
+			brushTextFont = value;
+		},
+
+		get brushTextBold() {
+			return brushTextBold;
+		},
+		set brushTextBold(value: boolean) {
+			brushTextBold = value;
+		},
+
+		get brushTextItalic() {
+			return brushTextItalic;
+		},
+		set brushTextItalic(value: boolean) {
+			brushTextItalic = value;
 		},
 
 		// Full brush config getter/setter for convenience

@@ -81,7 +81,7 @@
 	const currentShapeInfo = $derived(BRUSH_SHAPES.find(s => s.id === simState.brushShape));
 	const showRotation = $derived(currentShapeInfo?.rotatable ?? false);
 
-	// Shape icons as SVG paths (18 shapes: 6 per row)
+	// Shape icons as SVG paths (17 shapes: 6, 6, 5)
 	const shapeIcons: Record<BrushShape, string> = {
 		// Row 1: Basic geometric shapes
 		circle: '<circle cx="12" cy="12" r="6" />',
@@ -99,12 +99,19 @@
 		flower: '<circle cx="12" cy="7" r="2.5" /><circle cx="16" cy="10" r="2.5" /><circle cx="15" cy="15" r="2.5" /><circle cx="9" cy="15" r="2.5" /><circle cx="8" cy="10" r="2.5" /><circle cx="12" cy="12" r="2" />',
 		// Row 3: Textured/pattern shapes
 		burst: '<path d="M12 4 L13 9 L18 6 L14 10 L19 12 L14 14 L18 18 L13 15 L12 20 L11 15 L6 18 L10 14 L5 12 L10 10 L6 6 L11 9 Z" />',
-		gear: '<path d="M12 5 L13 7 L16 6 L15 9 L18 10 L16 12 L18 14 L15 15 L16 18 L13 17 L12 19 L11 17 L8 18 L9 15 L6 14 L8 12 L6 10 L9 9 L8 6 L11 7 Z" /><circle cx="12" cy="12" r="3" />',
 		wave: '<path d="M4 12 Q7 6 10 12 T16 12 T22 12" fill="none" stroke-width="2.5" />',
-		checker: '<rect x="5" y="5" width="4" height="4" /><rect x="13" y="5" width="4" height="4" /><rect x="9" y="9" width="4" height="4" /><rect x="5" y="13" width="4" height="4" /><rect x="13" y="13" width="4" height="4" />',
 		dots: '<circle cx="7" cy="7" r="1.8" /><circle cx="12" cy="7" r="1.8" /><circle cx="17" cy="7" r="1.8" /><circle cx="7" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="17" cy="12" r="1.8" /><circle cx="7" cy="17" r="1.8" /><circle cx="12" cy="17" r="1.8" /><circle cx="17" cy="17" r="1.8" />',
-		scatter: '<circle cx="6" cy="8" r="1.3" /><circle cx="15" cy="5" r="1" /><circle cx="10" cy="13" r="1.3" /><circle cx="18" cy="11" r="0.9" /><circle cx="7" cy="17" r="1.1" /><circle cx="14" cy="16" r="0.9" />'
+		scatter: '<circle cx="6" cy="8" r="1.3" /><circle cx="15" cy="5" r="1" /><circle cx="10" cy="13" r="1.3" /><circle cx="18" cy="11" r="0.9" /><circle cx="7" cy="17" r="1.1" /><circle cx="14" cy="16" r="0.9" />',
+		text: '<text x="12" y="16" font-size="14" font-weight="bold" text-anchor="middle" fill="currentColor">T</text>'
 	};
+
+	// Font options for text brush
+	const TEXT_FONTS = [
+		{ id: 'monospace', name: 'Mono' },
+		{ id: 'sans-serif', name: 'Sans' },
+		{ id: 'serif', name: 'Serif' },
+		{ id: 'pixel', name: 'Pixel' }
+	] as const;
 
 	// Fill type icons
 	const fillIcons: Record<BrushType, string> = {
@@ -193,6 +200,51 @@
 				{/each}
 			</div>
 		</div>
+
+		<!-- Text options (shown when text brush is selected) -->
+		{#if simState.brushShape === 'text'}
+			<div class="section text-section">
+				<span class="section-label">Text</span>
+				<input 
+					type="text" 
+					class="text-input"
+					maxlength="20"
+					placeholder="Enter text..."
+					bind:value={simState.brushText}
+				/>
+				<div class="text-options">
+					<div class="font-selector">
+						{#each TEXT_FONTS as font}
+							<button 
+								class="font-btn"
+								class:active={simState.brushTextFont === font.id}
+								onclick={() => simState.brushTextFont = font.id}
+							>
+								{font.name}
+							</button>
+						{/each}
+					</div>
+					<div class="style-toggles">
+						<button 
+							class="style-btn"
+							class:active={simState.brushTextBold}
+							onclick={() => simState.brushTextBold = !simState.brushTextBold}
+							title="Bold"
+						>
+							<strong>B</strong>
+						</button>
+						<button 
+							class="style-btn italic"
+							class:active={simState.brushTextItalic}
+							onclick={() => simState.brushTextItalic = !simState.brushTextItalic}
+							title="Italic"
+						>
+							<em>I</em>
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Fill type selector -->
 		<div class="section">
@@ -459,6 +511,105 @@
 	.shape-btn svg {
 		width: 20px;
 		height: 20px;
+	}
+
+	/* Text section */
+	.text-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.text-input {
+		width: 100%;
+		padding: 0.5rem 0.6rem;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		border-radius: 6px;
+		color: var(--ui-text, #e0e0e0);
+		font-size: 0.9rem;
+		font-family: inherit;
+		outline: none;
+		transition: border-color 0.15s;
+	}
+
+	.text-input:focus {
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.5));
+	}
+
+	.text-input::placeholder {
+		color: var(--ui-text-muted, #666);
+	}
+
+	.text-options {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.font-selector {
+		display: flex;
+		gap: 2px;
+		flex: 1;
+	}
+
+	.font-btn {
+		flex: 1;
+		padding: 0.35rem 0.3rem;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.06));
+		border-radius: 4px;
+		color: var(--ui-text, #888);
+		font-size: 0.7rem;
+		cursor: pointer;
+		transition: all 0.1s;
+	}
+
+	.font-btn:hover {
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
+		color: var(--ui-text-hover, #fff);
+	}
+
+	.font-btn.active {
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.5));
+		color: var(--ui-accent, #2dd4bf);
+	}
+
+	.style-toggles {
+		display: flex;
+		gap: 2px;
+	}
+
+	.style-btn {
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.06));
+		border-radius: 4px;
+		color: var(--ui-text, #888);
+		font-size: 0.85rem;
+		cursor: pointer;
+		transition: all 0.1s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.style-btn:hover {
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
+		color: var(--ui-text-hover, #fff);
+	}
+
+	.style-btn.active {
+		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.2));
+		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.5));
+		color: var(--ui-accent, #2dd4bf);
+	}
+
+	.style-btn.italic {
+		font-style: italic;
 	}
 
 	/* Fill grid */
