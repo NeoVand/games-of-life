@@ -962,6 +962,24 @@ export const RULE_PRESETS: CARule[] = [
 			decayPower: 1.0
 		}
 	},
+	{
+		name: 'Ext24 Neo Microchip',
+		birthMask: 0b111110000000000, // 10, 11, 12, 13, 14
+		surviveMask: 0b11111111111100000000, // 8-19
+		numStates: 286,
+		ruleString: 'B10,11,12,13,14/S8,9,10,11,12,13,14,15,16,17,18,19/C286',
+		neighborhood: 'extendedMoore',
+		category: 'artistic',
+		description: 'Microchip-like circuit patterns with ghost vitality damping',
+		density: 0.2,
+		vitality: {
+			mode: 'ghost',
+			threshold: 1.0,
+			ghostFactor: -0.09,
+			sigmoidSharpness: 10.0,
+			decayPower: 1.0
+		}
+	},
 	// Hex Neo Mandala series - artistic patterns with vitality influence
 	{
 		name: 'Hex Neo Mandala 1',

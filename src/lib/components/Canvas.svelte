@@ -492,21 +492,26 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 	async function handleMouseUp() {
 		stopContinuousDrawing();
 		const brushEditorOpen = isModalOpen('brushEditor');
-			if (isDrawing && simulation && !simState.isPlaying) {
-				// After painting while paused, update the count
-				simulation.countAliveCellsAsync().then(count => {
-					simState.aliveCells = count;
-				});
-			}
-			if (strokeTracked && simulation && !brushEditorOpen) {
+		const wasDrawing = isDrawing;
+		const wasStrokeTracked = strokeTracked;
+		
+		// Set these immediately to stop any further painting during async operations
+		isDrawing = false;
+		isPanning = false;
+		strokeTracked = false;
+		
+		if (wasDrawing && simulation && !simState.isPlaying) {
+			// After painting while paused, update the count
+			simulation.countAliveCellsAsync().then(count => {
+				simState.aliveCells = count;
+			});
+		}
+		if (wasStrokeTracked && simulation && !brushEditorOpen) {
 			// Await to ensure before snapshot resolves; then clear
 			const before = pendingStrokeBefore ? await pendingStrokeBefore : null;
 			await addSnapshotWithBefore(simulation, before, 'Stroke');
 			pendingStrokeBefore = null;
-			}
-		isDrawing = false;
-		isPanning = false;
-		strokeTracked = false;
+		}
 	}
 
 	function handleMouseEnter() {
