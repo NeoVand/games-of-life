@@ -29,7 +29,9 @@
 </script>
 
 {#if shouldShow}
-	<div class="click-hint" class:light={simState.isLightTheme}>
+	{@const [r, g, b] = simState.aliveColor}
+	{@const accentColor = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`}
+	<div class="click-hint" class:light={simState.isLightTheme} style="--accent: {accentColor};">
 		<span class="hint-text">{hintText}</span>
 		<svg class="hint-arrow" viewBox="0 0 50 50" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 			<!-- Curved line going down, centered -->
@@ -69,25 +71,25 @@
 		font-family: 'Shadows Into Light', cursive;
 		font-size: 1.4rem;
 		font-weight: 300;
-		color: rgba(255, 255, 255, 0.75);
+		color: var(--accent, rgba(255, 255, 255, 0.75));
+		opacity: 0.85;
 		text-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
 		letter-spacing: 0.03em;
 	}
 	
 	.light .hint-text {
-		color: rgba(60, 60, 70, 0.75);
 		text-shadow: 0 2px 8px rgba(255, 255, 255, 0.5);
 	}
 	
 	.hint-arrow {
 		width: 50px;
 		height: 50px;
-		color: rgba(255, 255, 255, 0.65);
+		color: var(--accent, rgba(255, 255, 255, 0.65));
+		opacity: 0.75;
 		filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 	}
 	
 	.light .hint-arrow {
-		color: rgba(60, 60, 70, 0.65);
 		filter: drop-shadow(0 2px 4px rgba(255, 255, 255, 0.3));
 	}
 	

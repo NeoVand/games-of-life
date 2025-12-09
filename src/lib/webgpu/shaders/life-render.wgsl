@@ -378,10 +378,18 @@ fn get_grid_color() -> vec3<f32> {
 
 // Axis line color - prominent and visible against any background
 fn get_axis_color() -> vec3<f32> {
+    // Use the alive color (accent) with reduced saturation for axes
+    let accent = vec3<f32>(params.alive_r, params.alive_g, params.alive_b);
+    let accent_hsl = rgb_to_hsl(accent);
+    
     if (params.is_light_theme > 0.5) {
-        return vec3<f32>(0.3, 0.3, 0.35); // Dark gray for light theme
+        // Light theme: darker, more saturated version of accent
+        let axis_hsl = vec3<f32>(accent_hsl.x, accent_hsl.y * 0.6, 0.35);
+        return hsl_to_rgb(axis_hsl);
     }
-    return vec3<f32>(0.6, 0.6, 0.65); // Light gray for dark theme
+    // Dark theme: lighter, slightly desaturated version of accent
+    let axis_hsl = vec3<f32>(accent_hsl.x, accent_hsl.y * 0.5, 0.65);
+    return hsl_to_rgb(axis_hsl);
 }
 
 // Convert RGB to HSL

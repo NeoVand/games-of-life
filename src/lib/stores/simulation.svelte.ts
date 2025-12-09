@@ -123,7 +123,7 @@ let gridHeight = $state(256);
 
 // Visual settings
 let isLightTheme = $state(false);
-let aliveColor = $state<[number, number, number]>([1.0, 1.0, 1.0]); // White (first dark theme color)
+let aliveColor = $state<[number, number, number]>([0, 1, 1]); // Cyan (default color)
 
 // Spectrum modes for multi-state color transitions
 export type SpectrumMode = 
@@ -189,7 +189,7 @@ export function boundaryModeToIndex(mode: BoundaryMode): number {
 	return modes.indexOf(mode);
 }
 
-let spectrumMode = $state<SpectrumMode>('thermal');
+let spectrumMode = $state<SpectrumMode>('rainbow');
 
 // Spectrum frequency - how many times to repeat the spectrum across dying states
 // 1.0 = normal (once), 2.0 = twice, 0.5 = stretched to half
@@ -233,7 +233,18 @@ export const DARK_THEME_COLORS: { name: string; color: [number, number, number];
 	{ name: 'Lavender', color: [0.8, 0.7, 1.0], hex: '#ccb3ff' },
 	{ name: 'Mauve', color: [0.75, 0.6, 0.7], hex: '#bf99b3' },
 	{ name: 'Sage', color: [0.65, 0.75, 0.6], hex: '#a6bf99' },
-	{ name: 'Sand', color: [0.85, 0.8, 0.7], hex: '#d9ccb3' }
+	{ name: 'Sand', color: [0.85, 0.8, 0.7], hex: '#d9ccb3' },
+	// Row 3: Deep rich colors
+	{ name: 'Deep Cyan', color: [0.1, 0.5, 0.55], hex: '#1a8080' },
+	{ name: 'Forest', color: [0.15, 0.5, 0.25], hex: '#268040' },
+	{ name: 'Emerald', color: [0.2, 0.55, 0.4], hex: '#338c66' },
+	{ name: 'Gold', color: [0.6, 0.5, 0.15], hex: '#998026' },
+	{ name: 'Amber', color: [0.65, 0.4, 0.1], hex: '#a6661a' },
+	{ name: 'Crimson', color: [0.6, 0.15, 0.2], hex: '#992633' },
+	{ name: 'Magenta', color: [0.6, 0.2, 0.45], hex: '#993373' },
+	{ name: 'Indigo', color: [0.35, 0.25, 0.6], hex: '#594099' },
+	{ name: 'Cobalt', color: [0.2, 0.35, 0.65], hex: '#3359a6' },
+	{ name: 'Steel', color: [0.35, 0.4, 0.45], hex: '#596673' }
 ];
 
 export const LIGHT_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
@@ -258,7 +269,18 @@ export const LIGHT_THEME_COLORS: { name: string; color: [number, number, number]
 	{ name: 'Storm', color: [0.4, 0.45, 0.55], hex: '#66738c' },
 	{ name: 'Plum', color: [0.45, 0.3, 0.45], hex: '#734d73' },
 	{ name: 'Clay', color: [0.5, 0.4, 0.35], hex: '#806659' },
-	{ name: 'Charcoal', color: [0.25, 0.25, 0.28], hex: '#404047' }
+	{ name: 'Charcoal', color: [0.25, 0.25, 0.28], hex: '#404047' },
+	// Row 3: Very dark tinted colors
+	{ name: 'Ink', color: [0.08, 0.08, 0.12], hex: '#14141f' },
+	{ name: 'Deep Sea', color: [0.05, 0.18, 0.22], hex: '#0d2e38' },
+	{ name: 'Pine', color: [0.08, 0.2, 0.12], hex: '#14331f' },
+	{ name: 'Shadow', color: [0.15, 0.14, 0.12], hex: '#26241f' },
+	{ name: 'Espresso', color: [0.2, 0.12, 0.08], hex: '#331f14' },
+	{ name: 'Ember', color: [0.25, 0.1, 0.08], hex: '#401a14' },
+	{ name: 'Wine', color: [0.25, 0.08, 0.12], hex: '#40141f' },
+	{ name: 'Grape', color: [0.18, 0.1, 0.25], hex: '#2e1a40' },
+	{ name: 'Midnight', color: [0.08, 0.1, 0.2], hex: '#141a33' },
+	{ name: 'Onyx', color: [0.12, 0.12, 0.14], hex: '#1f1f24' }
 ];
 
 // Last initialization settings

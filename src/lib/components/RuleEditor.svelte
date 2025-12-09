@@ -21,7 +21,8 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
 	import BoundaryIcon from './BoundaryIcon.svelte';
 	import { onMount, onDestroy } from 'svelte';
-import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
+	import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
+	import { startRuleEditorTour, getRuleEditorTourStyles } from '../utils/ruleEditorTour.js';
 
 	interface Props {
 		onclose: () => void;
@@ -937,6 +938,66 @@ import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 		ruleSearchMode = false;
 	}
 
+	// Tour functionality
+	let tourStyleEl: HTMLStyleElement | null = null;
+	let tourActive = $state(false);
+	
+	// Get accent color from simState.aliveColor (RGB 0-1 values)
+	function getAccentColorString(): string {
+		const [r, g, b] = simState.aliveColor;
+		return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+	}
+	
+	// Update tour styles when color or theme changes
+	function updateTourStyles() {
+		if (tourStyleEl && tourActive) {
+			const accentColor = getAccentColorString();
+			tourStyleEl.textContent = getRuleEditorTourStyles(accentColor, simState.isLightTheme);
+		}
+	}
+	
+	// Reactive effect to update tour styles when theme/color changes
+	$effect(() => {
+		// Track dependencies
+		simState.aliveColor;
+		simState.isLightTheme;
+		// Update styles if tour is active
+		updateTourStyles();
+	});
+	
+	function handleStartTour() {
+		// Inject tour styles
+		if (!tourStyleEl) {
+			tourStyleEl = document.createElement('style');
+			document.head.appendChild(tourStyleEl);
+		}
+		const accentColor = getAccentColorString();
+		tourStyleEl.textContent = getRuleEditorTourStyles(accentColor, simState.isLightTheme);
+		tourActive = true;
+		
+		// Start the tour
+		startRuleEditorTour({
+			accentColor,
+			isLightTheme: simState.isLightTheme,
+			onComplete: () => {
+				tourActive = false;
+				// Cleanup styles after tour completes
+				if (tourStyleEl && tourStyleEl.parentNode) {
+					tourStyleEl.parentNode.removeChild(tourStyleEl);
+					tourStyleEl = null;
+				}
+			},
+			onSkip: () => {
+				tourActive = false;
+				// Cleanup styles if tour is skipped
+				if (tourStyleEl && tourStyleEl.parentNode) {
+					tourStyleEl.parentNode.removeChild(tourStyleEl);
+					tourStyleEl = null;
+				}
+			}
+		});
+	}
+
 	const currentPresetName = $derived(selectedPreset >= 0 ? RULE_PRESETS[selectedPreset].name : 'Custom');
 	const currentNeighborhoodInfo = $derived(NEIGHBORHOODS[neighborhood]);
 	
@@ -986,7 +1047,7 @@ import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 			onDragEnd: handleDragEnd
 		}}
 	>
-		<!-- Row 1: Title + Apply + Close -->
+		<!-- Row 1: Title + Tour + Apply + Close -->
 		<div class="header">
 			<span class="title">
 				<svg class="header-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -995,6 +1056,13 @@ import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 				</svg>
 				Rule Editor
 			</span>
+			<button class="tour-btn" onclick={handleStartTour} title="Take a tour of the Rule Editor">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M3 6l7-2 7 2 4-1v13l-4 1-7-2-7 2V5z" />
+					<path d="M10 4v13" />
+					<path d="M17 6v13" />
+				</svg>
+			</button>
 			<button class="apply-btn" onclick={applyRule} title="Apply rule">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 					<path d="M5 12l5 5L20 7" />
@@ -1476,6 +1544,32 @@ import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 		flex-shrink: 0;
 	}
 
+	.tour-btn {
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+		color: var(--ui-text, #888);
+		cursor: pointer;
+		border-radius: 6px;
+		margin-left: auto;
+		transition: all 0.15s;
+	}
+
+	.tour-btn:hover {
+		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
+		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.2));
+		color: var(--ui-accent, #2dd4bf);
+	}
+
+	.tour-btn svg {
+		width: 14px;
+		height: 14px;
+	}
+
 	.apply-btn {
 		width: 28px;
 		height: 28px;
@@ -1487,7 +1581,7 @@ import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 		color: var(--ui-accent, #2dd4bf);
 		cursor: pointer;
 		border-radius: 6px;
-		margin-left: auto;
+		margin-left: 0.3rem;
 		transition: all 0.15s;
 	}
 
