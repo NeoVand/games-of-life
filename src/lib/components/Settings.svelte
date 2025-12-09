@@ -325,6 +325,19 @@
 					</button>
 				</div>
 
+				<!-- Axes Toggle -->
+				<div class="row">
+					<span class="label">Axes</span>
+					<button
+						class="toggle"
+						class:on={simState.showAxes}
+						onclick={() => (simState.showAxes = !simState.showAxes)}
+						aria-label="Toggle axes"
+					>
+						<span class="track"><span class="thumb"></span></span>
+					</button>
+				</div>
+
 				<!-- Theme -->
 				<div class="row">
 					<span class="label">Mode</span>

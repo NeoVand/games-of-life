@@ -344,6 +344,11 @@
 			case 'KeyG':
 				simState.showGrid = !simState.showGrid;
 				break;
+			case 'KeyA':
+				if (!e.ctrlKey && !e.metaKey) {
+					simState.showAxes = !simState.showAxes;
+				}
+				break;
 			case 'KeyE':
 				toggleModal('ruleEditor');
 				break;

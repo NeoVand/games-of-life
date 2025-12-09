@@ -1119,10 +1119,10 @@ export function getRuleByName(name: string): CARule | undefined {
 }
 
 /**
- * Get the default rule (Hex Neo Mandala 1)
+ * Get the default rule (Hex2 Neo Diagonal Growth)
  */
 export function getDefaultRule(): CARule {
-	return getRuleByName('Hex Neo Mandala 1') || RULE_PRESETS[0];
+	return getRuleByName('Hex2 Neo Diagonal Growth') || RULE_PRESETS[0];
 }
 
 /**

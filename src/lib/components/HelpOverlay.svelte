@@ -187,6 +187,7 @@
 							<div class="shortcut"><kbd>Scroll</kbd><span>Zoom in/out</span></div>
 							<div class="shortcut"><kbd>F</kbd><span>Fit to screen</span></div>
 							<div class="shortcut"><kbd>G</kbd><span>Toggle grid lines</span></div>
+							<div class="shortcut"><kbd>A</kbd><span>Toggle axes</span></div>
 						</section>
 
 						<section class="shortcut-group">

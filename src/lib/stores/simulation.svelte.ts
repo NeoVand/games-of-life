@@ -96,6 +96,7 @@ export const DEFAULT_BRUSH_CONFIG: BrushConfig = {
 };
 let generation = $state(0);
 let showGrid = $state(true);
+let showAxes = $state(false); // Axes are separate from grid, off by default
 let hasInteracted = $state(false); // Track if user has clicked/touched the canvas
 
 // Grid scale presets - base cell count for the shorter dimension
@@ -706,6 +707,13 @@ export function getSimulationState() {
 		},
 		set showGrid(value: boolean) {
 			showGrid = value;
+		},
+
+		get showAxes() {
+			return showAxes;
+		},
+		set showAxes(value: boolean) {
+			showAxes = value;
 		},
 
 		get hasInteracted() {

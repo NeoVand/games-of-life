@@ -232,9 +232,9 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		// Start animation loop
 		animationLoop(performance.now());
 		
-		// Start axis grow animation after a brief delay
+		// Start axis grow animation after a brief delay (only if axes are enabled)
 		setTimeout(() => {
-			if (simulation) {
+			if (simulation && simState.showAxes) {
 				simulation.startAxisAnimation(true, 600); // Grow axes from center
 			}
 		}, 100);
@@ -270,11 +270,11 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		// Update view animation (smooth transitions for fit-to-screen, etc.)
 		simulation.updateViewAnimation();
 		
-		// Check if grid visibility changed and trigger axis animation
-		if (lastShowGridState !== null && lastShowGridState !== simState.showGrid) {
-			simulation.startAxisAnimation(simState.showGrid, 400);
+		// Check if axes visibility changed and trigger axis animation
+		if (lastShowAxesState !== null && lastShowAxesState !== simState.showAxes) {
+			simulation.startAxisAnimation(simState.showAxes, 400);
 		}
-		lastShowGridState = simState.showGrid;
+		lastShowAxesState = simState.showAxes;
 		
 		// Update axis animation (grow/shrink from center)
 		simulation.updateAxisAnimation();
@@ -335,8 +335,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		simState.aliveCells = simulation.countAliveCells();
 	}
 
-	// Track grid visibility changes to trigger axis animation
-	let lastShowGridState: boolean | null = null;
+	// Track axes visibility changes to trigger axis animation
+	let lastShowAxesState: boolean | null = null;
 
 	// Track previous playing state to trigger count update when paused
 	let wasPlaying = false;
@@ -1034,7 +1034,7 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			mediaRecorder = null;
 			
 			// Restore axis progress after recording
-			if (simulation && simState.showGrid) {
+			if (simulation && simState.showAxes) {
 				simulation.startAxisAnimation(true, 400);
 			}
 		}
