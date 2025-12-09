@@ -195,6 +195,7 @@
 							<div class="shortcut"><kbd>T</kbd><span>Toggle theme</span></div>
 							<div class="shortcut"><kbd>C</kbd><span>Cycle colors</span></div>
 							<div class="shortcut"><kbd>Shift</kbd>+<kbd>C</kbd><span>Cycle spectrum</span></div>
+							<div class="shortcut"><kbd>V</kbd><span>Record video</span></div>
 						</section>
 
 						<section class="shortcut-group">

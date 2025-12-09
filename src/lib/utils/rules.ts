@@ -980,6 +980,24 @@ export const RULE_PRESETS: CARule[] = [
 			decayPower: 1.0
 		}
 	},
+	{
+		name: 'Neo Dripping',
+		birthMask: 0b101111000, // 3, 4, 5, 6, 8
+		surviveMask: 0b1111100, // 2, 3, 4, 5, 6
+		numStates: 705,
+		ruleString: 'B34568/S23456/C705',
+		neighborhood: 'moore',
+		category: 'artistic',
+		description: 'Dripping paint-like patterns with ghost vitality damping',
+		density: 0.2,
+		vitality: {
+			mode: 'ghost',
+			threshold: 1.0,
+			ghostFactor: -0.52,
+			sigmoidSharpness: 10.0,
+			decayPower: 1.0
+		}
+	},
 	// Hex Neo Mandala series - artistic patterns with vitality influence
 	{
 		name: 'Hex Neo Mandala 1',

@@ -349,6 +349,11 @@
 					simState.showAxes = !simState.showAxes;
 				}
 				break;
+			case 'KeyV':
+				if (!e.ctrlKey && !e.metaKey) {
+					canvas?.toggleRecording();
+				}
+				break;
 			case 'KeyE':
 				toggleModal('ruleEditor');
 				break;

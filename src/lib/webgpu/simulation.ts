@@ -82,6 +82,10 @@ export class Simulation {
 	private textBitmapData: Uint8Array | null = null; // CPU copy for painting
 	private currentTextSettings = { text: '', font: '', bold: false, italic: false, size: 0 };
 
+	// Offscreen canvas for grid recording
+	private recordingCanvas: OffscreenCanvas | null = null;
+	private recordingContext: GPUCanvasContext | null = null;
+
 	// Double-buffer step counter
 	private stepCount = 0;
 
@@ -547,6 +551,105 @@ export class Simulation {
 		renderPass.end();
 
 		this.device.queue.submit([commandEncoder.finish()]);
+	}
+
+	/**
+	 * Initialize offscreen canvas for recording the full grid
+	 */
+	initRecordingCanvas(): HTMLCanvasElement {
+		// Create a regular canvas (OffscreenCanvas doesn't support captureStream)
+		const canvas = document.createElement('canvas');
+		canvas.width = this.width;
+		canvas.height = this.height;
+		
+		// Configure WebGPU context for the offscreen canvas
+		const context = canvas.getContext('webgpu');
+		if (!context) {
+			throw new Error('Failed to get WebGPU context for recording canvas');
+		}
+		
+		context.configure({
+			device: this.device,
+			format: this.format,
+			alphaMode: 'opaque'
+		});
+		
+		this.recordingCanvas = canvas as unknown as OffscreenCanvas;
+		this.recordingContext = context;
+		
+		return canvas;
+	}
+
+	/**
+	 * Render the full grid to the recording canvas (1:1 scale, no pan, no UI elements)
+	 */
+	renderToRecordingCanvas(): void {
+		if (!this.recordingContext) return;
+		
+		this.applyPaints();
+		
+		// Create params for full grid view (1:1 scale, centered, no brush, no grid lines)
+		const params = new Float32Array([
+			this.width,
+			this.height,
+			this.width,  // canvas width = grid width
+			this.height, // canvas height = grid height
+			0, // offsetX = 0 (centered)
+			0, // offsetY = 0 (centered)
+			this.width, // zoom = grid width (1:1 scale)
+			this.rule.numStates,
+			0, // show_grid = false (no grid lines for clean recording)
+			this.view.isLightTheme ? 1.0 : 0.0,
+			this.view.aliveColor[0],
+			this.view.aliveColor[1],
+			this.view.aliveColor[2],
+			-1000, // brush_x (hidden)
+			-1000, // brush_y (hidden)
+			-1, // brush_radius (hidden)
+			this.getNeighborhoodIndex(),
+			this.view.spectrumMode,
+			this.view.spectrumFrequency,
+			this.view.neighborShading,
+			boundaryModeToIndex(this.view.boundaryMode),
+			0, // brush_shape
+			0, // brush_rotation
+			1.0, // brush_aspect
+			0, // axis_progress (no axes)
+			0, // text_bitmap_width
+			0  // text_bitmap_height
+		]);
+		this.device.queue.writeBuffer(this.renderParamsBuffer, 0, params);
+
+		const commandEncoder = this.device.createCommandEncoder();
+
+		const renderPass = commandEncoder.beginRenderPass({
+			colorAttachments: [
+				{
+					view: this.recordingContext.getCurrentTexture().createView(),
+					loadOp: 'clear',
+					storeOp: 'store',
+					clearValue: { r: 0.05, g: 0.05, b: 0.08, a: 1.0 }
+				}
+			]
+		});
+
+		renderPass.setPipeline(this.renderPipeline);
+		renderPass.setBindGroup(0, this.renderBindGroups[this.stepCount % 2]);
+		renderPass.draw(3);
+		renderPass.end();
+
+		this.device.queue.submit([commandEncoder.finish()]);
+	}
+
+	/**
+	 * Clean up recording canvas resources
+	 */
+	destroyRecordingCanvas(): void {
+		if (this.recordingContext) {
+			this.recordingContext.unconfigure();
+			this.recordingContext = null;
+		}
+		this.recordingCanvas = null;
 	}
 
 	/**

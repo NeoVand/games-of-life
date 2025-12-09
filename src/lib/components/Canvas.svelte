@@ -347,6 +347,11 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 
 		// Always render
 		simulation.render(canvasWidth, canvasHeight);
+		
+		// Also render to recording canvas if recording
+		if (isRecording && recordingCanvas) {
+			simulation.renderToRecordingCanvas();
+		}
 
 		// Update alive cells count (sync version for display)
 		simState.aliveCells = simulation.countAliveCells();
@@ -982,6 +987,7 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 	let isRecording = $state(false);
 	let mediaRecorder: MediaRecorder | null = null;
 	let recordedChunks: Blob[] = [];
+	let recordingCanvas: HTMLCanvasElement | null = null;
 	let preRecordingAxisProgress = 0; // Store axis progress before recording
 
 	export function getIsRecording() {
@@ -1000,8 +1006,11 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		if (!canvas || isRecording || !simulation) return;
 
 		try {
-			// Capture stream from canvas at 60fps for smooth video
-			const stream = canvas.captureStream(60);
+			// Create offscreen canvas for recording the full grid
+			recordingCanvas = simulation.initRecordingCanvas();
+			
+			// Capture stream from recording canvas at 60fps
+			const stream = recordingCanvas.captureStream(60);
 			
 			// Prefer MP4 for better compatibility, fall back to high-quality WebM
 			const mimeTypes = [
@@ -1022,12 +1031,13 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			
 			if (!selectedMimeType) {
 				console.error('No supported video MIME type found');
+				simulation.destroyRecordingCanvas();
+				recordingCanvas = null;
 				return;
 			}
 
-			// Store current axis progress and hide axes during recording
+			// Store current axis progress (axes are hidden in recording canvas anyway)
 			preRecordingAxisProgress = simulation.view.axisProgress;
-			simulation.view.axisProgress = 0;
 
 			recordedChunks = [];
 			mediaRecorder = new MediaRecorder(stream, {
@@ -1044,16 +1054,26 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			mediaRecorder.onstop = () => {
 				const blob = new Blob(recordedChunks, { type: selectedMimeType });
 				const extension = selectedMimeType.includes('mp4') ? 'mp4' : 'webm';
-				const filename = `cellular-automaton-gen${simState.generation}.${extension}`;
+				const filename = `cellular-automaton-${simState.gridWidth}x${simState.gridHeight}-gen${simState.generation}.${extension}`;
 				
 				saveRecording(blob, filename);
 				recordedChunks = [];
+				
+				// Clean up recording canvas
+				if (simulation) {
+					simulation.destroyRecordingCanvas();
+				}
+				recordingCanvas = null;
 			};
 
 			mediaRecorder.start(100); // Collect data every 100ms
 			isRecording = true;
 		} catch (err) {
 			console.error('Failed to start recording:', err);
+			if (simulation) {
+				simulation.destroyRecordingCanvas();
+			}
+			recordingCanvas = null;
 		}
 	}
 
