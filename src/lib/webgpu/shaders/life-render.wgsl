@@ -314,10 +314,10 @@ fn apply_neighbor_shading(color: vec3<f32>, cell_x: i32, cell_y: i32) -> vec3<f3
         return color;
     }
     
-    // Skip expensive neighbor counting when zoomed out (cells too small to see shading)
-    // pixels_per_cell < 2 means cells are very small, shading effect not visible
+    // Skip expensive neighbor counting when extremely zoomed out
+    // Only skip when cells are sub-pixel (< 0.5 pixels) - effect essentially invisible
     let pixels_per_cell = params.canvas_width / params.zoom;
-    if (pixels_per_cell < 2.0) {
+    if (pixels_per_cell < 0.5) {
         return color;
     }
     
@@ -334,26 +334,32 @@ fn apply_neighbor_shading(color: vec3<f32>, cell_x: i32, cell_y: i32) -> vec3<f3
     // Convert to HSL to adjust saturation and lightness
     let hsl = rgb_to_hsl(color);
     
+    // Apply stronger effect for vitality mode (mode 2)
+    let is_vitality_mode = mode == 2;
+    let strength_mult = select(1.0, 1.4, is_vitality_mode);
+    
     // Boost factor: cells with more vital neighbors get boosted
     // Range from 0.5 (isolated) to 1.0 (fully surrounded)
     let boost = 0.5 + neighbor_ratio * 0.5;
     
     // Adjust saturation: more neighbors = more saturated
-    var new_sat = hsl.y * (0.6 + neighbor_ratio * 0.6); // Range: 60% to 120% of original
+    // Vitality mode: stronger desaturation for isolated cells (0.4 to 1.2 vs 0.6 to 1.2)
+    let sat_min = select(0.6, 0.35, is_vitality_mode);
+    var new_sat = hsl.y * (sat_min + neighbor_ratio * (1.2 - sat_min));
     new_sat = clamp(new_sat, 0.0, 1.0);
     
     // Adjust lightness based on theme
     var new_light = hsl.z;
     if (params.is_light_theme > 0.5) {
         // Light mode: isolated cells get lighter (fade toward white bg)
-        // Clustered cells stay at their natural lightness
-        let fade_amount = (1.0 - neighbor_ratio) * 0.3;
-        new_light = mix(hsl.z, 0.9, fade_amount);
+        // Vitality mode: stronger fade (0.45 vs 0.3)
+        let fade_amount = (1.0 - neighbor_ratio) * select(0.3, 0.45, is_vitality_mode);
+        new_light = mix(hsl.z, 0.92, fade_amount);
     } else {
         // Dark mode: isolated cells get darker (fade toward black bg)
-        // Clustered cells stay bright
-        let fade_amount = (1.0 - neighbor_ratio) * 0.4;
-        new_light = mix(hsl.z, 0.1, fade_amount);
+        // Vitality mode: stronger fade (0.55 vs 0.4)
+        let fade_amount = (1.0 - neighbor_ratio) * select(0.4, 0.55, is_vitality_mode);
+        new_light = mix(hsl.z, 0.08, fade_amount);
     }
     
     return hsl_to_rgb(vec3<f32>(hsl.x, new_sat, new_light));
