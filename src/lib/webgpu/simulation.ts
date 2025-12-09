@@ -781,13 +781,26 @@ export class Simulation {
 				}
 				case 'spiral': {
 					const sr = Math.sqrt(ax * ax + ay * ay);
-					const sangle = Math.atan2(ay, ax);
 					const normalizedR = sr / r;
+					if (normalizedR > 1) {
+						inside = false;
+						dist = normalizedR;
+						break;
+					}
+					const sangle = Math.atan2(ay, ax); // -PI to PI
 					const spiralArms = 3;
-					const spiralWidth = 0.15;
-					const targetAngle = normalizedR * Math.PI * 2 * spiralArms;
-					const angleDiff = Math.abs(((sangle - targetAngle) % (Math.PI * 2 / spiralArms) + Math.PI) % (Math.PI * 2 / spiralArms) - Math.PI);
-					inside = normalizedR <= 1 && angleDiff < spiralWidth * (1 + normalizedR);
+					const spiralWidth = 0.18;
+					const armSpacing = 2 * Math.PI / spiralArms;
+					const targetAngle = normalizedR * 2 * Math.PI * spiralArms;
+					
+					// Find angular distance to nearest spiral arm (same as shader)
+					let angleDiff = sangle - targetAngle;
+					// Wrap to -PI to PI range
+					angleDiff = angleDiff - Math.floor((angleDiff + Math.PI) / (2 * Math.PI)) * 2 * Math.PI;
+					// Wrap to arm spacing
+					angleDiff = angleDiff - Math.floor((angleDiff + armSpacing * 0.5) / armSpacing) * armSpacing;
+					
+					inside = Math.abs(angleDiff) < spiralWidth * (0.5 + normalizedR);
 					dist = normalizedR;
 					break;
 				}
