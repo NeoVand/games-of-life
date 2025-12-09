@@ -801,7 +801,7 @@ export class Simulation {
 			const ax = rx / aspectRatio;
 			const ay = ry;
 			
-			let dist: number;
+			let dist: number = 2; // Default to outside
 			let inside = false;
 			
 			switch (shape) {
@@ -1403,7 +1403,7 @@ export class Simulation {
 	 */
 	setCellData(data: Uint32Array): void {
 		const currentBuffer = this.cellBuffers[this.stepCount % 2];
-		this.device.queue.writeBuffer(currentBuffer, 0, data);
+		this.device.queue.writeBuffer(currentBuffer, 0, data.buffer as ArrayBuffer);
 		this.pendingPaints.clear();
 		
 		// Update alive count
