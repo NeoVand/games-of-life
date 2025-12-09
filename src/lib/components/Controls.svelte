@@ -10,7 +10,8 @@
 		oninitialize: () => void;
 		onstep: () => void;
 		onresetview: () => void;
-		onscreenshot: () => void;
+		onrecord: () => void;
+		isRecording?: boolean;
 		onhelp: () => void;
 		onabout: () => void;
 		showHelp?: boolean;
@@ -18,7 +19,7 @@
 		showAbout?: boolean;
 	}
 
-	let { onclear, oninitialize, onstep, onresetview, onscreenshot, onhelp, onabout, showHelp = false, showInitialize = false, showAbout = false }: Props = $props();
+	let { onclear, oninitialize, onstep, onresetview, onrecord, isRecording = false, onhelp, onabout, showHelp = false, showInitialize = false, showAbout = false }: Props = $props();
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
@@ -360,11 +361,25 @@
 			</svg>
 		</button>
 
-		<!-- Screenshot -->
-		<button id="tour-screenshot-btn" class="control-btn" onclick={onscreenshot} data-tooltip="Screenshot" aria-label="Screenshot">
+		<!-- Record Video -->
+		<button 
+			id="tour-record-btn" 
+			class="control-btn" 
+			class:recording={isRecording}
+			onclick={onrecord} 
+			data-tooltip={isRecording ? "Stop Recording" : "Record Video"} 
+			aria-label={isRecording ? "Stop Recording" : "Record Video"}
+		>
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z" />
-				<circle cx="12" cy="13" r="4" />
+				{#if isRecording}
+					<!-- Stop icon (square) when recording -->
+					<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" />
+				{:else}
+					<!-- Film camera icon -->
+					<rect x="2" y="6" width="14" height="12" rx="2" />
+					<path d="M22 8l-6 4 6 4V8z" fill="currentColor" />
+					<circle cx="7" cy="12" r="2" />
+				{/if}
 			</svg>
 		</button>
 	</div>
@@ -525,6 +540,16 @@
 
 	.control-btn.active:hover:not(:disabled) {
 		filter: brightness(1.2);
+	}
+
+	.control-btn.recording {
+		color: #ef4444;
+		animation: recording-pulse 1s ease-in-out infinite;
+	}
+
+	@keyframes recording-pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.6; }
 	}
 
 	.control-btn svg {

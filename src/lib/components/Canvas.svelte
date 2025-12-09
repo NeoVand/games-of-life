@@ -295,8 +295,9 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		}
 
 		// Sync view state including brush preview
+		// Hide brush during recording for clean video capture
 		const brushEditorOpen = isModalOpen('brushEditor');
-		const showBrush = (mouseInCanvas && effectiveToolMode === 'brush' && !isPanning) || uiState.showBrushPopup || brushEditorOpen;
+		const showBrush = !isRecording && ((mouseInCanvas && effectiveToolMode === 'brush' && !isPanning) || uiState.showBrushPopup || brushEditorOpen);
 		// When brush popup/modal is open and mouse not in canvas, show brush at center of grid
 		const brushPopupOrModalOpen = uiState.showBrushPopup || brushEditorOpen;
 		const brushX = brushPopupOrModalOpen && !mouseInCanvas 
@@ -945,6 +946,122 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			? (navigator as Navigator & { maxTouchPoints?: number }).maxTouchPoints > 1
 			: false;
 		return isMobileUA || hasTouch;
+	}
+
+	// Video recording state
+	let isRecording = $state(false);
+	let mediaRecorder: MediaRecorder | null = null;
+	let recordedChunks: Blob[] = [];
+	let preRecordingAxisProgress = 0; // Store axis progress before recording
+
+	export function getIsRecording() {
+		return isRecording;
+	}
+
+	export function toggleRecording() {
+		if (isRecording) {
+			stopRecording();
+		} else {
+			startRecording();
+		}
+	}
+
+	function startRecording() {
+		if (!canvas || isRecording || !simulation) return;
+
+		try {
+			// Capture stream from canvas at 60fps for smooth video
+			const stream = canvas.captureStream(60);
+			
+			// Prefer MP4 for better compatibility, fall back to high-quality WebM
+			const mimeTypes = [
+				'video/mp4;codecs=avc1.42E01E', // H.264 baseline
+				'video/mp4',
+				'video/webm;codecs=vp9',
+				'video/webm;codecs=vp8',
+				'video/webm'
+			];
+			
+			let selectedMimeType = '';
+			for (const mimeType of mimeTypes) {
+				if (MediaRecorder.isTypeSupported(mimeType)) {
+					selectedMimeType = mimeType;
+					break;
+				}
+			}
+			
+			if (!selectedMimeType) {
+				console.error('No supported video MIME type found');
+				return;
+			}
+
+			// Store current axis progress and hide axes during recording
+			preRecordingAxisProgress = simulation.view.axisProgress;
+			simulation.view.axisProgress = 0;
+
+			recordedChunks = [];
+			mediaRecorder = new MediaRecorder(stream, {
+				mimeType: selectedMimeType,
+				videoBitsPerSecond: 25000000 // 25 Mbps for high quality
+			});
+
+			mediaRecorder.ondataavailable = (event) => {
+				if (event.data.size > 0) {
+					recordedChunks.push(event.data);
+				}
+			};
+
+			mediaRecorder.onstop = () => {
+				const blob = new Blob(recordedChunks, { type: selectedMimeType });
+				const extension = selectedMimeType.includes('mp4') ? 'mp4' : 'webm';
+				const filename = `cellular-automaton-gen${simState.generation}.${extension}`;
+				
+				saveRecording(blob, filename);
+				recordedChunks = [];
+			};
+
+			mediaRecorder.start(100); // Collect data every 100ms
+			isRecording = true;
+		} catch (err) {
+			console.error('Failed to start recording:', err);
+		}
+	}
+
+	function stopRecording() {
+		if (mediaRecorder && isRecording) {
+			mediaRecorder.stop();
+			isRecording = false;
+			mediaRecorder = null;
+			
+			// Restore axis progress after recording
+			if (simulation && simState.showGrid) {
+				simulation.startAxisAnimation(true, 400);
+			}
+		}
+	}
+
+	async function saveRecording(blob: Blob, filename: string) {
+		// Try using the Web Share API for mobile (if available and supports files)
+		if (isMobileShareEnvironment() && navigator.share && navigator.canShare) {
+			const file = new File([blob], filename, { type: blob.type });
+			const shareData = { files: [file] };
+			
+			if (navigator.canShare(shareData)) {
+				try {
+					await navigator.share(shareData);
+					return;
+				} catch (err) {
+					// User cancelled or share failed, fall through to download
+					if ((err as Error).name === 'AbortError') return;
+				}
+			}
+		}
+		
+		// Fallback to download
+		const url = URL.createObjectURL(blob);
+		triggerDownload(url, filename);
+		// Clean up the object URL after a delay
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
 	}
 
 	export function screenshot() {

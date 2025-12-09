@@ -240,9 +240,22 @@
 		canvas.setScale(scale);
 	}
 
-	function handleScreenshot() {
-		canvas.screenshot();
+	function handleRecord() {
+		canvas.toggleRecording();
 	}
+
+	// Track recording state from canvas
+	let isRecording = $state(false);
+	
+	// Poll recording state (since we can't easily make it reactive across component boundary)
+	$effect(() => {
+		const interval = setInterval(() => {
+			if (canvas) {
+				isRecording = canvas.getIsRecording();
+			}
+		}, 100);
+		return () => clearInterval(interval);
+	});
 
 	function cycleColorScheme() {
 		const palette = simState.isLightTheme ? LIGHT_THEME_COLORS : DARK_THEME_COLORS;
@@ -396,7 +409,8 @@
 		oninitialize={() => toggleModal('initialize')}
 		onstep={handleStep}
 		onresetview={handleResetView}
-		onscreenshot={handleScreenshot}
+		onrecord={handleRecord}
+		{isRecording}
 		onhelp={() => toggleModal('help')}
 		onabout={() => toggleModal('about')}
 		{showHelp}

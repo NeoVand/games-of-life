@@ -402,10 +402,10 @@ const icons = {
 		<path d="M15 9l4 4-4 4"/>
 		<path d="M19 13h-7a4 4 0 1 1 1.17-7.8"/>
 	</svg>`,
-	// Camera/screenshot icon
-	camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
-		<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z"/>
-		<circle cx="12" cy="13" r="4"/>
+	// Video camera/record icon
+	record: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
+		<rect x="2" y="6" width="14" height="12" rx="2"/>
+		<path d="M22 8l-6 4 6 4V8z" fill="currentColor"/>
 	</svg>`,
 	// Fit to screen icon
 	fit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
@@ -542,7 +542,7 @@ function getTourSteps(): DriveStep[] {
 				description: createGroupDescription([
 					{ icon: icons.pan, label: 'Pan/Brush toggle', shortcut: 'B' },
 					{ icon: icons.fit, label: 'Fit to screen', shortcut: 'F' },
-					{ icon: icons.camera, label: 'Take screenshot' }
+					{ icon: icons.record, label: 'Record video' }
 				], 'Navigate and capture the view.', mobile),
 				side: popoverSide,
 				align: 'center'
