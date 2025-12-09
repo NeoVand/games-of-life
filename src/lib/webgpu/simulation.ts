@@ -35,6 +35,7 @@ export interface ViewState {
 	spectrumMode: number; // 0=hueShift, 1=rainbow, 2=warm, 3=cool, 4=monochrome, 5=fire
 	spectrumFrequency: number; // How many times to repeat spectrum (1.0 = normal)
 	neighborShading: number; // 0=off, 1=count alive, 2=sum vitality
+	axisProgress: number; // 0-1: animation progress for axis lines (0 = dot only, 1 = full lines)
 	// Vitality influence settings
 	vitalityMode: VitalityMode; // How dying cells affect neighbor counting
 	vitalityThreshold: number;  // For 'threshold'/'sigmoid' mode: 0.0-1.0
@@ -113,6 +114,7 @@ export class Simulation {
 			spectrumMode: 0, // Default to hue shift
 			spectrumFrequency: 1.0, // Default to single spectrum span
 			neighborShading: 1, // Default to count alive
+			axisProgress: 0, // Start at 0 for entrance animation
 			// Vitality defaults (standard behavior)
 			vitalityMode: 'none',
 			vitalityThreshold: 1.0,
@@ -240,10 +242,10 @@ export class Simulation {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
 
-		// Render params buffer (24 f32 values = 96 bytes, aligned to 16)
+		// Render params buffer (25 f32 values = 100 bytes, aligned to 112 for 16-byte alignment)
 		this.renderParamsBuffer = this.device.createBuffer({
 			label: 'Render Params Buffer',
-			size: 96,
+			size: 112,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
 
@@ -373,7 +375,8 @@ export class Simulation {
 			boundaryModeToIndex(this.view.boundaryMode), // boundary mode for seamless panning
 			this.view.brushShape, // 0-17: see ViewState for shape list
 			this.view.brushRotation, // rotation in radians
-			this.view.brushAspectRatio  // aspect ratio
+			this.view.brushAspectRatio, // aspect ratio
+			this.view.axisProgress // axis animation progress (0 = center dot, 1 = full lines)
 		]);
 		this.device.queue.writeBuffer(this.renderParamsBuffer, 0, params);
 	}
@@ -1385,6 +1388,15 @@ export class Simulation {
 		targetOffsetY: number;
 	} | null = null;
 
+	// Animation state for axis grow/shrink animation
+	private axisAnimation: {
+		active: boolean;
+		startTime: number;
+		duration: number;
+		startProgress: number;
+		targetProgress: number;
+	} | null = null;
+
 	/**
 	 * Calculate the target view state for fitting the entire grid
 	 */
@@ -1468,6 +1480,42 @@ export class Simulation {
 	 */
 	isAnimating(): boolean {
 		return this.viewAnimation?.active ?? false;
+	}
+
+	/**
+	 * Start axis animation (grow from center or shrink to center)
+	 * @param show - true to grow axes outward, false to shrink to center
+	 * @param duration - Animation duration in ms (default: 400)
+	 */
+	startAxisAnimation(show: boolean, duration: number = 400): void {
+		this.axisAnimation = {
+			active: true,
+			startTime: performance.now(),
+			duration,
+			startProgress: this.view.axisProgress,
+			targetProgress: show ? 1.0 : 0.0
+		};
+	}
+
+	/**
+	 * Update axis animation each frame
+	 */
+	updateAxisAnimation(): void {
+		if (!this.axisAnimation || !this.axisAnimation.active) return;
+		
+		const elapsed = performance.now() - this.axisAnimation.startTime;
+		const progress = Math.min(elapsed / this.axisAnimation.duration, 1);
+		const eased = this.easeOutCubic(progress);
+		
+		// Interpolate axis progress
+		this.view.axisProgress = this.axisAnimation.startProgress + 
+			(this.axisAnimation.targetProgress - this.axisAnimation.startProgress) * eased;
+		
+		// Animation complete
+		if (progress >= 1) {
+			this.view.axisProgress = this.axisAnimation.targetProgress;
+			this.axisAnimation.active = false;
+		}
 	}
 
 	/**

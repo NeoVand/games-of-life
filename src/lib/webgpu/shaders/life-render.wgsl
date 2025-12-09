@@ -31,6 +31,7 @@ struct RenderParams {
     brush_shape: f32,    // 0-17: circle, square, diamond, hexagon, ring, triangle, line, cross, star, heart, spiral, flower, burst, gear, wave, checker, dots, scatter
     brush_rotation: f32, // Rotation in radians
     brush_aspect: f32,   // Width/height aspect ratio
+    axis_progress: f32,  // 0.0 = center dot only, 1.0 = full axis lines (for animation)
 }
 
 @group(0) @binding(0) var<uniform> params: RenderParams;
@@ -373,6 +374,14 @@ fn get_grid_color() -> vec3<f32> {
         return vec3<f32>(0.85, 0.85, 0.88);
     }
     return vec3<f32>(0.08, 0.08, 0.12);
+}
+
+// Axis line color - prominent and visible against any background
+fn get_axis_color() -> vec3<f32> {
+    if (params.is_light_theme > 0.5) {
+        return vec3<f32>(0.3, 0.3, 0.35); // Dark gray for light theme
+    }
+    return vec3<f32>(0.6, 0.6, 0.65); // Light gray for dark theme
 }
 
 // Convert RGB to HSL
@@ -1203,7 +1212,6 @@ fn render_square(input: VertexOutput) -> vec4<f32> {
         let frac_y = fract(grid_y);
         
         // Grid line thickness scales with zoom - thicker when zoomed in
-        // At zoom 1000, lines are very thin; at zoom 50, lines are more visible
         let base_thickness = 0.08;
         let line_thickness = clamp(base_thickness * (200.0 / params.zoom), 0.01, 0.15);
         
@@ -1212,9 +1220,54 @@ fn render_square(input: VertexOutput) -> vec4<f32> {
         if (pixels_per_cell > 2.0) {
             if (frac_x < line_thickness || frac_x > (1.0 - line_thickness) ||
                 frac_y < line_thickness || frac_y > (1.0 - line_thickness)) {
-                // Grid lines - darker overlay
                 color = mix(color, get_grid_color(), 0.5);
             }
+        }
+    }
+    
+    // Draw axis lines - rendered whenever axis_progress > 0 (allows animation even when grid hidden)
+    if (params.axis_progress > 0.001) {
+        let center_x = params.grid_width / 2.0;
+        let center_y = params.grid_height / 2.0;
+        
+        let pixels_per_cell_axis = params.canvas_width / params.zoom;
+        let axis_thickness = max(0.5 / pixels_per_cell_axis, 0.08);
+        let axis_color = get_axis_color();
+        
+        let max_axis_x = params.grid_width / 2.0;
+        let max_axis_y = params.grid_height / 2.0;
+        
+        let progress = params.axis_progress;
+        let axis_len_x = max_axis_x * progress;
+        let axis_len_y = max_axis_y * progress;
+        
+        let dx = grid_x - center_x;
+        let dy = grid_y - center_y;
+        
+        // Center dot
+        let center_dist = sqrt(dx * dx + dy * dy);
+        let dot_radius = axis_thickness * 2.5;
+        if (center_dist < dot_radius) {
+            let dot_fade = 1.0 - smoothstep(dot_radius * 0.5, dot_radius, center_dist);
+            color = mix(color, axis_color, 0.9 * dot_fade);
+        }
+        
+        // X-axis: horizontal line through center
+        let dist_to_x_axis = abs(dy);
+        let within_x_range = abs(dx) <= axis_len_x;
+        if (dist_to_x_axis < axis_thickness && within_x_range && progress > 0.01) {
+            let edge_fade = 1.0 - smoothstep(axis_thickness * 0.5, axis_thickness, dist_to_x_axis);
+            let tip_fade = 1.0 - smoothstep(axis_len_x * 0.9, axis_len_x, abs(dx));
+            color = mix(color, axis_color, 0.85 * edge_fade * tip_fade);
+        }
+        
+        // Y-axis: vertical line through center
+        let dist_to_y_axis = abs(dx);
+        let within_y_range = abs(dy) <= axis_len_y;
+        if (dist_to_y_axis < axis_thickness && within_y_range && progress > 0.01) {
+            let edge_fade = 1.0 - smoothstep(axis_thickness * 0.5, axis_thickness, dist_to_y_axis);
+            let tip_fade = 1.0 - smoothstep(axis_len_y * 0.9, axis_len_y, abs(dy));
+            color = mix(color, axis_color, 0.85 * edge_fade * tip_fade);
         }
     }
     
@@ -1266,18 +1319,67 @@ fn render_hexagonal(input: VertexOutput) -> vec4<f32> {
     if (params.show_grid > 0.5) {
         let pixels_per_cell = params.canvas_width / params.zoom;
         if (pixels_per_cell > 4.0) {
-            // Calculate distance to hex cell boundary (Voronoi edge)
             let boundary_dist = hex_boundary_distance(grid_x, grid_y, cell_x, cell_y);
-            
-            // Grid line thickness scales with zoom
             let base_thickness = 0.04;
             let line_thickness = clamp(base_thickness * (100.0 / params.zoom), 0.008, 0.08);
-            
-            // Draw grid line when close to boundary
             if (boundary_dist < line_thickness) {
                 let blend = smoothstep(0.0, line_thickness, boundary_dist);
                 color = mix(get_grid_color(), color, blend);
             }
+        }
+    }
+    
+    // Draw 3 axes for hexagonal grid - rendered whenever axis_progress > 0
+    if (params.axis_progress > 0.001) {
+        let center_x = params.grid_width / 2.0;
+        let center_y = (params.grid_height / 2.0) * HEX_HEIGHT_RATIO;
+        
+        let rel_x = grid_x - center_x;
+        let rel_y = grid_y - center_y;
+        
+        let axis_color = get_axis_color();
+        let ppc = params.canvas_width / params.zoom;
+        let axis_thickness = max(0.5 / ppc, 0.08);
+        
+        let max_axis_len = min(params.grid_width, params.grid_height * HEX_HEIGHT_RATIO) / 2.0;
+        let progress = params.axis_progress;
+        let axis_len = max_axis_len * progress;
+        
+        let center_dist = sqrt(rel_x * rel_x + rel_y * rel_y);
+        
+        // Center dot
+        let dot_radius = axis_thickness * 2.5;
+        if (center_dist < dot_radius) {
+            let dot_fade = 1.0 - smoothstep(dot_radius * 0.5, dot_radius, center_dist);
+            color = mix(color, axis_color, 0.9 * dot_fade);
+        }
+        
+        // Axis 1: Horizontal (0°)
+        let within_h = abs(rel_x) <= axis_len;
+        if (abs(rel_y) < axis_thickness && within_h && progress > 0.01) {
+            let edge_fade = 1.0 - smoothstep(axis_thickness * 0.5, axis_thickness, abs(rel_y));
+            let tip_fade = 1.0 - smoothstep(axis_len * 0.9, axis_len, abs(rel_x));
+            color = mix(color, axis_color, 0.85 * edge_fade * tip_fade);
+        }
+        
+        // Axis 2: 60°
+        let dist_60 = abs(rel_y - rel_x * 1.732) / 2.0;
+        let along_60 = abs(rel_x * 0.5 + rel_y * 0.866);
+        let within_60 = along_60 <= axis_len;
+        if (dist_60 < axis_thickness && within_60 && progress > 0.01) {
+            let edge_fade = 1.0 - smoothstep(axis_thickness * 0.5, axis_thickness, dist_60);
+            let tip_fade = 1.0 - smoothstep(axis_len * 0.9, axis_len, along_60);
+            color = mix(color, axis_color, 0.85 * edge_fade * tip_fade);
+        }
+        
+        // Axis 3: 120°
+        let dist_120 = abs(rel_y + rel_x * 1.732) / 2.0;
+        let along_120 = abs(-rel_x * 0.5 + rel_y * 0.866);
+        let within_120 = along_120 <= axis_len;
+        if (dist_120 < axis_thickness && within_120 && progress > 0.01) {
+            let edge_fade = 1.0 - smoothstep(axis_thickness * 0.5, axis_thickness, dist_120);
+            let tip_fade = 1.0 - smoothstep(axis_len * 0.9, axis_len, along_120);
+            color = mix(color, axis_color, 0.85 * edge_fade * tip_fade);
         }
     }
     

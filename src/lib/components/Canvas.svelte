@@ -221,15 +221,23 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		// Apply the selected initialization method
 		applyLastInitialization();
 		
-		// Set initial view to fit the grid to the canvas (no animation on initial load)
 		// Use viewport dimensions since canvas may not be sized yet
 		const dpr = window.devicePixelRatio || 1;
 		const initialCanvasWidth = viewport.width * dpr;
 		const initialCanvasHeight = viewport.height * dpr;
+		
+		// Set view to fit the grid (no zoom animation)
 		simulation.resetView(initialCanvasWidth, initialCanvasHeight, false);
-
+		
 		// Start animation loop
 		animationLoop(performance.now());
+		
+		// Start axis grow animation after a brief delay
+		setTimeout(() => {
+			if (simulation) {
+				simulation.startAxisAnimation(true, 600); // Grow axes from center
+			}
+		}, 100);
 	}
 
 	function handleResize(entries: ResizeObserverEntry[]) {
@@ -261,6 +269,15 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 
 		// Update view animation (smooth transitions for fit-to-screen, etc.)
 		simulation.updateViewAnimation();
+		
+		// Check if grid visibility changed and trigger axis animation
+		if (lastShowGridState !== null && lastShowGridState !== simState.showGrid) {
+			simulation.startAxisAnimation(simState.showGrid, 400);
+		}
+		lastShowGridState = simState.showGrid;
+		
+		// Update axis animation (grow/shrink from center)
+		simulation.updateAxisAnimation();
 
 		// Run simulation steps if playing
 		if (simState.isPlaying) {
@@ -316,6 +333,9 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		// Update alive cells count (sync version for display)
 		simState.aliveCells = simulation.countAliveCells();
 	}
+
+	// Track grid visibility changes to trigger axis animation
+	let lastShowGridState: boolean | null = null;
 
 	// Track previous playing state to trigger count update when paused
 	let wasPlaying = false;
@@ -1060,6 +1080,16 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		-webkit-touch-callout: none;
 		-webkit-user-select: none;
 		user-select: none;
+		animation: canvas-fade-in 0.8s ease-out forwards;
+	}
+
+	@keyframes canvas-fade-in {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
 	}
 
 	canvas.pan-ready {
