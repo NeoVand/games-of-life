@@ -64,7 +64,7 @@ export const RULE_CATEGORIES: RuleCategoryInfo[] = [
 ];
 
 // Vitality modes - how dying cells influence neighbor counting
-export type VitalityMode = 'none' | 'threshold' | 'ghost' | 'sigmoid' | 'decay';
+export type VitalityMode = 'none' | 'threshold' | 'ghost' | 'sigmoid' | 'decay' | 'curve';
 
 export interface VitalityModeInfo {
 	id: VitalityMode;
@@ -77,8 +77,13 @@ export const VITALITY_MODES: VitalityModeInfo[] = [
 	{ id: 'threshold', name: 'Cut', description: 'Cells above vitality threshold count as alive' },
 	{ id: 'ghost', name: 'Ghost', description: 'Dying cells contribute fractionally based on vitality' },
 	{ id: 'sigmoid', name: 'Soft', description: 'Smooth S-curve transition between counting and not' },
-	{ id: 'decay', name: 'Decay', description: 'Power curve controls how fast influence falls off' }
+	{ id: 'decay', name: 'Decay', description: 'Power curve controls how fast influence falls off' },
+	{ id: 'curve', name: 'Curve', description: 'Custom curve defined by control points' }
 ];
+
+// Number of samples in the vitality curve lookup table
+// Higher = smoother curve response, but more GPU memory
+export const VITALITY_CURVE_SAMPLES = 128;
 
 // Vitality settings for a rule
 export interface VitalitySettings {
@@ -87,6 +92,7 @@ export interface VitalitySettings {
 	ghostFactor: number;   // For 'ghost'/'decay' mode: 0.0-1.0 (default 0.0)
 	sigmoidSharpness: number; // For 'sigmoid' mode: 1.0-20.0 (default 10.0)
 	decayPower: number;    // For 'decay' mode: 0.5-3.0 (default 1.0)
+	curveSamples?: number[]; // For 'curve' mode: 16 samples from vitality 0 to 1
 }
 
 // Default vitality settings (standard behavior)
@@ -95,7 +101,8 @@ export const DEFAULT_VITALITY: VitalitySettings = {
 	threshold: 1.0,
 	ghostFactor: 0.0,
 	sigmoidSharpness: 10.0,
-	decayPower: 1.0
+	decayPower: 1.0,
+	curveSamples: Array(VITALITY_CURVE_SAMPLES).fill(0) // All zeros = dying cells don't count
 };
 
 export interface CARule {
@@ -1021,18 +1028,19 @@ export const RULE_PRESETS: CARule[] = [
 		name: 'Hex2 Neo Diagonal Growth',
 		birthMask: 2148, // 2, 5, 6, 11
 		surviveMask: 2592, // 5, 9, 11
-		numStates: 256,
-		ruleString: 'B2,5,6,11/S5,9,11/C256',
+		numStates: 512,
+		ruleString: 'B2,5,6,11/S5,9,11/C512',
 		neighborhood: 'extendedHexagonal',
 		category: 'artistic',
-		description: 'Diagonal growth motifs with strong ghost damping',
+		description: 'Diagonal growth motifs with Midlife Crisis profile',
 		density: 0.2,
 		vitality: {
-			mode: 'ghost',
+			mode: 'curve',
 			threshold: 1.0,
-			ghostFactor: -0.7,
+			ghostFactor: 0,
 			sigmoidSharpness: 10.0,
-			decayPower: 1.0
+			decayPower: 1.0,
+			curveSamples: [0,-0.016,-0.033,-0.05,-0.068,-0.086,-0.105,-0.124,-0.144,-0.164,-0.184,-0.204,-0.225,-0.246,-0.267,-0.288,-0.309,-0.33,-0.351,-0.372,-0.392,-0.413,-0.433,-0.453,-0.473,-0.492,-0.512,-0.53,-0.548,-0.566,-0.583,-0.599,-0.615,-0.63,-0.644,-0.658,-0.671,-0.683,-0.694,-0.704,-0.713,-0.721,-0.728,-0.734,-0.739,-0.742,-0.745,-0.746,-0.742,-0.724,-0.693,-0.65,-0.598,-0.537,-0.47,-0.397,-0.321,-0.242,-0.163,-0.085,-0.01,0.062,0.128,0.187,0.237,0.277,0.305,0.319,0.319,0.308,0.285,0.253,0.213,0.165,0.112,0.053,-0.01,-0.075,-0.142,-0.21,-0.277,-0.343,-0.406,-0.465,-0.519,-0.568,-0.609,-0.641,-0.665,-0.681,-0.695,-0.709,-0.723,-0.735,-0.748,-0.759,-0.77,-0.781,-0.791,-0.8,-0.81,-0.818,-0.827,-0.835,-0.843,-0.85,-0.857,-0.864,-0.871,-0.878,-0.884,-0.891,-0.897,-0.903,-0.909,-0.916,-0.922,-0.928,-0.934,-0.941,-0.948,-0.954,-0.961,-0.968,-0.976,-0.984,-0.992,-1]
 		}
 	},
 	{

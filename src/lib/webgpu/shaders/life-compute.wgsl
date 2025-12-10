@@ -10,7 +10,7 @@ struct Params {
     num_states: u32,          // 2 for Life-like, 3+ for Generations
     boundary_mode: u32,       // 0=plane, 1=cylinderX, 2=cylinderY, 3=torus, 4=mobiusX, 5=mobiusY, 6=kleinX, 7=kleinY, 8=projectivePlane
     neighborhood: u32,        // 0 = Moore (8), 1 = Von Neumann (4), 2 = Extended Moore (24), 3 = Hexagonal (6), 4 = Extended Hexagonal (18)
-    vitality_mode: u32,       // 0=none, 1=threshold, 2=ghost, 3=sigmoid, 4=decay
+    vitality_mode: u32,       // 0=none, 1=threshold, 2=ghost, 3=sigmoid, 4=decay, 5=curve
     vitality_threshold: f32,  // For modes 1,3: vitality cutoff (0.0-1.0)
     vitality_ghost: f32,      // For modes 2,4: ghost contribution factor (0.0-1.0)
     vitality_sigmoid: f32,    // For mode 3: sigmoid sharpness (1.0-20.0)
@@ -24,6 +24,7 @@ struct Params {
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> cell_state_in: array<u32>;
 @group(0) @binding(2) var<storage, read_write> cell_state_out: array<u32>;
+@group(0) @binding(3) var<storage, read> vitality_curve: array<f32>;  // 128 samples from vitality 0 to 1
 
 // Boundary modes:
 // 0 = plane (no wrap)
@@ -161,9 +162,30 @@ fn get_neighbor_contribution(state: u32) -> f32 {
     // Mode 4: Decay - power curve with ghost factor
     // Alive cells contribute 1.0
     // Dying cells contribute vitality^power * ghost_factor
+    if (mode == 4u) {
+        if (state == 1u) { return 1.0; }
+        if (state == 0u) { return 0.0; }
+        return pow(vitality, params.vitality_decay) * params.vitality_ghost;
+    }
+    
+    // Mode 5: Custom curve - lookup from vitality_curve array
+    // The curve has 128 samples from vitality 0.0 to 1.0
+    // Alive cells always contribute 1.0
+    // Dead cells always contribute 0.0
+    // Dying cells are looked up from the curve with linear interpolation
     if (state == 1u) { return 1.0; }
     if (state == 0u) { return 0.0; }
-    return pow(vitality, params.vitality_decay) * params.vitality_ghost;
+    
+    // Map vitality (0-1) to curve index (0-127)
+    let curve_pos = vitality * 127.0;
+    let idx_low = u32(floor(curve_pos));
+    let idx_high = min(idx_low + 1u, 127u);
+    let frac = curve_pos - f32(idx_low);
+    
+    // Linear interpolation between adjacent samples
+    let val_low = vitality_curve[idx_low];
+    let val_high = vitality_curve[idx_high];
+    return mix(val_low, val_high, frac);
 }
 
 // Convert accumulated neighbor total to integer count with clamping to avoid underflow/overflow

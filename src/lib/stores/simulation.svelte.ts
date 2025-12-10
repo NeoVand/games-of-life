@@ -217,6 +217,7 @@ let vitalityThreshold = $state(defaultRuleVitality?.threshold ?? 1.0);
 let vitalityGhostFactor = $state(defaultRuleVitality?.ghostFactor ?? 0.0);
 let vitalitySigmoidSharpness = $state(defaultRuleVitality?.sigmoidSharpness ?? 10.0);
 let vitalityDecayPower = $state(defaultRuleVitality?.decayPower ?? 1.0);
+let vitalityCurveSamples = $state<number[]>(defaultRuleVitality?.curveSamples ?? new Array(128).fill(0));
 
 // Color palettes for dark and light themes
 export const DARK_THEME_COLORS: { name: string; color: [number, number, number]; hex: string }[] = [
@@ -851,6 +852,17 @@ export function getSimulationState() {
 			vitalityDecayPower = Math.max(0.5, Math.min(3.0, value));
 		},
 
+		get vitalityCurveSamples() {
+			return vitalityCurveSamples;
+		},
+		set vitalityCurveSamples(value: number[]) {
+			// Ensure we have exactly 128 samples, clamped to -2 to 2
+			vitalityCurveSamples = value.slice(0, 128).map(v => Math.max(-2, Math.min(2, v)));
+			while (vitalityCurveSamples.length < 128) {
+				vitalityCurveSamples.push(0);
+			}
+		},
+
 		// Get current vitality settings as an object
 		getVitalitySettings(): VitalitySettings {
 			return {
@@ -858,7 +870,8 @@ export function getSimulationState() {
 				threshold: vitalityThreshold,
 				ghostFactor: vitalityGhostFactor,
 				sigmoidSharpness: vitalitySigmoidSharpness,
-				decayPower: vitalityDecayPower
+				decayPower: vitalityDecayPower,
+				curveSamples: [...vitalityCurveSamples]
 			};
 		},
 
@@ -870,6 +883,7 @@ export function getSimulationState() {
 				vitalityGhostFactor = settings.ghostFactor;
 				vitalitySigmoidSharpness = settings.sigmoidSharpness ?? DEFAULT_VITALITY.sigmoidSharpness;
 				vitalityDecayPower = settings.decayPower ?? DEFAULT_VITALITY.decayPower;
+				vitalityCurveSamples = settings.curveSamples ?? new Array(128).fill(0);
 			} else {
 				// Reset to defaults
 				vitalityMode = DEFAULT_VITALITY.mode;
@@ -877,6 +891,7 @@ export function getSimulationState() {
 				vitalityGhostFactor = DEFAULT_VITALITY.ghostFactor;
 				vitalitySigmoidSharpness = DEFAULT_VITALITY.sigmoidSharpness;
 				vitalityDecayPower = DEFAULT_VITALITY.decayPower;
+				vitalityCurveSamples = new Array(128).fill(0);
 			}
 		},
 

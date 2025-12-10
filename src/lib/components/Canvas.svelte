@@ -342,7 +342,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			vitalityThreshold: simState.vitalityThreshold,
 			vitalityGhostFactor: simState.vitalityGhostFactor,
 			vitalitySigmoidSharpness: simState.vitalitySigmoidSharpness,
-			vitalityDecayPower: simState.vitalityDecayPower
+			vitalityDecayPower: simState.vitalityDecayPower,
+			vitalityCurveSamples: simState.vitalityCurveSamples
 		});
 
 		// Always render

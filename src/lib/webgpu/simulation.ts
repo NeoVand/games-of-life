@@ -42,6 +42,7 @@ export interface ViewState {
 	vitalityGhostFactor: number; // For 'ghost'/'decay' mode: 0.0-1.0
 	vitalitySigmoidSharpness: number; // For 'sigmoid' mode: 1.0-20.0
 	vitalityDecayPower: number; // For 'decay' mode: 0.5-3.0
+	vitalityCurveSamples: number[]; // For 'curve' mode: 128 samples from vitality 0 to 1
 }
 
 export class Simulation {
@@ -75,6 +76,7 @@ export class Simulation {
 	private renderParamsBuffer!: GPUBuffer;
 	private readbackBuffer!: GPUBuffer;
 	private textBitmapBuffer!: GPUBuffer;
+	private vitalityCurveBuffer!: GPUBuffer;
 
 	// Text bitmap state
 	private textBitmapWidth = 0;
@@ -131,7 +133,8 @@ export class Simulation {
 			vitalityThreshold: 1.0,
 			vitalityGhostFactor: 0.0,
 			vitalitySigmoidSharpness: 10.0,
-			vitalityDecayPower: 1.0
+			vitalityDecayPower: 1.0,
+			vitalityCurveSamples: new Array(128).fill(0) // All zeros = dying cells don't count
 		};
 
 		this.initializePipelines();
@@ -163,6 +166,11 @@ export class Simulation {
 					binding: 2,
 					visibility: GPUShaderStage.COMPUTE,
 					buffer: { type: 'storage' }
+				},
+				{
+					binding: 3,
+					visibility: GPUShaderStage.COMPUTE,
+					buffer: { type: 'read-only-storage' }
 				}
 			]
 		});
@@ -273,6 +281,13 @@ export class Simulation {
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
 		});
 
+		// Vitality curve buffer - 128 f32 samples for custom curve mode
+		this.vitalityCurveBuffer = this.device.createBuffer({
+			label: 'Vitality Curve Buffer',
+			size: 128 * 4, // 128 f32 values = 512 bytes
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+		});
+
 		// Initialize with current rule
 		this.updateComputeParams();
 	}
@@ -286,7 +301,8 @@ export class Simulation {
 				entries: [
 					{ binding: 0, resource: { buffer: this.computeParamsBuffer } },
 					{ binding: 1, resource: { buffer: this.cellBuffers[0] } },
-					{ binding: 2, resource: { buffer: this.cellBuffers[1] } }
+					{ binding: 2, resource: { buffer: this.cellBuffers[1] } },
+					{ binding: 3, resource: { buffer: this.vitalityCurveBuffer } }
 				]
 			}),
 			this.device.createBindGroup({
@@ -295,7 +311,8 @@ export class Simulation {
 				entries: [
 					{ binding: 0, resource: { buffer: this.computeParamsBuffer } },
 					{ binding: 1, resource: { buffer: this.cellBuffers[1] } },
-					{ binding: 2, resource: { buffer: this.cellBuffers[0] } }
+					{ binding: 2, resource: { buffer: this.cellBuffers[0] } },
+					{ binding: 3, resource: { buffer: this.vitalityCurveBuffer } }
 				]
 			})
 		];
@@ -340,6 +357,7 @@ export class Simulation {
 			case 'ghost': return 2;
 			case 'sigmoid': return 3;
 			case 'decay': return 4;
+			case 'curve': return 5;
 			default: return 0;
 		}
 	}
@@ -374,6 +392,15 @@ export class Simulation {
 		view.setUint32(60, 0, true);
 		
 		this.device.queue.writeBuffer(this.computeParamsBuffer, 0, buffer);
+	}
+
+	private updateVitalityCurve(): void {
+		// Write the 128 curve samples to the buffer
+		const samples = new Float32Array(128);
+		for (let i = 0; i < 128; i++) {
+			samples[i] = this.view.vitalityCurveSamples[i] ?? 0;
+		}
+		this.device.queue.writeBuffer(this.vitalityCurveBuffer, 0, samples);
 	}
 
 	private updateRenderParams(canvasWidth: number, canvasHeight: number): void {
@@ -1448,12 +1475,18 @@ export class Simulation {
 			(view.vitalityGhostFactor !== undefined && view.vitalityGhostFactor !== this.view.vitalityGhostFactor) ||
 			(view.vitalitySigmoidSharpness !== undefined && view.vitalitySigmoidSharpness !== this.view.vitalitySigmoidSharpness) ||
 			(view.vitalityDecayPower !== undefined && view.vitalityDecayPower !== this.view.vitalityDecayPower);
+		const curveChanged = view.vitalityCurveSamples !== undefined;
 		
 		this.view = { ...this.view, ...view };
 		
 		// If boundary mode or vitality settings changed, update compute params
 		if (boundaryChanged || vitalityChanged) {
 			this.updateComputeParams();
+		}
+		
+		// If curve samples changed, update the curve buffer
+		if (curveChanged) {
+			this.updateVitalityCurve();
 		}
 	}
 

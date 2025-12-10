@@ -184,8 +184,12 @@ function getRuleEditorTourSteps(): DriveStep[] {
 		{
 			element: '.vitality-section',
 			popover: {
-				title: titleWithIcon(icons.vitality, 'Vitality Influence'),
-				description: 'With multi-state rules, dying cells can influence their neighbors. Choose how vitality (decay state) affects neighbor counting for unique behaviors.',
+				title: titleWithIcon(icons.vitality, 'Neighborhood Vitality Influence'),
+				description: `<p>In multi-state rules, dying cells can influence neighbor counts. This curve defines <strong>how much</strong> each dying cell contributes.</p>
+				<p style="margin-top:0.5rem;font-family:monospace;font-size:0.7rem;background:rgba(0,0,0,0.2);padding:0.4rem;border-radius:4px;">neighbors = Σ alive + Σ f(vitality)</p>
+				<p style="margin-top:0.4rem;"><strong>X-axis</strong>: Cell vitality (0=just died → 1=almost alive)</p>
+				<p><strong>Y-axis</strong>: Contribution to neighbor count (−1 to +1)</p>
+				<p style="margin-top:0.3rem;font-size:0.7rem;opacity:0.8;">Positive values = cell counts toward births/survival. Negative = inhibits neighbors. Zero = invisible to counting.</p>`,
 				side: 'top',
 				align: 'center'
 			}

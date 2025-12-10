@@ -20,6 +20,7 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 	import { draggable } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
 	import BoundaryIcon from './BoundaryIcon.svelte';
+	import InfluenceCurveEditor from './InfluenceCurveEditor.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 	import { startRuleEditorTour, getRuleEditorTourStyles } from '../utils/ruleEditorTour.js';
@@ -669,10 +670,31 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 		return [hueToRgb(h + 1/3), hueToRgb(h), hueToRgb(h - 1/3)];
 	}
 
+	// Helper functions for color calculation
+	function mix(a: number, b: number, t: number): number {
+		return a + (b - a) * t;
+	}
+	
+	function fract(x: number): number {
+		return x - Math.floor(x);
+	}
+	
+	function getSpectrumModeIndex(mode: string): number {
+		const modes = [
+			'hueShift', 'rainbow', 'warm', 'cool', 'monochrome', 'fire',
+			'complement', 'triadic', 'split', 'analogous', 'pastel', 'vivid',
+			'thermal', 'bands', 'neon', 'sunset', 'ocean', 'forest'
+		];
+		return modes.indexOf(mode);
+	}
+	
+	// Get color for a given state - matches the shader's state_to_color function exactly
 	function getStateColor(state: number): string {
 		const [r, g, b] = simState.aliveColor;
 		const isLight = simState.isLightTheme;
-		const bg = isLight ? [0.95, 0.95, 0.97] : [0.05, 0.05, 0.08];
+		const bg: [number, number, number] = isLight ? [0.94, 0.94, 0.96] : [0.04, 0.04, 0.06];
+		const freq = simState.spectrumFrequency;
+		const mode = getSpectrumModeIndex(simState.spectrumMode);
 		
 		if (state === 0) {
 			return `rgb(${Math.round(bg[0] * 255)}, ${Math.round(bg[1] * 255)}, ${Math.round(bg[2] * 255)})`;
@@ -682,23 +704,298 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 			return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
 		}
 		
+		// Dying states
 		const dyingProgress = (state - 1) / (numStates - 1);
+		const spectrumProgress = fract(dyingProgress * freq);
 		const aliveHsl = rgbToHsl(r, g, b);
 		
-		let dyingHue = aliveHsl[0] + 0.25 * dyingProgress;
-		if (dyingHue > 1) dyingHue -= 1;
-		
-		const satCurve = 1 - dyingProgress * dyingProgress;
-		const dyingSat = aliveHsl[1] * Math.max(satCurve, 0.2);
-		
+		let dyingHue: number;
+		let dyingSat: number;
 		let dyingLight: number;
-		if (isLight) {
-			dyingLight = aliveHsl[2] + (0.35 - aliveHsl[2]) * dyingProgress * 0.8;
-		} else {
-			dyingLight = aliveHsl[2] + (0.15 - aliveHsl[2]) * dyingProgress * dyingProgress;
+		
+		// Mode 0: Hue Shift
+		if (mode === 0) {
+			dyingHue = aliveHsl[0] + 0.25 * spectrumProgress;
+			if (dyingHue > 1) dyingHue -= 1;
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.6) * Math.max(1.0 - spectrumProgress * 0.25, 0.65);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.55), 0.72, dyingProgress * dyingProgress);
+			} else {
+				const boostedSat = Math.max(aliveHsl[1], 0.4);
+				const satCurve = 1.0 - spectrumProgress * spectrumProgress;
+				dyingSat = boostedSat * Math.max(satCurve, 0.25);
+				dyingLight = mix(aliveHsl[2], 0.12, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 1: Rainbow
+		else if (mode === 1) {
+			dyingHue = aliveHsl[0] + spectrumProgress;
+			if (dyingHue > 1) dyingHue -= 1;
+			if (isLight) {
+				dyingSat = Math.max(0.75, aliveHsl[1]);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.5), 0.68, dyingProgress * dyingProgress);
+			} else {
+				const boostedSat = Math.max(aliveHsl[1], 0.5);
+				dyingSat = boostedSat * Math.max(1.0 - spectrumProgress * 0.3, 0.45);
+				dyingLight = mix(aliveHsl[2], 0.15, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 2: Warm
+		else if (mode === 2) {
+			const targetHue = 0.05;
+			let hueDiff = targetHue - aliveHsl[0];
+			if (hueDiff > 0.5) hueDiff -= 1.0;
+			if (hueDiff < -0.5) hueDiff += 1.0;
+			dyingHue = aliveHsl[0] + hueDiff * spectrumProgress;
+			if (dyingHue < 0) dyingHue += 1;
+			if (dyingHue > 1) dyingHue -= 1;
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.65) * Math.max(1.0 - spectrumProgress * 0.2, 0.6);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.55), 0.7, dyingProgress * dyingProgress);
+			} else {
+				const boostedSat = Math.max(aliveHsl[1], 0.45);
+				dyingSat = boostedSat * Math.max(1.0 - spectrumProgress * 0.3, 0.4);
+				dyingLight = mix(aliveHsl[2], 0.1, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 3: Cool
+		else if (mode === 3) {
+			const targetHue = 0.7;
+			let hueDiff = targetHue - aliveHsl[0];
+			if (hueDiff > 0.5) hueDiff -= 1.0;
+			if (hueDiff < -0.5) hueDiff += 1.0;
+			dyingHue = aliveHsl[0] + hueDiff * spectrumProgress;
+			if (dyingHue < 0) dyingHue += 1;
+			if (dyingHue > 1) dyingHue -= 1;
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.65) * Math.max(1.0 - spectrumProgress * 0.2, 0.6);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.55), 0.7, dyingProgress * dyingProgress);
+			} else {
+				const boostedSat = Math.max(aliveHsl[1], 0.45);
+				dyingSat = boostedSat * Math.max(1.0 - spectrumProgress * 0.3, 0.4);
+				dyingLight = mix(aliveHsl[2], 0.1, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 4: Monochrome
+		else if (mode === 4) {
+			dyingHue = aliveHsl[0];
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.5) * Math.max(1.0 - spectrumProgress * 0.35, 0.55);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.5), 0.75, dyingProgress);
+			} else {
+				const boostedSat = Math.max(aliveHsl[1], 0.35);
+				dyingSat = boostedSat * (1.0 - spectrumProgress * 0.7);
+				dyingLight = mix(aliveHsl[2], 0.1, dyingProgress);
+			}
+		}
+		// Mode 5: Fire
+		else if (mode === 5) {
+			if (spectrumProgress < 0.33) {
+				dyingHue = mix(aliveHsl[0], 0.12, spectrumProgress * 3.0);
+			} else if (spectrumProgress < 0.66) {
+				dyingHue = mix(0.12, 0.06, (spectrumProgress - 0.33) * 3.0);
+			} else {
+				dyingHue = mix(0.06, 0.0, (spectrumProgress - 0.66) * 3.0);
+			}
+			if (dyingHue < 0) dyingHue += 1;
+			const fireProgress = spectrumProgress * spectrumProgress;
+			if (isLight) {
+				dyingSat = Math.max(0.9 - fireProgress * 0.15, 0.7);
+				dyingLight = mix(0.5, 0.68, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = Math.max(1.0 - fireProgress * 0.2, 0.75);
+				dyingLight = mix(0.65, 0.04, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 6: Complement
+		else if (mode === 6) {
+			const complementHue = fract(aliveHsl[0] + 0.5);
+			dyingHue = mix(aliveHsl[0], complementHue, spectrumProgress);
+			if (dyingHue > 1) dyingHue -= 1;
+			const satCurve = 1.0 - Math.abs(spectrumProgress - 0.5) * 1.5;
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.7) * Math.max(satCurve, 0.6);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.55), 0.68, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = Math.max(aliveHsl[1], 0.5) * Math.max(satCurve, 0.4);
+				dyingLight = mix(aliveHsl[2], 0.12, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 7: Triadic
+		else if (mode === 7) {
+			const triadic1 = fract(aliveHsl[0] + 0.333);
+			const triadic2 = fract(aliveHsl[0] + 0.666);
+			if (spectrumProgress < 0.5) {
+				dyingHue = mix(aliveHsl[0], triadic1, spectrumProgress * 2.0);
+			} else {
+				dyingHue = mix(triadic1, triadic2, (spectrumProgress - 0.5) * 2.0);
+			}
+			if (dyingHue > 1) dyingHue -= 1;
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.7) * Math.max(1.0 - spectrumProgress * 0.2, 0.65);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.5), 0.65, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = Math.max(aliveHsl[1], 0.55) * Math.max(1.0 - spectrumProgress * 0.25, 0.5);
+				dyingLight = mix(aliveHsl[2], 0.12, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 8: Split
+		else if (mode === 8) {
+			const split1 = fract(aliveHsl[0] + 0.417);
+			const split2 = fract(aliveHsl[0] + 0.583);
+			const phase = Math.sin(spectrumProgress * Math.PI * 2.0) * 0.5 + 0.5;
+			dyingHue = mix(split1, split2, phase);
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.7) * Math.max(1.0 - spectrumProgress * 0.25, 0.6);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.52), 0.68, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = Math.max(aliveHsl[1], 0.5) * Math.max(1.0 - spectrumProgress * 0.3, 0.45);
+				dyingLight = mix(aliveHsl[2], 0.12, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 9: Analogous
+		else if (mode === 9) {
+			const wave = Math.sin(spectrumProgress * Math.PI * 3.0);
+			dyingHue = aliveHsl[0] + wave * 0.083;
+			if (dyingHue < 0) dyingHue += 1;
+			if (dyingHue > 1) dyingHue -= 1;
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1], 0.65) * Math.max(1.0 - spectrumProgress * 0.25, 0.6);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.55), 0.7, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = Math.max(aliveHsl[1], 0.45) * Math.max(1.0 - spectrumProgress * 0.35, 0.4);
+				dyingLight = mix(aliveHsl[2], 0.12, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 10: Pastel
+		else if (mode === 10) {
+			dyingHue = aliveHsl[0] + spectrumProgress * 0.15;
+			if (dyingHue > 1) dyingHue -= 1;
+			if (isLight) {
+				dyingSat = Math.max(aliveHsl[1] * 0.6, 0.35) * (1.0 - spectrumProgress * 0.3);
+				dyingLight = mix(Math.min(aliveHsl[2], 0.55), 0.72, dyingProgress);
+			} else {
+				dyingSat = Math.max(aliveHsl[1] * 0.6, 0.25) * (1.0 - spectrumProgress * 0.4);
+				dyingLight = mix(Math.max(aliveHsl[2], 0.5), 0.2, dyingProgress);
+			}
+		}
+		// Mode 11: Vivid
+		else if (mode === 11) {
+			const numBands = 8.0;
+			const band = Math.floor(spectrumProgress * numBands);
+			dyingHue = aliveHsl[0] + (band / numBands) * 0.4;
+			if (dyingHue > 1) dyingHue -= 1;
+			const bandVar = fract(band * 0.37);
+			if (isLight) {
+				dyingSat = Math.min(1.0, Math.max(aliveHsl[1], 0.8) + 0.15 * bandVar);
+				dyingLight = mix(0.45, 0.65, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = Math.min(1.0, Math.max(aliveHsl[1], 0.75) + 0.15 * bandVar);
+				dyingLight = mix(0.55, 0.1, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 12: Thermal
+		else if (mode === 12) {
+			const numBands = 12.0;
+			const band = Math.floor(spectrumProgress * numBands);
+			const bandT = band / (numBands - 1.0);
+			const isWarmStart = aliveHsl[0] < 0.17 || aliveHsl[0] > 0.83;
+			if (isWarmStart) {
+				dyingHue = mix(aliveHsl[0], 0.75, bandT);
+			} else {
+				dyingHue = mix(aliveHsl[0], 0.0, bandT);
+			}
+			if (dyingHue < 0) dyingHue += 1;
+			if (dyingHue > 1) dyingHue -= 1;
+			dyingSat = (band % 2 < 1) ? 0.7 : 0.9;
+			const fade = dyingProgress * dyingProgress;
+			dyingLight = isLight ? mix(0.48, 0.7, fade) : mix(0.55, 0.12, fade);
+		}
+		// Mode 13: Bands
+		else if (mode === 13) {
+			const numBands = 10.0;
+			const band = Math.floor(spectrumProgress * numBands);
+			dyingHue = aliveHsl[0] + (band / numBands) * 0.6;
+			if (dyingHue > 1) dyingHue -= 1;
+			dyingSat = (band % 2 < 1) ? Math.max(aliveHsl[1], 0.55) : Math.max(aliveHsl[1], 0.75);
+			const stripe = band % 2 < 1;
+			if (isLight) {
+				dyingLight = stripe ? 0.55 : 0.45;
+				dyingLight = mix(dyingLight, 0.7, dyingProgress * dyingProgress);
+			} else {
+				dyingLight = stripe ? 0.4 : 0.52;
+				dyingLight = mix(dyingLight, 0.1, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 14: Neon
+		else if (mode === 14) {
+			const numBands = 9.0;
+			const band = Math.floor(spectrumProgress * numBands);
+			const colorIdx = band % 3;
+			if (colorIdx < 1) {
+				dyingHue = aliveHsl[0];
+			} else if (colorIdx < 2) {
+				dyingHue = fract(aliveHsl[0] + 0.333);
+			} else {
+				dyingHue = fract(aliveHsl[0] + 0.666);
+			}
+			dyingSat = 1.0;
+			if (isLight) {
+				dyingLight = 0.42 + (band % 3) * 0.04;
+				dyingLight = mix(dyingLight, 0.65, dyingProgress * dyingProgress);
+			} else {
+				dyingLight = 0.52 + (band % 3) * 0.05;
+				dyingLight = mix(dyingLight, 0.08, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 15: Sunset
+		else if (mode === 15) {
+			const numBands = 12.0;
+			const band = Math.floor(spectrumProgress * numBands);
+			const bandT = band / (numBands - 1.0);
+			const warmHue = mix(aliveHsl[0], 0.08, 0.5);
+			const coolHue = 0.6;
+			dyingHue = mix(warmHue, coolHue, bandT);
+			if (dyingHue < 0) dyingHue += 1;
+			dyingSat = (band % 2 < 1) ? 0.65 : 0.85;
+			dyingLight = isLight ? mix(0.48, 0.68, dyingProgress * dyingProgress) : mix(0.55, 0.1, dyingProgress * dyingProgress);
+		}
+		// Mode 16: Ocean
+		else if (mode === 16) {
+			const numBands = 10.0;
+			const band = Math.floor(spectrumProgress * numBands);
+			const bandT = band / (numBands - 1.0);
+			const baseOcean = mix(0.5, 0.66, bandT);
+			dyingHue = mix(aliveHsl[0], baseOcean, 0.3 + spectrumProgress * 0.7);
+			const wave = Math.sin(bandT * Math.PI * 2.0) * 0.15;
+			if (isLight) {
+				dyingSat = Math.max(0.65, aliveHsl[1] * 0.9) + wave;
+				dyingLight = mix(0.45, 0.65, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = Math.max(0.6, aliveHsl[1] * 0.9) + wave;
+				dyingLight = mix(0.5, 0.08, dyingProgress * dyingProgress);
+			}
+		}
+		// Mode 17: Forest (default)
+		else {
+			const numBands = 10.0;
+			const band = Math.floor(spectrumProgress * numBands);
+			const bandT = band / (numBands - 1.0);
+			const forestHue = mix(0.33, 0.08, bandT);
+			dyingHue = mix(aliveHsl[0], forestHue, 0.4 + spectrumProgress * 0.6);
+			if (dyingHue < 0) dyingHue += 1;
+			if (isLight) {
+				dyingSat = mix(Math.max(aliveHsl[1], 0.6), 0.45, bandT);
+				dyingLight = mix(0.42, 0.62, dyingProgress * dyingProgress);
+			} else {
+				dyingSat = mix(Math.max(aliveHsl[1], 0.6), 0.4, bandT);
+				dyingLight = mix(0.45, 0.1, dyingProgress * dyingProgress);
+			}
 		}
 		
 		const dyingRgb = hslToRgb(dyingHue, dyingSat, dyingLight);
+		
+		// Blend with background at the end
 		const bgBlend = dyingProgress * dyingProgress * dyingProgress * 0.6;
 		const finalR = Math.round((dyingRgb[0] * (1 - bgBlend) + bg[0] * bgBlend) * 255);
 		const finalG = Math.round((dyingRgb[1] * (1 - bgBlend) + bg[1] * bgBlend) * 255);
@@ -1367,124 +1664,10 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 			</div>
 		</div>
 		
-		<!-- Vitality Influence -->
+		<!-- Memory Influence Curve Editor -->
 		{#if numStates > 2}
 			<div class="vitality-section">
-				<div class="vitality-header">
-					<span class="vitality-label">Vitality</span>
-				</div>
-				<div class="vitality-modes">
-					<!-- Off mode - standard behavior -->
-					<button 
-						class="vitality-mode-btn" 
-						class:active={simState.vitalityMode === 'none'}
-						onclick={() => { simState.vitalityMode = 'none'; }}
-						title="Only fully alive cells count as neighbors"
-					>
-						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-							<circle cx="10" cy="10" r="7" />
-							<line x1="5" y1="5" x2="15" y2="15" />
-						</svg>
-						<span>Off</span>
-					</button>
-					
-					<!-- Threshold (Cut) mode -->
-					<button 
-						class="vitality-mode-btn" 
-						class:active={simState.vitalityMode === 'threshold'}
-						onclick={() => { simState.vitalityMode = 'threshold'; }}
-						title="Cells above vitality threshold count as alive"
-					>
-						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-							<line x1="3" y1="14" x2="10" y2="14" />
-							<line x1="10" y1="14" x2="10" y2="6" />
-							<line x1="10" y1="6" x2="17" y2="6" />
-						</svg>
-						<span>Cut</span>
-					</button>
-					
-					<!-- Ghost mode -->
-					<button 
-						class="vitality-mode-btn" 
-						class:active={simState.vitalityMode === 'ghost'}
-						onclick={() => { simState.vitalityMode = 'ghost'; }}
-						title="Dying cells contribute fractionally based on vitality"
-					>
-						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-							<path d="M10 3 Q6 3 6 8 L6 14 Q6 17 8 17 L8 15 L10 17 L12 15 L12 17 Q14 17 14 14 L14 8 Q14 3 10 3" />
-							<circle cx="8" cy="9" r="1" fill="currentColor" />
-							<circle cx="12" cy="9" r="1" fill="currentColor" />
-						</svg>
-						<span>Ghost</span>
-					</button>
-					
-					<!-- Sigmoid (Soft) mode -->
-					<button 
-						class="vitality-mode-btn" 
-						class:active={simState.vitalityMode === 'sigmoid'}
-						onclick={() => { simState.vitalityMode = 'sigmoid'; }}
-						title="Smooth S-curve transition between counting and not"
-					>
-						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-							<path d="M3 15 Q7 15 10 10 Q13 5 17 5" />
-						</svg>
-						<span>Soft</span>
-					</button>
-					
-					<!-- Decay mode -->
-					<button 
-						class="vitality-mode-btn" 
-						class:active={simState.vitalityMode === 'decay'}
-						onclick={() => { simState.vitalityMode = 'decay'; }}
-						title="Power curve controls how fast influence falls off"
-					>
-						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-							<path d="M3 5 Q5 5 7 7 Q10 11 14 14 L17 15" />
-						</svg>
-						<span>Decay</span>
-					</button>
-				</div>
-				
-				<!-- Sliders row - context-sensitive based on mode -->
-				{#if simState.vitalityMode !== 'none'}
-					<div class="vitality-sliders">
-						{#if simState.vitalityMode === 'threshold'}
-							<div class="vitality-slider-item">
-								<span class="slider-label">Threshold</span>
-								<input type="range" min="0" max="1" step="0.01" bind:value={simState.vitalityThreshold} />
-								<span class="slider-value">{simState.vitalityThreshold.toFixed(2)}</span>
-							</div>
-						{:else if simState.vitalityMode === 'ghost'}
-							<div class="vitality-slider-item">
-								<span class="slider-label">Factor</span>
-						<input type="range" min="-1" max="1" step="0.01" bind:value={simState.vitalityGhostFactor} />
-								<span class="slider-value">{simState.vitalityGhostFactor.toFixed(2)}</span>
-							</div>
-						{:else if simState.vitalityMode === 'sigmoid'}
-							<div class="vitality-slider-item">
-								<span class="slider-label">Center</span>
-								<input type="range" min="0" max="1" step="0.01" bind:value={simState.vitalityThreshold} />
-								<span class="slider-value">{simState.vitalityThreshold.toFixed(2)}</span>
-							</div>
-							<div class="vitality-slider-item">
-								<span class="slider-label">Sharp</span>
-								<input type="range" min="1" max="20" step="0.5" bind:value={simState.vitalitySigmoidSharpness} />
-								<span class="slider-value">{simState.vitalitySigmoidSharpness.toFixed(1)}</span>
-							</div>
-						{:else if simState.vitalityMode === 'decay'}
-							<div class="vitality-slider-item">
-								<span class="slider-label">Factor</span>
-						<input type="range" min="-1" max="1" step="0.01" bind:value={simState.vitalityGhostFactor} />
-								<span class="slider-value">{simState.vitalityGhostFactor.toFixed(2)}</span>
-							</div>
-							<div class="vitality-slider-item">
-								<span class="slider-label">Curve</span>
-								<input type="range" min="0.5" max="3" step="0.1" bind:value={simState.vitalityDecayPower} />
-								<span class="slider-value">{simState.vitalityDecayPower.toFixed(1)}</span>
-							</div>
-						{/if}
-					</div>
-				{/if}
+				<InfluenceCurveEditor />
 			</div>
 		{/if}
 	</div>
@@ -2433,146 +2616,10 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 		color: var(--ui-accent, #2dd4bf);
 	}
 
-	/* Vitality Influence Section */
+	/* Memory Influence Curve Section */
 	.vitality-section {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-		padding-top: 0.4rem;
+		padding-top: 0.5rem;
 		border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.06));
-	}
-	
-	.vitality-header {
-		display: flex;
-		align-items: center;
-	}
-	
-	.vitality-label {
-		font-size: 0.55rem;
-		color: var(--ui-text, #555);
-		text-transform: uppercase;
-	}
-	
-	.vitality-modes {
-		display: flex;
-		gap: 0.2rem;
-	}
-	
-	.vitality-mode-btn {
-		flex: 1;
-		padding: 0.25rem 0.15rem;
-		background: var(--ui-input-bg, rgba(0, 0, 0, 0.3));
-		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
-		border-radius: 4px;
-		cursor: pointer;
-		transition: all 0.15s;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.15rem;
-	}
-	
-	.vitality-mode-btn svg {
-		width: 16px;
-		height: 16px;
-	}
-	
-	.vitality-mode-btn span {
-		font-size: 0.5rem;
-		color: var(--ui-text, #666);
-	}
-	
-	.vitality-mode-btn:hover {
-		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
-		border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.15));
-	}
-	
-	.vitality-mode-btn:hover svg {
-		color: var(--ui-text-hover, #fff);
-	}
-	
-	.vitality-mode-btn:hover span {
-		color: var(--ui-text-hover, #fff);
-	}
-	
-	.vitality-mode-btn.active {
-		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
-		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
-	}
-	
-	.vitality-mode-btn.active svg {
-		color: var(--ui-accent, #2dd4bf);
-	}
-	
-	.vitality-mode-btn.active span {
-		color: var(--ui-accent, #2dd4bf);
-	}
-	
-	.vitality-sliders {
-		display: flex;
-		gap: 0.5rem;
-	}
-	
-	.vitality-slider-item {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-	}
-	
-	.vitality-slider-item .slider-label {
-		font-size: 0.5rem;
-		color: var(--ui-text, #666);
-		min-width: 2.2rem;
-	}
-	
-	.vitality-slider-item input[type='range'] {
-		flex: 1;
-		height: 3px;
-		-webkit-appearance: none;
-		appearance: none;
-		background: var(--ui-border, rgba(255, 255, 255, 0.15));
-		border-radius: 2px;
-		outline: none;
-		cursor: pointer;
-	}
-	
-	.vitality-slider-item input[type='range']::-webkit-slider-thumb {
-		-webkit-appearance: none;
-		appearance: none;
-		width: 10px;
-		height: 10px;
-		background: var(--ui-accent, #2dd4bf);
-		border-radius: 50%;
-		cursor: pointer;
-		border: none;
-		transition: transform 0.1s;
-	}
-	
-	.vitality-slider-item input[type='range']::-webkit-slider-thumb:hover {
-		transform: scale(1.2);
-	}
-	
-	.vitality-slider-item input[type='range']::-moz-range-thumb {
-		width: 10px;
-		height: 10px;
-		background: var(--ui-accent, #2dd4bf);
-		border-radius: 50%;
-		cursor: pointer;
-		border: none;
-		transition: transform 0.1s;
-	}
-	
-	.vitality-slider-item input[type='range']::-moz-range-thumb:hover {
-		transform: scale(1.2);
-	}
-	
-	.vitality-slider-item .slider-value {
-		font-size: 0.5rem;
-		color: var(--ui-text-hover, #aaa);
-		min-width: 1.5rem;
-		text-align: right;
-		font-variant-numeric: tabular-nums;
 	}
 
 	.foot-label {
