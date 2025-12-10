@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { getSimulationRef } from '../stores/simulation.svelte.js';
+	import { getSimulationRef, getSimulationState } from '../stores/simulation.svelte.js';
 	import { getNodes, getHeadId, jumpToNode, renameNode, deleteNode, getRootId, getMaxHistory, subscribeHistory, clearHistory, type HistoryNode } from '../stores/history.js';
 	import { draggable, centerInViewport } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
@@ -10,9 +10,16 @@
 	}
 
 	let { onclose }: Props = $props();
+	const simState = getSimulationState();
 	const modalState = $derived(getModalState('historyTimeline'));
 	let modalEl = $state<HTMLDivElement | null>(null);
 	const maxHistory = getMaxHistory();
+	
+	// Accent color from theme
+	const accentColor = $derived.by(() => {
+		const [r, g, b] = simState.aliveColor;
+		return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+	});
 
 	let selectedId = $state<string | null>(null);
 
@@ -267,7 +274,7 @@ function cancelEdit() {
 	>
 		<div class="header">
 			<span class="title">
-				<svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
+				<svg viewBox="0 0 24 24" class="icon" aria-hidden="true" style="stroke: {accentColor};">
 					<circle cx="6" cy="6" r="2"/>
 					<circle cx="18" cy="10" r="2"/>
 					<circle cx="12" cy="18" r="2"/>
