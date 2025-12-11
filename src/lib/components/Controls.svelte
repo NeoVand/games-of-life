@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { getSimulationState, getUIState, getSimulationRef } from '../stores/simulation.svelte.js';
-	import { openModal, getModalStates } from '../stores/modalManager.svelte.js';
+	import { openModal, closeModal, getModalStates } from '../stores/modalManager.svelte.js';
 	import HeartIcon from './HeartIcon.svelte';
 	import { canUndo, canRedo, undo as historyUndo, redo as historyRedo, subscribeHistory } from '../stores/history.js';
 
@@ -17,15 +17,14 @@
 		showHelp?: boolean;
 		showInitialize?: boolean;
 		showAbout?: boolean;
+		collapsed?: boolean;
 	}
 
-	let { onclear, oninitialize, onstep, onresetview, onrecord, isRecording = false, onhelp, onabout, showHelp = false, showInitialize = false, showAbout = false }: Props = $props();
+	let { onclear, oninitialize, onstep, onresetview, onrecord, isRecording = false, onhelp, onabout, showHelp = false, showInitialize = false, showAbout = false, collapsed = $bindable(false) }: Props = $props();
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
 	const modalStates = $derived(getModalStates());
-
-	let collapsed = $state(false);
 	let showSpeedSlider = $state(false);
 
 	// Use UI state for brush popup so Canvas can also track it

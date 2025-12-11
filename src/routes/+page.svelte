@@ -31,6 +31,9 @@
 	const showBrushEditor = $derived(modalStates.brushEditor.isOpen);
 	let canvas: Canvas;
 	let tourStyleElement: HTMLStyleElement | null = null;
+	
+	// Toolbar starts collapsed, expands when leaving the first tour step
+	let toolbarCollapsed = $state(true);
 
 	// Convert alive color (0-1 RGB) to CSS color strings
 	const accentColor = $derived.by(() => {
@@ -143,6 +146,8 @@
 	// Start the tour
 	function handleStartTour() {
 		updateTourStyles();
+		// Collapse toolbar when starting tour
+		toolbarCollapsed = true;
 		startTour({
 			accentColor,
 			isLightTheme: simState.isLightTheme,
@@ -150,6 +155,10 @@
 			getAccentColor: () => accentColor,
 			getIsLightTheme: () => simState.isLightTheme,
 			getSpectrumMode: () => simState.spectrumMode,
+			onLeaveFirstStep: () => {
+				// Expand toolbar with animation when leaving the first step
+				toolbarCollapsed = false;
+			},
 			onComplete: () => {
 				// Apply selected gallery rule if user clicked one
 				const selectedRule = getSelectedGalleryRule();
@@ -443,6 +452,7 @@
 		{showHelp}
 		{showInitialize}
 		{showAbout}
+		bind:collapsed={toolbarCollapsed}
 	/>
 
 	{#if showHelp}

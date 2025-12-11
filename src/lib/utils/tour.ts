@@ -1537,6 +1537,7 @@ function getTourSteps(): DriveStep[] {
 export function createTour(options?: { 
 	onComplete?: () => void;
 	onSkip?: () => void;
+	onLeaveFirstStep?: () => void; // Called when user leaves the first step (via Next or Close)
 	accentColor?: string;
 	isLightTheme?: boolean;
 	// Getter functions for live updates during the tour
@@ -1546,6 +1547,9 @@ export function createTour(options?: {
 }): ReturnType<typeof driver> {
 	const accentColor = options?.accentColor || getCSSVariable('--ui-accent');
 	const isLight = options?.isLightTheme ?? false;
+	
+	// Track if we've left the first step (to avoid calling callback multiple times)
+	let hasLeftFirstStep = false;
 	
 	// Set up getter functions for live color updates in the gallery
 	if (options?.getAccentColor) {
@@ -1590,6 +1594,11 @@ export function createTour(options?: {
 			}
 		},
 		onNextClick: (element, step, opts) => {
+			// Notify when leaving the first step
+			if (opts.state.activeIndex === 0 && !hasLeftFirstStep) {
+				hasLeftFirstStep = true;
+				options?.onLeaveFirstStep?.();
+			}
 			// Check if this is the last step - user clicked "Done"
 			const steps = opts.config.steps || [];
 			if (opts.state.activeIndex === steps.length - 1) {
@@ -1602,6 +1611,11 @@ export function createTour(options?: {
 			tourActive = false;
 			stopMiniSim();
 			markTourCompleted();
+			// Notify if leaving from first step via close
+			if (!hasLeftFirstStep) {
+				hasLeftFirstStep = true;
+				options?.onLeaveFirstStep?.();
+			}
 			// Apply selected rule if user actively clicked one OR completed the tour
 			if (tourCompletedProperly || userActivelySelectedRule) {
 				options?.onComplete?.();
