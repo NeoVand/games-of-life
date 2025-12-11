@@ -254,8 +254,8 @@ function stopMiniSim(): void {
 }
 
 export function hasTourBeenCompleted(): boolean {
-	if (typeof localStorage === 'undefined') return true;
-	return localStorage.getItem(TOUR_COMPLETED_KEY) === 'true';
+	// Always show tour on page load - users may need a refresher
+	return false;
 }
 
 export function markTourCompleted(): void {
