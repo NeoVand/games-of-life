@@ -1921,7 +1921,7 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		@media (max-width: 768px) {
 			.driver-popover.gol-tour-popover {
 				max-width: calc(100vw - 32px) !important;
-				margin: 0 16px !important;
+				/* Don't set margin - let driver.js handle centering */
 			}
 			
 			.driver-popover.gol-tour-popover .driver-popover-title {
@@ -1976,7 +1976,7 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		@media (max-width: 380px) {
 			.driver-popover.gol-tour-popover {
 				max-width: calc(100vw - 24px) !important;
-				margin: 0 12px !important;
+				/* Don't set margin - let driver.js handle centering */
 			}
 			
 			.tour-gallery {
