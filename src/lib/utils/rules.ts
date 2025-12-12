@@ -1060,6 +1060,29 @@ export const RULE_PRESETS: CARule[] = [
 		density: 0.2
 	},
 	{
+		name: 'Ext24 Neo Labubu',
+		birthMask: 524296, // B3,19
+		surviveMask: 16781312, // S12,24
+		numStates: 508,
+		ruleString: 'B3,19/S12,24/C508',
+		neighborhood: 'extendedMoore',
+		category: 'artistic',
+		description: 'Cute creature-like emergent patterns with unique vitality curve',
+		density: 0.25,
+		vitality: {
+			mode: 'curve',
+			threshold: 1.0,
+			ghostFactor: 0,
+			sigmoidSharpness: 10.0,
+			decayPower: 1.0,
+			curvePoints: [
+				{ x: 0, y: 0 },
+				{ x: 0.8179529375804944, y: 0.507378066217367 },
+				{ x: 1, y: -0.3648845477375944 }
+			]
+		}
+	},
+	{
 		name: 'Ext24 Neo Threshold',
 		birthMask: 0b1111111111111111111000000, // 6-24
 		surviveMask: 0b1111111111100000011111000000, // 6-10, 14-24 (gap at 11-13)
