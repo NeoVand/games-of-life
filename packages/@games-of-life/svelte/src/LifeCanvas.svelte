@@ -4,7 +4,18 @@
 
 	type Seed =
 		| { kind: 'random'; density?: number; includeSpectrum?: boolean }
-		| { kind: 'blank' };
+		| { kind: 'blank' }
+		| {
+				kind: 'cells';
+				/** Relative [dx, dy] from center. */
+				cells: [number, number][];
+				/** When true, repeat the pattern across the preview grid. */
+				tiled?: boolean;
+				/** Spacing between tile centers (in preview grid cells). */
+				spacing?: number;
+				/** State to stamp (defaults to 1). */
+				state?: number;
+		  };
 
 	interface Props {
 		/** Canvas bitmap size (pixels). */
@@ -80,8 +91,34 @@
 
 	export function reset() {
 		if (!simulation) return;
-		if (seed.kind === 'blank') simulation.clear();
-		else simulation.randomize(seed.density ?? 0.22, seed.includeSpectrum ?? true);
+		if (seed.kind === 'blank') {
+			simulation.clear();
+		} else if (seed.kind === 'random') {
+			simulation.randomize(seed.density ?? 0.22, seed.includeSpectrum ?? true);
+		} else {
+			simulation.clear();
+			const state = seed.state ?? 1;
+			const spacing = Math.max(1, seed.spacing ?? 10);
+			const cx = Math.floor(gridWidth / 2);
+			const cy = Math.floor(gridHeight / 2);
+
+			const stampAt = (tx: number, ty: number) => {
+				for (const [dx, dy] of seed.cells) {
+					simulation?.setCell(tx + dx, ty + dy, state);
+				}
+			};
+
+			if (seed.tiled) {
+				const startOffset = Math.floor(spacing / 2) % spacing;
+				for (let ty = startOffset; ty < gridHeight; ty += spacing) {
+					for (let tx = startOffset; tx < gridWidth; tx += spacing) {
+						stampAt(tx, ty);
+					}
+				}
+			} else {
+				stampAt(cx, cy);
+			}
+		}
 		simulation.render(width, height);
 	}
 

@@ -3,6 +3,7 @@
 	import { getSimulationState, GRID_SCALES, type GridScale } from '../stores/simulation.svelte.js';
 	import { draggable } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
+	import { LifeCanvas } from '@games-of-life/svelte';
 	import { onMount, onDestroy } from 'svelte';
 
 	interface Props {
@@ -71,12 +72,9 @@
 			: PREVIEW_SIZE_Y_SQUARE
 	);
 	
-	let previewCanvas: HTMLCanvasElement;
-	let previewCtx: CanvasRenderingContext2D | null = null;
-	let previewGrid: number[] = [];
 	let previewPlaying = $state(false);
-	let previewAnimationId: number | null = null;
-	let lastPreviewStep = 0;
+	type PreviewApi = { stepOnce: () => void; reset: () => void };
+	let previewApi: PreviewApi | null = $state(null);
 
 	// Tiling options - spacing is actual cell distance on main grid
 	let tilingEnabled = $state(simState.lastInitTiling);
@@ -249,392 +247,40 @@
 		selectedPattern !== 'pentadecathlon'
 	);
 
-	onMount(() => {
-		if (previewCanvas) {
-			previewCtx = previewCanvas.getContext('2d');
-			initPreviewGrid();
-			renderPreview();
-		}
-	});
+	// Preview is rendered via @games-of-life/svelte LifeCanvas.
 
-	onDestroy(() => {
-		if (previewAnimationId) cancelAnimationFrame(previewAnimationId);
-	});
-
-	// Clamp spacing when pattern changes (minSpacing may have changed)
-	$effect(() => {
-		void selectedPattern; // track dependency
-		if (tilingSpacing < minSpacing) {
-			tilingSpacing = minSpacing;
-		}
-	});
-
-	// Re-render preview when pattern or settings change
-	$effect(() => {
-		void selectedPattern;
-		void customDensity;
-		void tilingEnabled;
-		void tilingSpacing;
-		initPreviewGrid();
-		renderPreview();
-	});
-
-	function initPreviewGrid() {
-		const sizeX = PREVIEW_SIZE_X;
-		const sizeY = previewSizeY;
-		const numStates = simState.currentRule.numStates;
-		previewGrid = new Array(sizeX * sizeY).fill(0);
-		
+	const previewSeed = $derived.by(() => {
+		// Random presets
+		if (selectedPattern === 'blank') return { kind: 'blank' } as const;
+		if (selectedPattern === 'random-optimal') return { kind: 'random', density: ruleDensity, includeSpectrum: true } as const;
+		if (selectedPattern === 'random-custom') return { kind: 'random', density: customDensity / 100, includeSpectrum: true } as const;
 		if (selectedPattern.startsWith('random')) {
-			let density: number;
-			if (selectedPattern === 'random-optimal') {
-				density = ruleDensity;
-			} else if (selectedPattern === 'random-custom') {
-				density = customDensity / 100;
-			} else {
-				density = currentPatterns.random.find(p => p.id === selectedPattern)?.density ?? 0.3;
-			}
-			
-			let seed = 12345;
-			const seededRandom = () => {
-				seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-				return seed / 0x7fffffff;
-			};
-
-			for (let i = 0; i < previewGrid.length; i++) {
-				if (seededRandom() < density) {
-					if (numStates > 2) {
-						// For multi-state rules, distribute across spectrum
-						const rand = seededRandom();
-						if (rand < 0.5) {
-							// 50% chance of being fully alive
-							previewGrid[i] = 1;
-						} else {
-							// 50% chance of being in a dying state
-							const dyingStates = numStates - 2;
-							const weightedRand = Math.pow(seededRandom(), 1.5);
-							previewGrid[i] = 2 + Math.floor(weightedRand * dyingStates);
-						}
-					} else {
-						previewGrid[i] = 1;
-					}
-				}
-			}
-		} else {
-			const cells = PATTERN_CELLS[selectedPattern];
-			if (!cells) return;
-
-			const cx = Math.floor(sizeX / 2);
-			const cy = Math.floor(sizeY / 2);
-
-			if (canTile && tilingEnabled) {
-				// Show tiling at 1:1 scale - the preview shows a sizeX x sizeY
-				// section of the grid with the actual spacing
-				// This gives an accurate representation of how the tiles will look
-				const spacing = tilingSpacing;
-				const startOffset = Math.floor(spacing / 2) % spacing;
-				
-				// Place tiles at the actual spacing intervals
-				for (let ty = startOffset; ty < sizeY; ty += spacing) {
-					for (let tx = startOffset; tx < sizeX; tx += spacing) {
-						// Draw the actual pattern at this tile position
-						for (const [dx, dy] of cells) {
-							const x = tx + dx;
-							const y = ty + dy;
-							if (x >= 0 && x < sizeX && y >= 0 && y < sizeY) {
-								previewGrid[y * sizeX + x] = 1;
-							}
-						}
-					}
-				}
-			} else {
-				// Single pattern in center
-				for (const [dx, dy] of cells) {
-					const x = cx + dx;
-					const y = cy + dy;
-					if (x >= 0 && x < sizeX && y >= 0 && y < sizeY) {
-						previewGrid[y * sizeX + x] = 1;
-					}
-				}
-			}
-		}
-	}
-
-	// RGB to HSL conversion (matches shader)
-	function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-		const maxC = Math.max(r, g, b);
-		const minC = Math.min(r, g, b);
-		const l = (maxC + minC) / 2;
-		
-		if (maxC === minC) return [0, 0, l];
-		
-		const d = maxC - minC;
-		const s = l > 0.5 ? d / (2 - maxC - minC) : d / (maxC + minC);
-		
-		let h: number;
-		if (maxC === r) {
-			h = (g - b) / d + (g < b ? 6 : 0);
-		} else if (maxC === g) {
-			h = (b - r) / d + 2;
-		} else {
-			h = (r - g) / d + 4;
-		}
-		h /= 6;
-		
-		return [h, s, l];
-	}
-	
-	// HSL to RGB conversion (matches shader)
-	function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-		if (s === 0) return [l, l, l];
-		
-		const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-		const p = 2 * l - q;
-		
-		const hueToRgb = (t: number): number => {
-			if (t < 0) t += 1;
-			if (t > 1) t -= 1;
-			if (t < 1/6) return p + (q - p) * 6 * t;
-			if (t < 1/2) return q;
-			if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-			return p;
-		};
-		
-		return [hueToRgb(h + 1/3), hueToRgb(h), hueToRgb(h - 1/3)];
-	}
-
-	function getStateColor(state: number): string {
-		const [r, g, b] = simState.aliveColor;
-		const isLight = simState.isLightTheme;
-		const numStates = simState.currentRule.numStates;
-		const bg = isLight ? [0.95, 0.95, 0.97] : [0.05, 0.05, 0.08];
-		
-		if (state === 0) {
-			return `rgb(${Math.round(bg[0] * 255)}, ${Math.round(bg[1] * 255)}, ${Math.round(bg[2] * 255)})`;
-		}
-		
-		if (state === 1 || numStates === 2) {
-			return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
-		}
-		
-		// Dying states - match shader's HSL-based color progression
-		const dyingProgress = (state - 1) / (numStates - 1);
-		const aliveHsl = rgbToHsl(r, g, b);
-		
-		// Shift hue by 25% through color wheel
-		let dyingHue = aliveHsl[0] + 0.25 * dyingProgress;
-		if (dyingHue > 1) dyingHue -= 1;
-		
-		// Saturation: stay high initially, then drop
-		const satCurve = 1 - dyingProgress * dyingProgress;
-		const dyingSat = aliveHsl[1] * Math.max(satCurve, 0.2);
-		
-		// Lightness: different for light/dark themes
-		let dyingLight: number;
-		if (isLight) {
-			const lightFactor = aliveHsl[2] + (0.35 - aliveHsl[2]) * dyingProgress * 0.8;
-			dyingLight = lightFactor;
-		} else {
-			dyingLight = aliveHsl[2] + (0.15 - aliveHsl[2]) * dyingProgress * dyingProgress;
-		}
-		
-		const dyingRgb = hslToRgb(dyingHue, dyingSat, dyingLight);
-		
-		// Blend with background at the very end (cubic curve)
-		const bgBlend = dyingProgress * dyingProgress * dyingProgress * 0.6;
-		const finalR = Math.round((dyingRgb[0] * (1 - bgBlend) + bg[0] * bgBlend) * 255);
-		const finalG = Math.round((dyingRgb[1] * (1 - bgBlend) + bg[1] * bgBlend) * 255);
-		const finalB = Math.round((dyingRgb[2] * (1 - bgBlend) + bg[2] * bgBlend) * 255);
-		
-		return `rgb(${finalR}, ${finalG}, ${finalB})`;
-	}
-
-	function renderPreview() {
-		if (!previewCtx) return;
-		
-		previewCtx.fillStyle = simState.isLightTheme ? '#f0f0f3' : '#0a0a0f';
-		previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
-
-		if (isHexGrid) {
-			renderHexPreview();
-		} else {
-			renderSquarePreview();
-		}
-	}
-
-	function renderSquarePreview() {
-		if (!previewCtx) return;
-		const sizeX = PREVIEW_SIZE_X;
-		const sizeY = previewSizeY;
-		const cellSizeX = previewCanvas.width / sizeX;
-		const cellSizeY = previewCanvas.height / sizeY;
-
-		for (let y = 0; y < sizeY; y++) {
-			for (let x = 0; x < sizeX; x++) {
-				const state = previewGrid[y * sizeX + x];
-				if (state > 0) {
-					previewCtx.fillStyle = getStateColor(state);
-					previewCtx.fillRect(x * cellSizeX, y * cellSizeY, cellSizeX - 0.5, cellSizeY - 0.5);
-				}
-			}
-		}
-	}
-
-	function renderHexPreview() {
-		if (!previewCtx) return;
-		
-		const sizeX = PREVIEW_SIZE_X;
-		const sizeY = previewSizeY;
-		
-		// Calculate hex size to fit in canvas
-		const hexWidth = previewCanvas.width / (sizeX + 0.5);
-		const hexHeight = hexWidth * HEX_HEIGHT_RATIO;
-		const hexRadius = hexWidth / 2;
-
-		for (let y = 0; y < sizeY; y++) {
-			for (let x = 0; x < sizeX; x++) {
-				const state = previewGrid[y * sizeX + x];
-				
-				const isOddRow = (y & 1) === 1;
-				const centerX = (x + 0.5) * hexWidth + (isOddRow ? hexWidth / 2 : 0);
-				const centerY = (y + 0.5) * hexHeight;
-				
-				previewCtx.fillStyle = state > 0 ? getStateColor(state) : (simState.isLightTheme ? '#f0f0f3' : '#0a0a0f');
-				drawHexagon(previewCtx, centerX, centerY, hexRadius * 0.95);
-			}
-		}
-	}
-
-	function drawHexagon(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number) {
-		ctx.beginPath();
-		for (let i = 0; i < 6; i++) {
-			const angle = (Math.PI / 3) * i - Math.PI / 6;
-			const px = cx + radius * Math.cos(angle);
-			const py = cy + radius * Math.sin(angle);
-			if (i === 0) {
-				ctx.moveTo(px, py);
-			} else {
-				ctx.lineTo(px, py);
-			}
-		}
-		ctx.closePath();
-		ctx.fill();
-	}
-
-	function countNeighborsAt(x: number, y: number): number {
-		const neighborhood = simState.currentRule.neighborhood ?? 'moore';
-		const sizeX = PREVIEW_SIZE_X;
-		const sizeY = previewSizeY;
-		let count = 0;
-		
-		if (neighborhood === 'vonNeumann') {
-			const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
-			for (const [dx, dy] of dirs) {
-				const nx = (x + dx + sizeX) % sizeX;
-				const ny = (y + dy + sizeY) % sizeY;
-				if (previewGrid[ny * sizeX + nx] === 1) count++;
-			}
-		} else if (neighborhood === 'extendedMoore') {
-			for (let dy = -2; dy <= 2; dy++) {
-				for (let dx = -2; dx <= 2; dx++) {
-					if (dx === 0 && dy === 0) continue;
-					const nx = (x + dx + sizeX) % sizeX;
-					const ny = (y + dy + sizeY) % sizeY;
-					if (previewGrid[ny * sizeX + nx] === 1) count++;
-				}
-			}
-		} else if (neighborhood === 'hexagonal' || neighborhood === 'extendedHexagonal') {
-			const isOddRow = (y & 1) === 1;
-			// Inner ring (6 neighbors)
-			const innerNeighbors = isOddRow
-				? [[0, -1], [1, -1], [-1, 0], [1, 0], [0, 1], [1, 1]]
-				: [[-1, -1], [0, -1], [-1, 0], [1, 0], [-1, 1], [0, 1]];
-			
-			for (const [dx, dy] of innerNeighbors) {
-				const nx = (x + dx + sizeX) % sizeX;
-				const ny = (y + dy + sizeY) % sizeY;
-				if (previewGrid[ny * sizeX + nx] === 1) count++;
-			}
-			
-			// Outer ring (12 more neighbors) for extended hexagonal
-			if (neighborhood === 'extendedHexagonal') {
-				const outerNeighbors = isOddRow
-					? [[-1, -2], [0, -2], [1, -2], [-2, -1], [2, 0], [-2, 1], [-1, 2], [0, 2], [1, 2], [2, -1], [2, 1], [-1, -1]]
-					: [[-1, -2], [0, -2], [1, -2], [-2, -1], [-2, 0], [-2, 1], [-1, 2], [0, 2], [1, 2], [2, -1], [2, 1], [1, -1]];
-				
-				for (const [dx, dy] of outerNeighbors) {
-					const nx = (x + dx + sizeX) % sizeX;
-					const ny = (y + dy + sizeY) % sizeY;
-					if (previewGrid[ny * sizeX + nx] === 1) count++;
-				}
-			}
-		} else {
-			// Moore
-			for (let dy = -1; dy <= 1; dy++) {
-				for (let dx = -1; dx <= 1; dx++) {
-					if (dx === 0 && dy === 0) continue;
-					const nx = (x + dx + sizeX) % sizeX;
-					const ny = (y + dy + sizeY) % sizeY;
-					if (previewGrid[ny * sizeX + nx] === 1) count++;
-				}
-			}
-		}
-		
-		return count;
-	}
-
-	function stepPreview() {
-		const birthMask = simState.currentRule.birthMask;
-		const surviveMask = simState.currentRule.surviveMask;
-		const numStates = simState.currentRule.numStates;
-		const sizeX = PREVIEW_SIZE_X;
-		const sizeY = previewSizeY;
-		const nextGrid = new Array(sizeX * sizeY).fill(0);
-
-		for (let y = 0; y < sizeY; y++) {
-			for (let x = 0; x < sizeX; x++) {
-				const idx = y * sizeX + x;
-				const state = previewGrid[idx];
-				const neighbors = countNeighborsAt(x, y);
-
-				if (state === 0) {
-					nextGrid[idx] = (birthMask & (1 << neighbors)) !== 0 ? 1 : 0;
-				} else if (state === 1) {
-					if ((surviveMask & (1 << neighbors)) !== 0) {
-						nextGrid[idx] = 1;
-					} else {
-						nextGrid[idx] = numStates > 2 ? 2 : 0;
-					}
-				} else {
-					nextGrid[idx] = state + 1 >= numStates ? 0 : state + 1;
-				}
-			}
+			const density = currentPatterns.random.find(p => p.id === selectedPattern)?.density ?? 0.3;
+			return { kind: 'random', density, includeSpectrum: true } as const;
 		}
 
-		previewGrid = nextGrid;
-		renderPreview();
-	}
+		// Structure/oscillator/still patterns
+		const cells = PATTERN_CELLS[selectedPattern] ?? [];
+		return {
+			kind: 'cells',
+			cells,
+			tiled: !!(canTile && tilingEnabled),
+			spacing: tilingSpacing
+		} as const;
+	});
 
 	function togglePreviewPlay() {
 		previewPlaying = !previewPlaying;
-		if (previewPlaying) runPreviewLoop();
 	}
 
-	function runPreviewLoop() {
-		if (!previewPlaying) return;
-		const now = performance.now();
-		if (now - lastPreviewStep > 100) {
-			stepPreview();
-			lastPreviewStep = now;
-		}
-		previewAnimationId = requestAnimationFrame(runPreviewLoop);
+	function stepPreview() {
+		previewPlaying = false;
+		previewApi?.stepOnce();
 	}
 
 	function resetPreview() {
 		previewPlaying = false;
-		if (previewAnimationId) cancelAnimationFrame(previewAnimationId);
-		initPreviewGrid();
-		renderPreview();
+		previewApi?.reset();
 	}
 
 	function handleInitialize() {
@@ -984,7 +630,24 @@
 				<div class="preview-col">
 					<span class="preview-label">Preview</span>
 					<div class="preview-area">
-						<canvas bind:this={previewCanvas} width={120} height={120} class="preview-canvas"></canvas>
+						<LifeCanvas
+							bind:this={previewApi}
+							bind:playing={previewPlaying}
+							width={120}
+							height={120}
+							gridWidth={PREVIEW_SIZE_X}
+							gridHeight={previewSizeY}
+							rule={simState.currentRule}
+							speed={10}
+							seed={previewSeed}
+							showGrid={false}
+							neighborShading={1}
+							spectrumMode={1}
+							spectrumFrequency={simState.spectrumFrequency}
+							isLightTheme={simState.isLightTheme}
+							aliveColor={simState.aliveColor}
+							className="preview-life-canvas"
+						/>
 						<div class="preview-btns">
 							<button class="pbtn" class:active={previewPlaying} onclick={togglePreviewPlay} title="Play/Pause">
 								{#if previewPlaying}
@@ -1261,7 +924,7 @@
 		align-items: center;
 	}
 
-	.preview-canvas {
+	.preview-life-canvas {
 		border-radius: 6px;
 		background: var(--ui-canvas-bg, #0a0a0f);
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
