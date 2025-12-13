@@ -327,7 +327,8 @@ export function getSimulationState() {
 			return speed;
 		},
 		set speed(value: number) {
-			speed = Math.max(1, Math.min(240, value));
+				// Allow very high SPS for fast sims; renderer may still effectively throttle.
+				speed = Math.max(1, Math.min(2000, value));
 		},
 
 		get brushSize() {

@@ -536,7 +536,7 @@ function stepGallerySim(state: MiniSimState): void {
 			}
 		}
 	}
-
+	
 	// Step using the canonical CPU fallback kernel (matches GPU semantics).
 	stepBsGenerationsCpu(state.grid, state.nextGrid, state.cpuCfg);
 

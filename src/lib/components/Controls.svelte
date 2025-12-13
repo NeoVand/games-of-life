@@ -151,8 +151,8 @@
 			</button>
 			{#if showSpeedSlider}
 				<div class="slider-popup">
-					<span>{simState.speed} fps</span>
-					<input type="range" min="1" max="240" bind:value={simState.speed} />
+					<span>{simState.speed} sps</span>
+					<input type="range" min="1" max="2000" bind:value={simState.speed} />
 				</div>
 			{/if}
 		</div>

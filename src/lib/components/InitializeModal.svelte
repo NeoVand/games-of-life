@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId } from '@games-of-life/core';
+	import { SEED_PATTERNS, SEED_PATTERNS_HEX, spectrumModeToIndex, type SeedPatternId } from '@games-of-life/core';
 	import { getSimulationState, GRID_SCALES, type GridScale } from '../stores/simulation.svelte.js';
 	import { draggable } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
@@ -75,6 +75,14 @@
 	let previewPlaying = $state(false);
 	type PreviewApi = { stepOnce: () => void; reset: () => void };
 	let previewApi: PreviewApi | null = $state(null);
+
+	const spectrumModeIndex = $derived(spectrumModeToIndex(simState.spectrumMode));
+	const neighborShadingIndex = $derived.by(() => {
+		const mode = simState.neighborShading;
+		if (mode === 'alive') return 1;
+		if (mode === 'vitality') return 2;
+		return 0;
+	});
 
 	// Tiling options - spacing is actual cell distance on main grid
 	let tilingEnabled = $state(simState.lastInitTiling);
@@ -638,11 +646,11 @@
 							gridWidth={PREVIEW_SIZE_X}
 							gridHeight={previewSizeY}
 							rule={simState.currentRule}
-							speed={10}
+							speed={simState.speed}
 							seed={previewSeed}
 							showGrid={false}
-							neighborShading={1}
-							spectrumMode={1}
+							neighborShading={neighborShadingIndex}
+							spectrumMode={spectrumModeIndex}
 							spectrumFrequency={simState.spectrumFrequency}
 							isLightTheme={simState.isLightTheme}
 							aliveColor={simState.aliveColor}
@@ -924,7 +932,7 @@
 		align-items: center;
 	}
 
-	.preview-life-canvas {
+	:global(.preview-life-canvas) {
 		border-radius: 6px;
 		background: var(--ui-canvas-bg, #0a0a0f);
 		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));

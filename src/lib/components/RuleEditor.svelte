@@ -20,6 +20,7 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 	import BoundaryIcon from './BoundaryIcon.svelte';
 	import InfluenceCurveEditor from './InfluenceCurveEditor.svelte';
 	import { LifeCanvas } from '@games-of-life/svelte';
+	import { spectrumModeToIndex } from '@games-of-life/core';
 	import { onMount, onDestroy } from 'svelte';
 	import { addSnapshotWithBefore, getHeadId } from '../stores/history.js';
 	import { startRuleEditorTour, getRuleEditorTourStyles } from '../utils/ruleEditorTour.js';
@@ -71,6 +72,14 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 	let previewPlaying = $state(false);
 	type PreviewApi = { stepOnce: () => void; reset: () => void };
 	let previewApi: PreviewApi | null = $state(null);
+
+	const spectrumModeIndex = $derived(spectrumModeToIndex(simState.spectrumMode));
+	const neighborShadingIndex = $derived.by(() => {
+		const mode = simState.neighborShading;
+		if (mode === 'alive') return 1;
+		if (mode === 'vitality') return 2;
+		return 0;
+	});
 
 	let dropdownOpen = $state(false);
 	let categoryDropdownOpen = $state(false);
@@ -1075,11 +1084,11 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 						gridWidth={PREVIEW_SIZE_X}
 						gridHeight={previewSizeY}
 						rule={simState.currentRule}
-						speed={8}
+						speed={simState.speed}
 						seed={{ kind: 'random', density: 0.3, includeSpectrum: true }}
 						showGrid={false}
-						neighborShading={1}
-						spectrumMode={1}
+						neighborShading={neighborShadingIndex}
+						spectrumMode={spectrumModeIndex}
 						spectrumFrequency={simState.spectrumFrequency}
 						isLightTheme={simState.isLightTheme}
 						aliveColor={simState.aliveColor}
