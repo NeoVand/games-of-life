@@ -6,7 +6,7 @@
 import type { WebGPUContext } from '@games-of-life/webgpu';
 import type { CARule, VitalityMode } from '../utils/rules.js';
 import { getDefaultRule } from '../utils/rules.js';
-import { SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId, type BoundaryMode } from '../stores/simulation.svelte.js';
+import { SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId, type BoundaryMode } from '@games-of-life/core';
 import { boundaryToIndex, neighborhoodToIndex } from '@games-of-life/core';
 import { lifeComputeWgsl, lifeRenderWgsl } from '@games-of-life/webgpu';
 
