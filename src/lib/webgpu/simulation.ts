@@ -6,7 +6,8 @@
 import type { WebGPUContext } from './context.js';
 import type { CARule, VitalityMode } from '../utils/rules.js';
 import { getDefaultRule } from '../utils/rules.js';
-import { SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId, type BoundaryMode, boundaryModeToIndex } from '../stores/simulation.svelte.js';
+import { SEED_PATTERNS, SEED_PATTERNS_HEX, type SeedPatternId, type BoundaryMode } from '../stores/simulation.svelte.js';
+import { boundaryToIndex, neighborhoodToIndex } from '@games-of-life/core';
 
 // Import shaders as raw text
 import computeShaderCode from './shaders/life-compute.wgsl?raw';
@@ -340,14 +341,7 @@ export class Simulation {
 	}
 
 	private getNeighborhoodIndex(): number {
-		const nh = this.rule.neighborhood ?? 'moore';
-		switch (nh) {
-			case 'vonNeumann': return 1;
-			case 'extendedMoore': return 2;
-			case 'hexagonal': return 3;
-			case 'extendedHexagonal': return 4;
-			default: return 0; // moore
-		}
+		return neighborhoodToIndex(this.rule.neighborhood ?? 'moore');
 	}
 
 	private getVitalityModeIndex(): number {
@@ -373,7 +367,7 @@ export class Simulation {
 		view.setUint32(8, this.rule.birthMask, true);
 		view.setUint32(12, this.rule.surviveMask, true);
 		view.setUint32(16, this.rule.numStates, true);
-		view.setUint32(20, boundaryModeToIndex(this.view.boundaryMode), true);
+		view.setUint32(20, boundaryToIndex(this.view.boundaryMode), true);
 		view.setUint32(24, this.getNeighborhoodIndex(), true);
 		
 		// Vitality mode (offset 28)
@@ -425,7 +419,7 @@ export class Simulation {
 			this.view.spectrumMode, // spectrum mode for color transitions
 			this.view.spectrumFrequency, // how many times to repeat the spectrum
 			this.view.neighborShading, // neighbor shading mode: 0=off, 1=alive, 2=vitality
-			boundaryModeToIndex(this.view.boundaryMode), // boundary mode for seamless panning
+			boundaryToIndex(this.view.boundaryMode), // boundary mode for seamless panning
 			this.view.brushShape, // 0-16: see ViewState for shape list
 			this.view.brushRotation, // rotation in radians
 			this.view.brushAspectRatio, // aspect ratio
@@ -637,7 +631,7 @@ export class Simulation {
 			this.view.spectrumMode,
 			this.view.spectrumFrequency,
 			this.view.neighborShading,
-			boundaryModeToIndex(this.view.boundaryMode),
+			boundaryToIndex(this.view.boundaryMode),
 			0, // brush_shape
 			0, // brush_rotation
 			1.0, // brush_aspect

@@ -6,18 +6,14 @@ import { getSimulationState, getUIState, GRID_SCALES, type GridScale, type Spect
 import { addSnapshotWithBefore, resetHistory } from '../stores/history.js';
 	import { isTourActive } from '../utils/tour.js';
 	import { isModalOpen } from '../stores/modalManager.svelte.js';
+	import { brushShapeToIndex, spectrumModeToIndex } from '@games-of-life/core';
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
 	
 	// Convert spectrum mode string to number for shader
 	function getSpectrumModeIndex(mode: SpectrumMode): number {
-		const modes: SpectrumMode[] = [
-			'hueShift', 'rainbow', 'warm', 'cool', 'monochrome', 'fire',
-			'complement', 'triadic', 'split', 'analogous', 'pastel', 'vivid',
-			'thermal', 'bands', 'neon', 'sunset', 'ocean', 'forest'
-		];
-		return modes.indexOf(mode);
+		return spectrumModeToIndex(mode);
 	}
 	
 	// Convert neighbor shading mode string to number for shader
@@ -31,12 +27,7 @@ import { addSnapshotWithBefore, resetHistory } from '../stores/history.js';
 	// Convert brush shape string to number for shader
 	// Must match order in BRUSH_SHAPES and shader is_in_brush function
 	function getBrushShapeIndex(shape: BrushShape): number {
-		const shapes: BrushShape[] = [
-			'circle', 'square', 'diamond', 'hexagon', 'ring', 'triangle',
-			'line', 'cross', 'star', 'heart', 'spiral', 'flower',
-			'burst', 'wave', 'dots', 'scatter', 'text'
-		];
-		return shapes.indexOf(shape);
+		return brushShapeToIndex(shape);
 	}
 
 	let canvas: HTMLCanvasElement;

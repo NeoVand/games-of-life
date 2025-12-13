@@ -3,6 +3,8 @@
  * Handles B/S notation parsing and rule presets
  */
 
+import { formatRuleString } from '@games-of-life/core';
+
 // Neighborhood types
 export type NeighborhoodType = 'moore' | 'vonNeumann' | 'extendedMoore' | 'hexagonal' | 'extendedHexagonal';
 
@@ -318,24 +320,12 @@ export function parseRule(ruleString: string): CARule | null {
  * Convert a rule back to B/S notation string
  */
 export function ruleToString(rule: CARule): string {
-	let birthStr = 'B';
-	let surviveStr = 'S';
-
-	for (let i = 0; i <= 8; i++) {
-		if (rule.birthMask & (1 << i)) {
-			birthStr += i;
-		}
-		if (rule.surviveMask & (1 << i)) {
-			surviveStr += i;
-		}
-	}
-
-	let result = `${birthStr}/${surviveStr}`;
-	if (rule.numStates > 2) {
-		result += `/C${rule.numStates}`;
-	}
-
-	return result;
+	return formatRuleString({
+		birthMask: rule.birthMask,
+		surviveMask: rule.surviveMask,
+		numStates: rule.numStates,
+		neighborhood: rule.neighborhood ?? 'moore'
+	});
 }
 
 /**

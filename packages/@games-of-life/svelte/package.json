@@ -1,0 +1,17 @@
+{
+  "name": "@games-of-life/svelte",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "dependencies": {
+    "@games-of-life/core": "0.0.0"
+  }
+}
+
+

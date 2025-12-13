@@ -4,7 +4,8 @@
  */
 
 import type { CARule, VitalityMode, VitalitySettings, CurvePoint } from '../utils/rules.js';
-import { getDefaultRule, DEFAULT_VITALITY, sampleCurvePoints } from '../utils/rules.js';
+import { getDefaultRule, DEFAULT_VITALITY } from '../utils/rules.js';
+import { sampleVitalityCurve } from '@games-of-life/core';
 import type { Simulation } from '../webgpu/simulation.js';
 
 // Simulation state
@@ -216,7 +217,7 @@ let vitalityCurvePoints = $state<CurvePoint[]>(defaultRuleVitality?.curvePoints 
 // Samples are computed on-demand from curve points (for the shader)
 let vitalityCurveSamplesCache = $state<number[]>(
 	defaultRuleVitality?.curvePoints && defaultRuleVitality.curvePoints.length >= 2
-		? sampleCurvePoints(defaultRuleVitality.curvePoints)
+		? sampleVitalityCurve(defaultRuleVitality.curvePoints)
 		: new Array(128).fill(0)
 );
 
@@ -866,7 +867,7 @@ export function getSimulationState() {
 			vitalityCurvePoints = value;
 			// Recompute samples when points change
 			vitalityCurveSamplesCache = value && value.length >= 2
-				? sampleCurvePoints(value)
+				? sampleVitalityCurve(value)
 				: new Array(128).fill(0);
 		},
 
@@ -893,7 +894,7 @@ export function getSimulationState() {
 				vitalityCurvePoints = settings.curvePoints ?? [];
 				// Compute samples from curve points
 				vitalityCurveSamplesCache = vitalityCurvePoints.length >= 2
-					? sampleCurvePoints(vitalityCurvePoints)
+					? sampleVitalityCurve(vitalityCurvePoints)
 					: new Array(128).fill(0);
 			} else {
 				// Reset to defaults

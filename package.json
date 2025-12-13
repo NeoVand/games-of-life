@@ -3,6 +3,9 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"workspaces": [
+		"packages/*/*"
+	],
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -33,6 +36,7 @@
 		"vite": "^7.2.2"
 	},
 	"dependencies": {
+		"@games-of-life/core": "0.0.0",
 		"driver.js": "^1.4.0"
 	}
 }
