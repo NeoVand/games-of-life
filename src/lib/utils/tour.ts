@@ -1,4 +1,5 @@
 import { driver, type DriveStep, type Config } from 'driver.js';
+import { stepBsGenerationsCpu, type CpuStepConfig, sampleVitalityCurve, spectrumModeToIndex } from '@games-of-life/core';
 
 // Tour state management
 const TOUR_COMPLETED_KEY = 'games-of-life-tour-completed';
@@ -28,7 +29,7 @@ function notifyTourCompleted() {
 }
 
 // ============================================================================
-// Mini Simulation Gallery - 3x3 grid of simultaneous simulations
+// Mini Simulation Gallery - 2x3 grid of simultaneous simulations (6 total)
 // ============================================================================
 
 const MINI_SIM_SIZE = 56; // Grid size for each mini sim (56x56 cells)
@@ -153,13 +154,14 @@ const GALLERY_RULES: GalleryRule[] = [
 
 // State for each mini simulation
 interface MiniSimState {
-	grid: Uint8Array;
-	nextGrid: Uint8Array; // Pre-allocated buffer for double-buffering (avoids allocations per frame)
+	grid: Uint32Array;
+	nextGrid: Uint32Array; // Pre-allocated buffer for double-buffering (avoids allocations per frame)
 	canvas: HTMLCanvasElement | null;
 	ctx: CanvasRenderingContext2D | null;
 	imageData: ImageData | null; // Pre-allocated buffer for fast rendering
 	rule: GalleryRule;
 	frameCount: number; // For periodic stimulation
+	cpuCfg: CpuStepConfig;
 }
 
 let gallerySimStates: MiniSimState[] = [];
@@ -244,8 +246,8 @@ function getNeighborOffsets(neighborhood: SimNeighborhood, y?: number): [number,
 }
 
 // Initialize a single mini simulation grid
-function initMiniSimGrid(rule: GalleryRule): Uint8Array {
-	const grid = new Uint8Array(MINI_SIM_SIZE * MINI_SIM_SIZE);
+function initMiniSimGrid(rule: GalleryRule): Uint32Array {
+	const grid = new Uint32Array(MINI_SIM_SIZE * MINI_SIM_SIZE);
 	// Integer center creates odd-diameter disk with true center cell
 	const center = Math.floor(MINI_SIM_SIZE / 2);
 	const isHex = rule.neighborhood === 'hexagonal' || rule.neighborhood === 'extendedHexagonal';
@@ -341,7 +343,7 @@ function initMiniSimGrid(rule: GalleryRule): Uint8Array {
 }
 
 // Render text to a mini-sim grid using canvas
-function renderTextToGrid(grid: Uint8Array, text: string): void {
+function renderTextToGrid(grid: Uint32Array, text: string): void {
 	// Create offscreen canvas
 	const canvas = document.createElement('canvas');
 	canvas.width = MINI_SIM_SIZE;
@@ -383,58 +385,8 @@ function renderTextToGrid(grid: Uint8Array, text: string): void {
 	}
 }
 
-// Step a single simulation forward
-// Monotonic cubic interpolation for curve mode (simplified Fritsch-Carlson)
-function sampleCurve(curvePoints: { x: number; y: number }[], vitality: number): number {
-	if (!curvePoints || curvePoints.length < 2) return 0;
-	
-	// Find the segment containing vitality
-	let i = 0;
-	for (i = 0; i < curvePoints.length - 1; i++) {
-		if (vitality <= curvePoints[i + 1].x) break;
-	}
-	
-	if (i >= curvePoints.length - 1) {
-		return curvePoints[curvePoints.length - 1].y;
-	}
-	
-	const p0 = curvePoints[i];
-	const p1 = curvePoints[i + 1];
-	const t = (vitality - p0.x) / (p1.x - p0.x);
-	
-	// Simple linear interpolation (fast enough for mini-sims)
-	return p0.y + t * (p1.y - p0.y);
-}
-
-// Calculate vitality contribution for a cell
-function getVitalityContribution(cellState: number, rule: GalleryRule): number {
-	if (cellState === 0) return 0; // Dead cells don't contribute
-	if (cellState === 1) return 1; // Alive cells contribute 1
-	
-	// Dying cells - calculate vitality (0 = about to die, 1 = just started dying)
-	const vitality = (rule.numStates - cellState) / (rule.numStates - 1);
-	
-	const mode = rule.vitalityMode || 'none';
-	
-	if (mode === 'none') {
-		return 0; // Dying cells don't count as neighbors
-	} else if (mode === 'ghost') {
-		// Ghost mode: dying cells contribute vitality * ghostFactor
-		const ghostFactor = rule.ghostFactor ?? 0;
-		return vitality * ghostFactor;
-	} else if (mode === 'curve') {
-		// Curve mode: sample the curve at this vitality
-		if (rule.curvePoints) {
-			return sampleCurve(rule.curvePoints, vitality);
-		}
-		return 0;
-	}
-	
-	return 0;
-}
-
 // Apply stimulation based on rule's init type (additive - only revives dead cells)
-function applyStimulation(grid: Uint8Array, rule: GalleryRule): void {
+function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 	if (rule.initType === 'text' && rule.initText) {
 		// Re-apply text pattern additively
 		addTextToGrid(grid, rule.initText);
@@ -488,7 +440,7 @@ function applyStimulation(grid: Uint8Array, rule: GalleryRule): void {
 }
 
 // Add text to grid additively (only revives dead cells)
-function addTextToGrid(grid: Uint8Array, text: string): void {
+function addTextToGrid(grid: Uint32Array, text: string): void {
 	// Create offscreen canvas
 	const canvas = document.createElement('canvas');
 	canvas.width = MINI_SIM_SIZE;
@@ -530,79 +482,33 @@ function addTextToGrid(grid: Uint8Array, text: string): void {
 }
 
 function stepGallerySim(state: MiniSimState): void {
-	const { grid, nextGrid, rule } = state;
-	const { birthMask, surviveMask, numStates, neighborhood, seedRate, stimPeriod } = rule;
+	const { rule } = state;
+	const { seedRate, stimPeriod } = rule;
 	
 	// Increment frame count
 	state.frameCount++;
 	
 	// Periodic stimulation (disk or text based on init type)
 	if (stimPeriod && stimPeriod > 0 && state.frameCount % stimPeriod === 0) {
-		applyStimulation(grid, rule);
+		applyStimulation(state.grid, rule);
 	}
 	
 	// Continuous random seeding
 	if (seedRate > 0) {
-		for (let i = 0; i < grid.length; i++) {
-			if (grid[i] === 0 && Math.random() < seedRate) {
-				grid[i] = 1;
+		for (let i = 0; i < state.grid.length; i++) {
+			if (state.grid[i] === 0 && Math.random() < seedRate) {
+				state.grid[i] = 1;
 			}
 		}
 	}
-	
-	// Clear the next grid buffer (reuse pre-allocated buffer)
-	nextGrid.fill(0);
-	
-	for (let y = 0; y < MINI_SIM_SIZE; y++) {
-		// Get offsets for this row (important for hexagonal grids)
-		const offsets = getNeighborOffsets(neighborhood, y);
-		
-		for (let x = 0; x < MINI_SIM_SIZE; x++) {
-			// Count alive neighbors plus vitality contributions from dying cells
-			let neighborCount = 0;
-			
-			for (const [dx, dy] of offsets) {
-				const nx = (x + dx + MINI_SIM_SIZE) % MINI_SIM_SIZE;
-				const ny = (y + dy + MINI_SIM_SIZE) % MINI_SIM_SIZE;
-				const neighborState = grid[ny * MINI_SIM_SIZE + nx];
-				
-				if (neighborState === 1) {
-					neighborCount += 1; // Alive neighbors count as 1
-				} else if (neighborState > 1) {
-					// Dying neighbors contribute based on vitality mode
-					neighborCount += getVitalityContribution(neighborState, rule);
-				}
-			}
-			
-			// Clamp and round to nearest integer for birth/survive mask lookup
-			// Matches shader: u32(clamp(total, 0, max) + 0.5)
-			const maxNeighbors = neighborhood === 'extendedHexagonal' ? 18 : 
-			                     neighborhood === 'hexagonal' ? 6 :
-			                     neighborhood === 'extendedMoore' ? 24 : 8;
-			const clamped = Math.max(0, Math.min(neighborCount, maxNeighbors));
-			const neighbors = Math.floor(clamped + 0.5); // u32(x + 0.5) behavior
-			
-			const idx = y * MINI_SIM_SIZE + x;
-			const cellState = grid[idx];
-			
-			if (cellState === 0) {
-				if ((birthMask & (1 << neighbors)) !== 0) {
-					nextGrid[idx] = 1;
-				}
-			} else if (cellState === 1) {
-				if ((surviveMask & (1 << neighbors)) !== 0) {
-					nextGrid[idx] = 1;
-				} else {
-					nextGrid[idx] = numStates > 2 ? 2 : 0;
-				}
-			} else {
-				nextGrid[idx] = cellState < numStates - 1 ? cellState + 1 : 0;
-			}
-		}
-	}
-	
-	// Swap buffers - copy next to current (both pre-allocated)
-	grid.set(nextGrid);
+
+	// Step using the canonical CPU fallback kernel (matches GPU semantics).
+	stepBsGenerationsCpu(state.grid, state.nextGrid, state.cpuCfg);
+
+	// Swap buffers (no copy).
+	const tmp = state.grid;
+	state.grid = state.nextGrid;
+	state.nextGrid = tmp;
 }
 
 // Parse accent color to RGB
@@ -655,7 +561,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 }
 
 // Calculate neighbor vitality sum for shading (matches shader sum_neighbor_vitality_normalized)
-function sumNeighborVitality(grid: Uint8Array, x: number, y: number, neighborhood: SimNeighborhood, numStates: number): number {
+function sumNeighborVitality(grid: Uint32Array, x: number, y: number, neighborhood: SimNeighborhood, numStates: number): number {
 	const offsets = getNeighborOffsets(neighborhood, y);
 	let total = 0;
 	const maxNeighbors = offsets.length;
@@ -1043,12 +949,41 @@ let getAccentColor: () => string = () => getCSSVariable('--ui-accent');
 let getIsLightTheme: () => boolean = () => false;
 let getSpectrumMode: () => number = () => 1; // Default to rainbow (mode 1)
 
-// Spectrum mode name to index mapping (matches shader)
-const SPECTRUM_MODE_MAP: Record<string, number> = {
-	'hueShift': 0, 'rainbow': 1, 'warm': 2, 'cool': 3, 'monochrome': 4, 'fire': 5,
-	'complement': 6, 'triadic': 7, 'split': 8, 'analogous': 9, 'pastel': 10, 'vivid': 11,
-	'thermal': 12, 'bands': 13, 'neon': 14, 'sunset': 15, 'ocean': 16, 'forest': 17
-};
+function getSpectrumIndexFromId(id: string): number {
+	try {
+		// The app returns IDs like 'fire', 'neon', etc. which match the core mapping.
+		return spectrumModeToIndex(id as Parameters<typeof spectrumModeToIndex>[0]);
+	} catch {
+		return 1; // rainbow
+	}
+}
+
+function buildCpuCfg(rule: GalleryRule): CpuStepConfig {
+	const curveSamples =
+		rule.vitalityMode === 'curve' && rule.curvePoints
+			? sampleVitalityCurve(rule.curvePoints)
+			: new Array(128).fill(0);
+
+	return {
+		width: MINI_SIM_SIZE,
+		height: MINI_SIM_SIZE,
+		boundary: 'torus',
+		rule: {
+			birthMask: rule.birthMask,
+			surviveMask: rule.surviveMask,
+			numStates: rule.numStates,
+			neighborhood: rule.neighborhood
+		},
+		vitality: {
+			mode: rule.vitalityMode ?? 'none',
+			threshold: 1.0,
+			ghostFactor: rule.ghostFactor ?? 0.0,
+			sigmoidSharpness: 10.0,
+			decayPower: 1.0,
+			curveSamples
+		}
+	};
+}
 
 // Start the gallery of simulations with smooth loading
 function startGallery(accentColor: string, isLight: boolean): void {
@@ -1085,12 +1020,13 @@ function startGallery(accentColor: string, isLight: boolean): void {
 			
 			return {
 				grid: initMiniSimGrid(rule),
-				nextGrid: new Uint8Array(MINI_SIM_SIZE * MINI_SIM_SIZE), // Pre-allocate second buffer
+				nextGrid: new Uint32Array(MINI_SIM_SIZE * MINI_SIM_SIZE), // Pre-allocate second buffer
 				canvas,
 				ctx,
 				imageData,
 				rule,
-				frameCount: 0
+				frameCount: 0,
+				cpuCfg: buildCpuCfg(rule)
 			};
 		});
 		
@@ -1556,7 +1492,7 @@ export function createTour(options?: {
 		getIsLightTheme = () => isLight;
 	}
 	if (options?.getSpectrumMode) {
-		getSpectrumMode = () => SPECTRUM_MODE_MAP[options.getSpectrumMode!()] ?? 1;
+		getSpectrumMode = () => getSpectrumIndexFromId(options.getSpectrumMode!());
 	} else {
 		getSpectrumMode = () => 1; // Default to rainbow
 	}
