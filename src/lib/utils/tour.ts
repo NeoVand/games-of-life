@@ -63,7 +63,7 @@ interface GalleryRule {
 	curvePoints?: { x: number; y: number }[]; // For curve mode
 }
 
-// 6 showcase rules for the gallery (2 rows of 3)
+// 9 showcase rules for the gallery (3 rows of 3)
 // Names MUST match exactly with RULE_PRESETS in rules.ts for getRuleByName to work
 const GALLERY_RULES: GalleryRule[] = [
 	// Row 1: Classics
@@ -148,6 +148,41 @@ const GALLERY_RULES: GalleryRule[] = [
 		initType: 'random',
 		density: 0.2,
 		seedRate: 0.001,
+		vitalityMode: 'none'
+	},
+	// Row 3: More classics / “engine stress test” variety
+	{
+		name: 'HighLife',
+		birthMask: 0b000001001, // B36
+		surviveMask: 0b000001100, // S23
+		numStates: 2,
+		neighborhood: 'moore',
+		initType: 'random',
+		density: 0.22,
+		seedRate: 0.001,
+		vitalityMode: 'none'
+	},
+	{
+		name: 'Day & Night',
+		birthMask: 0b111010100, // B3678
+		surviveMask: 0b111010101, // S34678
+		numStates: 2,
+		neighborhood: 'moore',
+		initType: 'randomLow',
+		density: 0.12,
+		seedRate: 0.0007,
+		vitalityMode: 'none'
+	},
+	{
+		name: 'Seeds',
+		birthMask: 0b000000100, // B2
+		surviveMask: 0b000000000, // S (none)
+		numStates: 2,
+		neighborhood: 'extendedMoore',
+		initType: 'centeredRing',
+		density: 0.35,
+		seedRate: 0.0,
+		stimPeriod: 120,
 		vitalityMode: 'none'
 	}
 ];
