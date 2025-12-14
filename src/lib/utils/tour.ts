@@ -56,6 +56,7 @@ interface GalleryRule {
 	seedRate: number; // Continuous seeding rate
 	stimPeriod?: number; // Frames between stimulation pulses (0 = never)
 	stimShape?: 'disk' | 'horizontalLine' | 'verticalLine';
+	stimRevive?: 'deadOnly' | 'deadOrDying';
 	initText?: string; // For text init type
 	diskRadius?: number; // Custom disk radius (default: MINI_SIM_SIZE * 0.18)
 	// Vitality settings (how dying cells contribute to neighbor counts)
@@ -198,8 +199,9 @@ const GALLERY_RULES: GalleryRule[] = [
 		initType: 'centeredDisk',
 		density: 1.0,
 		seedRate: 0.0,
-		stimPeriod: 90,
+		stimPeriod: 60,
 		stimShape: 'horizontalLine',
+		stimRevive: 'deadOrDying',
 		diskRadius: 8,
 		vitalityMode: 'none'
 	}
@@ -445,6 +447,12 @@ function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 		addTextToGrid(grid, rule.initText);
 	} else {
 		const stimShape = rule.stimShape ?? 'disk';
+		const reviveMode = rule.stimRevive ?? 'deadOnly';
+
+		const shouldRevive = (cellState: number): boolean => {
+			if (reviveMode === 'deadOrDying') return cellState !== 1;
+			return cellState === 0;
+		};
 
 		// Default: apply a solid disk at center additively
 		// Use the same hex-aware coordinate system as initMiniSimGrid
@@ -460,14 +468,14 @@ function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 				for (let x = center - halfLen; x <= center + halfLen; x++) {
 					if (x < 0 || x >= MINI_SIM_SIZE) continue;
 					const idx = y * MINI_SIM_SIZE + x;
-					if (grid[idx] === 0) grid[idx] = 1;
+					if (shouldRevive(grid[idx])) grid[idx] = 1;
 				}
 			} else {
 				const x = center;
 				for (let y = center - halfLen; y <= center + halfLen; y++) {
 					if (y < 0 || y >= MINI_SIM_SIZE) continue;
 					const idx = y * MINI_SIM_SIZE + x;
-					if (grid[idx] === 0) grid[idx] = 1;
+					if (shouldRevive(grid[idx])) grid[idx] = 1;
 				}
 			}
 			return;
@@ -490,10 +498,8 @@ function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 					const distSq = dx * dx + dy * dy;
 					
 					if (distSq <= radius * radius) {
-						// Only revive dead cells - don't disturb alive or dying cells
-						if (grid[y * MINI_SIM_SIZE + x] === 0) {
-							grid[y * MINI_SIM_SIZE + x] = 1;
-						}
+						const idx = y * MINI_SIM_SIZE + x;
+						if (shouldRevive(grid[idx])) grid[idx] = 1;
 					}
 				}
 			}
@@ -504,10 +510,8 @@ function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 					const dx = x - center;
 					const dy = y - center;
 					if (dx * dx + dy * dy <= radius * radius) {
-						// Only revive dead cells - don't disturb alive or dying cells
-						if (grid[y * MINI_SIM_SIZE + x] === 0) {
-							grid[y * MINI_SIM_SIZE + x] = 1;
-						}
+						const idx = y * MINI_SIM_SIZE + x;
+						if (shouldRevive(grid[idx])) grid[idx] = 1;
 					}
 				}
 			}
