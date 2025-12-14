@@ -318,11 +318,31 @@ function getNeighborOffsets(neighborhood: SimNeighborhood, y?: number): [number,
 	}
 }
 
+function getCellCenterSquare(x: number, y: number): { x: number; y: number } {
+	return { x: x + 0.5, y: y + 0.5 };
+}
+
+function getCellCenterHex(x: number, y: number): { x: number; y: number } {
+	// Odd-r offset coordinates: odd rows are shifted right by +0.5
+	const rowOffset = (y & 1) === 1 ? 0.5 : 0;
+	return { x: x + 0.5 + rowOffset, y: y + 0.5 };
+}
+
+function getDiskCenter(isHex: boolean): { cx: number; cy: number } {
+	// Use pixel-aligned center between cells for even-sized grids (e.g. 112x112).
+	// This avoids the “off-by-one-cell” feeling when looking at perfectly symmetric seeds/stimuli.
+	const cy = MINI_SIM_SIZE / 2;
+	if (!isHex) return { cx: MINI_SIM_SIZE / 2, cy };
+
+	// Choose the center row parity deterministically from the row just above the midline.
+	const centerRow = Math.floor(cy - 0.5);
+	const rowOffset = (centerRow & 1) === 1 ? 0.5 : 0;
+	return { cx: MINI_SIM_SIZE / 2 + rowOffset, cy };
+}
+
 // Initialize a single mini simulation grid
 function initMiniSimGrid(rule: GalleryRule): Uint32Array {
 	const grid = new Uint32Array(MINI_SIM_SIZE * MINI_SIM_SIZE);
-	// Integer center creates odd-diameter disk with true center cell
-	const center = Math.floor(MINI_SIM_SIZE / 2);
 	const isHex = rule.neighborhood === 'hexagonal' || rule.neighborhood === 'extendedHexagonal';
 	
 	switch (rule.initType) {
@@ -330,24 +350,16 @@ function initMiniSimGrid(rule: GalleryRule): Uint32Array {
 			// Solid disk at center
 			// Use custom radius if provided, otherwise ~18% of grid
 			const radius = rule.diskRadius ?? Math.round(MINI_SIM_SIZE * 0.18);
+			const { cx, cy } = getDiskCenter(isHex);
+			const r2 = radius * radius;
 			
 			if (isHex) {
-				// For hex grids: apply X-offset for odd rows, no Y scaling
-				const isOddCenter = (center & 1) === 1;
-				const centerX = center + (isOddCenter ? 0.5 : 0);
-				
 				for (let y = 0; y < MINI_SIM_SIZE; y++) {
 					for (let x = 0; x < MINI_SIM_SIZE; x++) {
-						// Apply hex row offset for proper alignment
-						const isOdd = (y & 1) === 1;
-						const cellX = x + (isOdd ? 0.5 : 0);
-						
-						// Simple circular disk - no Y scaling
-						const dx = cellX - centerX;
-						const dy = y - center;
-						const distSq = dx * dx + dy * dy;
-						
-						if (distSq <= radius * radius) {
+						const p = getCellCenterHex(x, y);
+						const dx = p.x - cx;
+						const dy = p.y - cy;
+						if (dx * dx + dy * dy <= r2) {
 							grid[y * MINI_SIM_SIZE + x] = 1;
 						}
 					}
@@ -356,9 +368,10 @@ function initMiniSimGrid(rule: GalleryRule): Uint32Array {
 				// For square grids, use simple Euclidean distance
 				for (let y = 0; y < MINI_SIM_SIZE; y++) {
 					for (let x = 0; x < MINI_SIM_SIZE; x++) {
-						const dx = x - center;
-						const dy = y - center;
-						if (dx * dx + dy * dy <= radius * radius) {
+						const p = getCellCenterSquare(x, y);
+						const dx = p.x - cx;
+						const dy = p.y - cy;
+						if (dx * dx + dy * dy <= r2) {
 							grid[y * MINI_SIM_SIZE + x] = 1;
 						}
 					}
@@ -370,12 +383,16 @@ function initMiniSimGrid(rule: GalleryRule): Uint32Array {
 			// Ring pattern
 			const outerRadius = 7;
 			const innerRadius = 3;
+			const { cx, cy } = getDiskCenter(false);
+			const outer2 = outerRadius * outerRadius;
+			const inner2 = innerRadius * innerRadius;
 			for (let y = 0; y < MINI_SIM_SIZE; y++) {
 				for (let x = 0; x < MINI_SIM_SIZE; x++) {
-					const dx = x - center;
-					const dy = y - center;
+					const p = getCellCenterSquare(x, y);
+					const dx = p.x - cx;
+					const dy = p.y - cy;
 					const distSq = dx * dx + dy * dy;
-					if (distSq >= innerRadius * innerRadius && distSq <= outerRadius * outerRadius) {
+					if (distSq >= inner2 && distSq <= outer2) {
 						grid[y * MINI_SIM_SIZE + x] = 1;
 					}
 				}
@@ -383,10 +400,12 @@ function initMiniSimGrid(rule: GalleryRule): Uint32Array {
 			break;
 		}
 		case 'symmetricCross': {
+			const cx = Math.floor(MINI_SIM_SIZE / 2);
+			const cy = Math.floor(MINI_SIM_SIZE / 2);
 			for (let y = 0; y < MINI_SIM_SIZE; y++) {
 				for (let x = 0; x < MINI_SIM_SIZE; x++) {
-					const dx = Math.abs(x - center);
-					const dy = Math.abs(y - center);
+					const dx = Math.abs(x - cx);
+					const dy = Math.abs(y - cy);
 					if (dx < 3 || dy < 3) {
 						grid[y * MINI_SIM_SIZE + x] = Math.random() < rule.density ? 1 : 0;
 					}
@@ -474,23 +493,26 @@ function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 
 		// Default: apply a solid disk at center additively
 		// Use the same hex-aware coordinate system as initMiniSimGrid
-		const center = Math.floor(MINI_SIM_SIZE / 2);
 		const radius = rule.diskRadius ?? Math.round(MINI_SIM_SIZE * 0.18);
 		const isHex = rule.neighborhood === 'hexagonal' || rule.neighborhood === 'extendedHexagonal';
+		const { cx, cy } = getDiskCenter(isHex);
+		const r2 = radius * radius;
 
 		if (stimShape === 'horizontalLine' || stimShape === 'verticalLine') {
 			// Make line stim a bit stronger than disk radius so it’s visible in the tiny gallery.
 			const halfLen = Math.max(2, Math.floor(radius * 1.4));
 			if (stimShape === 'horizontalLine') {
-				const y = center;
-				for (let x = center - halfLen; x <= center + halfLen; x++) {
+				const y = Math.floor(cy);
+				const xMid = Math.floor(cx);
+				for (let x = xMid - halfLen; x <= xMid + halfLen; x++) {
 					if (x < 0 || x >= MINI_SIM_SIZE) continue;
 					const idx = y * MINI_SIM_SIZE + x;
 					if (shouldRevive(grid[idx])) grid[idx] = 1;
 				}
 			} else {
-				const x = center;
-				for (let y = center - halfLen; y <= center + halfLen; y++) {
+				const x = Math.floor(cx);
+				const yMid = Math.floor(cy);
+				for (let y = yMid - halfLen; y <= yMid + halfLen; y++) {
 					if (y < 0 || y >= MINI_SIM_SIZE) continue;
 					const idx = y * MINI_SIM_SIZE + x;
 					if (shouldRevive(grid[idx])) grid[idx] = 1;
@@ -500,22 +522,12 @@ function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 		}
 		
 		if (isHex) {
-			// For hex grids: apply X-offset for odd rows, no Y scaling
-			const isOddCenter = (center & 1) === 1;
-			const centerX = center + (isOddCenter ? 0.5 : 0);
-			
 			for (let y = 0; y < MINI_SIM_SIZE; y++) {
 				for (let x = 0; x < MINI_SIM_SIZE; x++) {
-					// Apply hex row offset for proper alignment
-					const isOdd = (y & 1) === 1;
-					const cellX = x + (isOdd ? 0.5 : 0);
-					
-					// Simple circular disk - no Y scaling
-					const dx = cellX - centerX;
-					const dy = y - center;
-					const distSq = dx * dx + dy * dy;
-					
-					if (distSq <= radius * radius) {
+					const p = getCellCenterHex(x, y);
+					const dx = p.x - cx;
+					const dy = p.y - cy;
+					if (dx * dx + dy * dy <= r2) {
 						const idx = y * MINI_SIM_SIZE + x;
 						if (shouldRevive(grid[idx])) grid[idx] = 1;
 					}
@@ -525,9 +537,10 @@ function applyStimulation(grid: Uint32Array, rule: GalleryRule): void {
 			// For square grids, use simple Euclidean distance
 			for (let y = 0; y < MINI_SIM_SIZE; y++) {
 				for (let x = 0; x < MINI_SIM_SIZE; x++) {
-					const dx = x - center;
-					const dy = y - center;
-					if (dx * dx + dy * dy <= radius * radius) {
+					const p = getCellCenterSquare(x, y);
+					const dx = p.x - cx;
+					const dy = p.y - cy;
+					if (dx * dx + dy * dy <= r2) {
 						const idx = y * MINI_SIM_SIZE + x;
 						if (shouldRevive(grid[idx])) grid[idx] = 1;
 					}
@@ -1103,7 +1116,8 @@ function applyVitalityView(sim: Simulation, rule: GalleryRule): void {
 function seedWebGPUSim(sim: Simulation, rule: GalleryRule): void {
 	const isHex = rule.neighborhood === 'hexagonal' || rule.neighborhood === 'extendedHexagonal';
 	const { width, height } = sim.getSize();
-	const center = Math.floor(width / 2);
+	const cx = width / 2;
+	const cy = height / 2;
 
 	if (rule.initType === 'random') {
 		sim.randomize(rule.density, true);
@@ -1120,13 +1134,12 @@ function seedWebGPUSim(sim: Simulation, rule: GalleryRule): void {
 	if (rule.initType === 'centeredDisk') {
 		const radius = rule.diskRadius ?? Math.round(width * 0.18);
 		const r2 = radius * radius;
-		const centerX = isHex && (center & 1) === 1 ? center + 0.5 : center;
 
 		for (let y = 0; y < height; y++) {
 			for (let x = 0; x < width; x++) {
-				const cellX = isHex && (y & 1) === 1 ? x + 0.5 : x;
-				const dx = cellX - centerX;
-				const dy = y - center;
+				const p = isHex ? getCellCenterHex(x, y) : getCellCenterSquare(x, y);
+				const dx = p.x - cx;
+				const dy = p.y - cy;
 				if (dx * dx + dy * dy <= r2) sim.setCell(x, y, 1);
 			}
 		}
@@ -1140,8 +1153,9 @@ function seedWebGPUSim(sim: Simulation, rule: GalleryRule): void {
 		const inner2 = innerRadius * innerRadius;
 		for (let y = 0; y < height; y++) {
 			for (let x = 0; x < width; x++) {
-				const dx = x - center;
-				const dy = y - center;
+				const p = getCellCenterSquare(x, y);
+				const dx = p.x - cx;
+				const dy = p.y - cy;
 				const d2 = dx * dx + dy * dy;
 				if (d2 >= inner2 && d2 <= outer2) sim.setCell(x, y, 1);
 			}
@@ -1150,10 +1164,12 @@ function seedWebGPUSim(sim: Simulation, rule: GalleryRule): void {
 	}
 
 	if (rule.initType === 'symmetricCross') {
+		const centerX = Math.floor(cx);
+		const centerY = Math.floor(cy);
 		for (let y = 0; y < height; y++) {
 			for (let x = 0; x < width; x++) {
-				const dx = Math.abs(x - center);
-				const dy = Math.abs(y - center);
+				const dx = Math.abs(x - centerX);
+				const dy = Math.abs(y - centerY);
 				if (dx < 3 || dy < 3) {
 					if (Math.random() < rule.density) sim.setCell(x, y, 1);
 				}
@@ -1166,20 +1182,23 @@ function seedWebGPUSim(sim: Simulation, rule: GalleryRule): void {
 function applyStimulationWebGPU(sim: Simulation, rule: GalleryRule): void {
 	const stimShape = rule.stimShape ?? 'disk';
 	const { width, height } = sim.getSize();
-	const center = Math.floor(width / 2);
+	const cx = width / 2;
+	const cy = height / 2;
 	const radius = rule.diskRadius ?? Math.round(width * 0.18);
 
 	if (stimShape === 'horizontalLine' || stimShape === 'verticalLine') {
 		const halfLen = Math.max(2, Math.floor(radius * 1.4));
 		if (stimShape === 'horizontalLine') {
-			const y = center;
-			for (let x = center - halfLen; x <= center + halfLen; x++) {
+			const y = Math.floor(cy);
+			const xMid = Math.floor(cx);
+			for (let x = xMid - halfLen; x <= xMid + halfLen; x++) {
 				if (x < 0 || x >= width) continue;
 				sim.setCell(x, y, 1);
 			}
 		} else {
-			const x = center;
-			for (let y = center - halfLen; y <= center + halfLen; y++) {
+			const x = Math.floor(cx);
+			const yMid = Math.floor(cy);
+			for (let y = yMid - halfLen; y <= yMid + halfLen; y++) {
 				if (y < 0 || y >= height) continue;
 				sim.setCell(x, y, 1);
 			}
@@ -1190,12 +1209,11 @@ function applyStimulationWebGPU(sim: Simulation, rule: GalleryRule): void {
 	// Disk
 	const isHex = rule.neighborhood === 'hexagonal' || rule.neighborhood === 'extendedHexagonal';
 	const r2 = radius * radius;
-	const centerX = isHex && (center & 1) === 1 ? center + 0.5 : center;
 	for (let y = 0; y < height; y++) {
 		for (let x = 0; x < width; x++) {
-			const cellX = isHex && (y & 1) === 1 ? x + 0.5 : x;
-			const dx = cellX - centerX;
-			const dy = y - center;
+			const p = isHex ? getCellCenterHex(x, y) : getCellCenterSquare(x, y);
+			const dx = p.x - cx;
+			const dy = p.y - cy;
 			if (dx * dx + dy * dy <= r2) sim.setCell(x, y, 1);
 		}
 	}
