@@ -336,15 +336,58 @@ function getCellCenterHex(x: number, y: number): { x: number; y: number } {
 	return { x: centerX, y: centerY };
 }
 
+function nearestHexCell(gridX: number, gridY: number, gridWidth: number, gridHeight: number): { x: number; y: number } {
+	// Mirror `nearest_hex_cell` in `life-render.wgsl` (with bounds checks)
+	const rowF = gridY / HEX_HEIGHT_RATIO;
+	let row = Math.floor(rowF + 0.5);
+	row = Math.max(0, Math.min(gridHeight - 1, row));
+
+	const isOdd = (row & 1) === 1;
+	let adjustedX = gridX;
+	if (isOdd) adjustedX -= 0.5;
+	let col = Math.floor(adjustedX + 0.5);
+	col = Math.max(0, Math.min(gridWidth - 1, col));
+
+	const center = getCellCenterHex(col, row);
+	let bestCol = col;
+	let bestRow = row;
+	let bestDist2 = (gridX - center.x) ** 2 + (gridY - center.y) ** 2;
+
+	const neighbors: { x: number; y: number }[] = [
+		{ x: col - 1, y: row },
+		{ x: col + 1, y: row },
+		{ x: col - (isOdd ? 0 : 1), y: row - 1 },
+		{ x: col + (isOdd ? 1 : 0), y: row - 1 },
+		{ x: col - (isOdd ? 0 : 1), y: row + 1 },
+		{ x: col + (isOdd ? 1 : 0), y: row + 1 }
+	];
+
+	for (const n of neighbors) {
+		if (n.x < 0 || n.x >= gridWidth || n.y < 0 || n.y >= gridHeight) continue;
+		const nc = getCellCenterHex(n.x, n.y);
+		const d2 = (gridX - nc.x) ** 2 + (gridY - nc.y) ** 2;
+		if (d2 < bestDist2) {
+			bestDist2 = d2;
+			bestCol = n.x;
+			bestRow = n.y;
+		}
+	}
+
+	return { x: bestCol, y: bestRow };
+}
+
 function getDiskCenterForGrid(isHex: boolean, gridWidth: number, gridHeight: number): { cx: number; cy: number } {
 	if (!isHex) {
 		// Match square axis center: grid_width/2, grid_height/2
 		return { cx: gridWidth / 2, cy: gridHeight / 2 };
 	}
-	// Match hex axis center in shader:
-	// center_x = grid_width/2
-	// center_y = (grid_height/2) * HEX_HEIGHT_RATIO
-	return { cx: gridWidth / 2, cy: (gridHeight / 2) * HEX_HEIGHT_RATIO };
+	// Compute axis center in the same visual space the renderer uses,
+	// then snap to the nearest hex cell center (matches brush circular geometry).
+	const axisCx = gridWidth / 2;
+	const axisCy = (gridHeight / 2) * HEX_HEIGHT_RATIO;
+	const cell = nearestHexCell(axisCx, axisCy, gridWidth, gridHeight);
+	const c = getCellCenterHex(cell.x, cell.y);
+	return { cx: c.x, cy: c.y };
 }
 
 // Initialize a single mini simulation grid
