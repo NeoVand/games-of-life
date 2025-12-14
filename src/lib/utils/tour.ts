@@ -158,11 +158,9 @@ const GALLERY_RULES: GalleryRule[] = [
 		surviveMask: 0b1111111110000001111100000, // 8-12, 16-24
 		numStates: 64,
 		neighborhood: 'extendedMoore',
-		initType: 'centeredDisk',
-		density: 1.0,
-		seedRate: 0.0,
-		stimPeriod: 0,
-		diskRadius: 4,
+		initType: 'random',
+		density: 0.2,
+		seedRate: 0.0009,
 		vitalityMode: 'none'
 	},
 	{
