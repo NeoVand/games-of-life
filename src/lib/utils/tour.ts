@@ -185,7 +185,7 @@ const GALLERY_RULES: GalleryRule[] = [
 		seedRate: 0.0,
 		stimPeriod: 90,
 		stimShape: 'horizontalLine',
-		diskRadius: 6,
+		diskRadius: 7,
 		vitalityMode: 'none'
 	}
 ];
