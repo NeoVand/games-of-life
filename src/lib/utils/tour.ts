@@ -207,11 +207,11 @@ const GALLERY_RULES: GalleryRule[] = [
 		initType: 'centeredDisk',
 		density: 1.0,
 		seedRate: 0.0,
-		stimPeriod: 60,
+		stimPeriod: 100,
 		stimShape: 'disk',
 		stimRevive: 'deadOrDying',
 		diskRadius: 10,
-		stimRadius: 20, // 2x larger periodic disk stim
+		stimRadius: 24, // larger, but less frequent
 		vitalityMode: 'none'
 	}
 ];
