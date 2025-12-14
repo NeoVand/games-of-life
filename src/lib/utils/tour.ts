@@ -1124,8 +1124,10 @@ function applyVitalityView(sim: Simulation, rule: GalleryRule): void {
 function seedWebGPUSim(sim: Simulation, rule: GalleryRule): void {
 	const isHex = rule.neighborhood === 'hexagonal' || rule.neighborhood === 'extendedHexagonal';
 	const { width, height } = sim.getSize();
+	// Must match axis/brush visual center conventions for hex.
+	// (See `life-render.wgsl` hex axes: center_y = (grid_height/2)*HEX_HEIGHT_RATIO)
 	const cx = width / 2;
-	const cy = height / 2;
+	const cy = isHex ? (height / 2) * HEX_HEIGHT_RATIO : height / 2;
 
 	if (rule.initType === 'random') {
 		sim.randomize(rule.density, true);
