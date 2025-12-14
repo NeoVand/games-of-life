@@ -165,14 +165,29 @@ const GALLERY_RULES: GalleryRule[] = [
 	},
 	{
 		name: 'Ext24 Neo Coral',
-		birthMask: 0b1111100000, // 5, 6, 7, 8, 9
-		surviveMask: 0b1111111000000, // 6, 7, 8, 9, 10, 11, 12
-		numStates: 96,
+		// Imported from neo coral.json (Custom Rule)
+		birthMask: 992, // B56789
+		surviveMask: 8128, // S6-12
+		numStates: 602,
 		neighborhood: 'extendedMoore',
-		initType: 'random',
-		density: 0.15,
-		seedRate: 0.0007,
-		vitalityMode: 'none'
+		// Symmetric disk seed
+		initType: 'centeredDisk',
+		density: 1.0,
+		seedRate: 0.0,
+		stimPeriod: 0,
+		stimShape: 'disk',
+		diskRadius: 6,
+		vitalityMode: 'curve',
+		ghostFactor: 0,
+		curvePoints: [
+			{ x: 0, y: 0 },
+			{ x: 0.04336907932808316, y: -1.902238176074881 },
+			{ x: 0.19299944518769985, y: 0.6060420562784863 },
+			{ x: 0.4857545088260803, y: -0.15734757965514712 },
+			{ x: 0.7199585597367847, y: -0.15734757965514712 },
+			{ x: 0.8175435809495781, y: 0.8786812119690697 },
+			{ x: 1, y: -0.920737215588781 }
+		]
 	},
 	{
 		name: 'Hex2 Neo Brain 2',
