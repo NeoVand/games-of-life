@@ -287,7 +287,7 @@ import { getSimulationState, BOUNDARY_MODES, type BoundaryMode, getSimulationRef
 	const sim = getSimulationRef();
 	if (sim) {
 		sim.getCellDataAsync().then(setRuleEditorPreSnapshot).catch(() => {});
-	}
+		}
 	});
 
 	onDestroy(() => {
