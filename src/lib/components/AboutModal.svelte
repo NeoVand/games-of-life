@@ -223,13 +223,13 @@
 					Developed by <strong>Neo Mohsenvand</strong>
 				</div>
 				<div class="footer-buttons">
-					<a href="/library" class="library-link" onclick={handleLearnLibrary}>
+					<a href="/gol" class="library-link" onclick={handleLearnLibrary}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
 							<path d="M4 4.5A2.5 2.5 0 016.5 7H20" />
 							<path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
 						</svg>
-						Learn the library
+						Learn GoL Library
 					</a>
 					<button class="tour-btn" onclick={handleStartTour}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
