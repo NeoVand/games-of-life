@@ -2123,6 +2123,10 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 				/* Keep the card readable — don't let it stretch edge-to-edge on phones */
 				max-width: min(88vw, 340px) !important;
 				width: min(88vw, 340px) !important;
+				/* Never trap nav buttons off-screen */
+				max-height: calc(100svh - 24px) !important;
+				overflow-y: auto !important;
+				-webkit-overflow-scrolling: touch !important;
 			}
 			
 			.driver-popover.gol-tour-popover .driver-popover-title {
@@ -2182,10 +2186,10 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 			.driver-popover.gol-tour-popover {
 				max-width: min(88vw, 320px) !important;
 				width: min(88vw, 320px) !important;
-			}
-			
-			.tour-gallery {
-				grid-template-columns: repeat(2, 1fr) !important;
+				/* Never trap nav buttons off-screen */
+				max-height: calc(100svh - 24px) !important;
+				overflow-y: auto !important;
+				-webkit-overflow-scrolling: touch !important;
 			}
 			
 			.tour-gallery {
