@@ -3,6 +3,7 @@
 	import { draggable } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
 	import { getSimulationState } from '../stores/simulation.svelte.js';
+	import { base } from '$app/paths';
 
 	interface Props {
 		onclose: () => void;
@@ -223,7 +224,7 @@
 					Developed by <strong>Neo Mohsenvand</strong>
 				</div>
 				<div class="footer-buttons">
-					<a href="/gol" class="library-link" onclick={handleLearnLibrary}>
+					<a href={`${base}/gol`} class="library-link" onclick={handleLearnLibrary}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
 							<path d="M4 4.5A2.5 2.5 0 016.5 7H20" />

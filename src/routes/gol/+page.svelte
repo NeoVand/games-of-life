@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 
 	function handleGoGallery() {
-		goto('/gol/demos/gallery');
+		goto(`${base}/gol/demos/gallery`);
 	}
 </script>
 
@@ -16,7 +17,7 @@
 		</p>
 
 		<div class="cta">
-			<a class="btn primary" href="/gol/quickstart/svelte">Quickstart (Svelte)</a>
+			<a class="btn primary" href={`${base}/gol/quickstart/svelte`}>Quickstart (Svelte)</a>
 			<button class="btn" type="button" onclick={handleGoGallery}>See the 9 demo sims</button>
 		</div>
 	</header>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { GOL_NAV } from '$lib/gol/docs/nav.js';
+	import { base } from '$app/paths';
 
 	let { children } = $props();
 	let query = $state('');
@@ -37,7 +38,7 @@
 			{#if filtered.length > 0}
 				<div class="search-results">
 					{#each filtered as item (item.href)}
-						<a class="search-item" href={item.href} onclick={clearSearch}>
+						<a class="search-item" href={`${base}${item.href}`} onclick={clearSearch}>
 							<div class="search-item-title">{item.title}</div>
 							<div class="search-item-sub">{item.section}</div>
 						</a>
@@ -51,7 +52,13 @@
 				<div class="nav-section">
 					<div class="nav-section-title">{section.title}</div>
 					{#each section.items as item (item.href)}
-						<a class="nav-item" class:active={$page.url.pathname === item.href} href={item.href}>{item.title}</a>
+						<a
+							class="nav-item"
+							class:active={$page.url.pathname === `${base}${item.href}`}
+							href={`${base}${item.href}`}
+						>
+							{item.title}
+						</a>
 					{/each}
 				</div>
 			{/each}
@@ -60,7 +67,7 @@
 
 	<div class="main">
 		<header class="topbar">
-			<a class="topbar-back" href="/">← Back to app</a>
+			<a class="topbar-back" href={`${base}/`}>← Back to app</a>
 			<div class="topbar-spacer"></div>
 			<a class="topbar-link" href="https://github.com/NeoVand/games-of-life" target="_blank" rel="noopener noreferrer">GitHub</a>
 		</header>
