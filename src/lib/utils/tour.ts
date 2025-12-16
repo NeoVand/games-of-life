@@ -2120,16 +2120,21 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		/* Mobile adjustments */
 		@media (max-width: 768px) {
 			.driver-popover.gol-tour-popover {
-				max-width: calc(100vw - 32px) !important;
-				/* Don't set margin - let driver.js handle centering */
+				/* Keep the card readable — don't let it stretch edge-to-edge on phones */
+				max-width: min(88vw, 340px) !important;
+				width: min(88vw, 340px) !important;
 			}
 			
 			.driver-popover.gol-tour-popover .driver-popover-title {
 				font-size: 0.95rem !important;
+				white-space: normal !important;
+				overflow-wrap: anywhere !important;
 			}
 			
 			.driver-popover.gol-tour-popover .driver-popover-description {
 				font-size: 0.8rem !important;
+				white-space: normal !important;
+				overflow-wrap: anywhere !important;
 			}
 			
 			.tour-gallery {
@@ -2175,8 +2180,12 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		/* Extra small phones */
 		@media (max-width: 380px) {
 			.driver-popover.gol-tour-popover {
-				max-width: calc(100vw - 24px) !important;
-				/* Don't set margin - let driver.js handle centering */
+				max-width: min(88vw, 320px) !important;
+				width: min(88vw, 320px) !important;
+			}
+			
+			.tour-gallery {
+				grid-template-columns: repeat(2, 1fr) !important;
 			}
 			
 			.tour-gallery {

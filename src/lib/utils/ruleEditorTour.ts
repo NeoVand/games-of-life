@@ -376,15 +376,20 @@ export function getRuleEditorTourStyles(accentColor: string, isLightTheme: boole
 		/* Mobile adjustments */
 		@media (max-width: 768px) {
 			.driver-popover.rule-editor-tour-popover {
-				max-width: 260px !important;
+				max-width: min(88vw, 320px) !important;
+				width: min(88vw, 320px) !important;
 			}
 			
 			.driver-popover.rule-editor-tour-popover .driver-popover-title {
 				font-size: 0.9rem !important;
+				white-space: normal !important;
+				overflow-wrap: anywhere !important;
 			}
 			
 			.driver-popover.rule-editor-tour-popover .driver-popover-description {
 				font-size: 0.75rem !important;
+				white-space: normal !important;
+				overflow-wrap: anywhere !important;
 			}
 			
 			.driver-popover.rule-editor-tour-popover .tour-icon {
