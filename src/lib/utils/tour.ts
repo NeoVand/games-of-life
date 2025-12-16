@@ -1880,6 +1880,11 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		.driver-popover.gol-tour-popover .driver-popover-navigation-btns {
 			gap: 0.5rem !important;
 			flex-wrap: wrap !important;
+			/* If the popover ever becomes scrollable, keep controls reachable */
+			position: sticky !important;
+			bottom: 0 !important;
+			background: ${bgColor} !important;
+			padding-top: 0.5rem !important;
 		}
 		
 		.driver-popover.gol-tour-popover .driver-popover-prev-btn,
@@ -2135,12 +2140,9 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		@media (max-width: 768px) {
 			.driver-popover.gol-tour-popover {
 				/* Keep the card readable — don't let it stretch edge-to-edge on phones */
-				max-width: min(88vw, 340px) !important;
-				width: min(88vw, 340px) !important;
-				/* Never trap nav buttons off-screen */
-				max-height: calc(100svh - 24px) !important;
-				overflow-y: auto !important;
-				-webkit-overflow-scrolling: touch !important;
+				/* Use more width to avoid excessive wrapping/height (but keep side margins) */
+				max-width: min(94vw, 420px) !important;
+				width: min(94vw, 420px) !important;
 			}
 			
 			.driver-popover.gol-tour-popover .driver-popover-title {
@@ -2198,9 +2200,9 @@ export function getTourStyles(accentColor: string, isLightTheme: boolean): strin
 		/* Extra small phones */
 		@media (max-width: 380px) {
 			.driver-popover.gol-tour-popover {
-				max-width: min(88vw, 320px) !important;
-				width: min(88vw, 320px) !important;
-				/* Never trap nav buttons off-screen */
+				max-width: min(96vw, 360px) !important;
+				width: min(96vw, 360px) !important;
+				/* Last-resort safety: on tiny phones, allow vertical scroll */
 				max-height: calc(100svh - 24px) !important;
 				overflow-y: auto !important;
 				-webkit-overflow-scrolling: touch !important;

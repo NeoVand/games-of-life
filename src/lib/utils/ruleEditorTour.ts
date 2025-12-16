@@ -296,6 +296,10 @@ export function getRuleEditorTourStyles(accentColor: string, isLightTheme: boole
 		.driver-popover.rule-editor-tour-popover .driver-popover-navigation-btns {
 			gap: 0.5rem !important;
 			flex-wrap: wrap !important;
+			position: sticky !important;
+			bottom: 0 !important;
+			background: ${bgColor} !important;
+			padding-top: 0.5rem !important;
 		}
 		
 		.driver-popover.rule-editor-tour-popover .driver-popover-prev-btn,
@@ -388,8 +392,8 @@ export function getRuleEditorTourStyles(accentColor: string, isLightTheme: boole
 		/* Mobile adjustments */
 		@media (max-width: 768px) {
 			.driver-popover.rule-editor-tour-popover {
-				max-width: min(88vw, 320px) !important;
-				width: min(88vw, 320px) !important;
+				max-width: min(94vw, 360px) !important;
+				width: min(94vw, 360px) !important;
 			}
 			
 			.driver-popover.rule-editor-tour-popover .driver-popover-title {
