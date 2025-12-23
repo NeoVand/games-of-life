@@ -196,6 +196,12 @@
 							<div class="shortcut"><kbd>Shift</kbd>+<kbd>C</kbd><span>Cycle spectrum</span></div>
 							<div class="shortcut"><kbd>V</kbd><span>Record video</span></div>
 						</section>
+						
+						<section class="shortcut-group">
+							<h3>Audio</h3>
+							<div class="shortcut"><kbd>M</kbd><span>Toggle audio</span></div>
+							<div class="shortcut"><kbd>Shift</kbd>+<kbd>M</kbd><span>Cycle presets</span></div>
+						</section>
 
 						<section class="shortcut-group">
 							<h3>Dialogs</h3>
