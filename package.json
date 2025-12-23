@@ -37,6 +37,7 @@
 		"vite": "^7.2.2"
 	},
 	"dependencies": {
+		"@games-of-life/audio": "0.0.0",
 		"@games-of-life/core": "0.0.0",
 		"@games-of-life/svelte": "0.0.0",
 		"@games-of-life/webgpu": "0.0.0",

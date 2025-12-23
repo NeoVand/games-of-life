@@ -1416,6 +1416,21 @@ export class Simulation {
 	}
 
 	/**
+	 * Get the current cell buffer (for external access, e.g., audio pipeline).
+	 * Returns the buffer that contains the most recent cell states.
+	 */
+	getCurrentCellBuffer(): GPUBuffer {
+		return this.cellBuffers[this.stepCount % 2];
+	}
+
+	/**
+	 * Get the GPU device (for external pipelines).
+	 */
+	getDevice(): GPUDevice {
+		return this.device;
+	}
+
+	/**
 	 * Read back all cell data from GPU (async)
 	 */
 	async getCellDataAsync(): Promise<Uint32Array> {

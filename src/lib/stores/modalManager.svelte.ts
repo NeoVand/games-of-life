@@ -3,7 +3,7 @@
  * Manages multiple draggable modals with position persistence and z-index management
  */
 
-export type ModalId = 'ruleEditor' | 'initialize' | 'about' | 'settings' | 'help' | 'brushEditor' | 'historyTimeline';
+export type ModalId = 'ruleEditor' | 'initialize' | 'about' | 'settings' | 'help' | 'brushEditor' | 'historyTimeline' | 'audio';
 
 export interface ModalState {
 	isOpen: boolean;
@@ -22,7 +22,8 @@ const modalStates = $state<Record<ModalId, ModalState>>({
 	settings: { isOpen: false, position: null, zIndex: BASE_Z_INDEX },
 	help: { isOpen: false, position: null, zIndex: BASE_Z_INDEX },
 	brushEditor: { isOpen: false, position: null, zIndex: BASE_Z_INDEX },
-	historyTimeline: { isOpen: false, position: null, zIndex: BASE_Z_INDEX }
+	historyTimeline: { isOpen: false, position: null, zIndex: BASE_Z_INDEX },
+	audio: { isOpen: false, position: null, zIndex: BASE_Z_INDEX }
 });
 
 // Track the highest z-index used

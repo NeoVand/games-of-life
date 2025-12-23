@@ -1546,6 +1546,12 @@ const icons = {
 	camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon" stroke-linecap="round" stroke-linejoin="round">
 		<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
 		<circle cx="12" cy="13" r="4"/>
+	</svg>`,
+	// Audio icon
+	audio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tour-icon">
+		<path d="M11 5L6 9H2v6h4l5 4V5z"/>
+		<path d="M15.54 8.46a5 5 0 010 7.07"/>
+		<path d="M19.07 4.93a10 10 0 010 14.14"/>
 	</svg>`
 };
 
@@ -1674,12 +1680,13 @@ function getTourSteps(): DriveStep[] {
 		{
 			element: '#tour-camera-group',
 			popover: {
-				title: titleWithIcon(icons.camera, 'View Controls'),
+				title: titleWithIcon(icons.camera, 'View & Audio'),
 				description: createGroupDescription([
 					{ icon: icons.pan, label: 'Pan/Brush toggle', shortcut: 'B' },
 					{ icon: icons.fit, label: 'Fit to screen', shortcut: 'F' },
-					{ icon: icons.record, label: 'Record video' }
-				], 'Navigate and capture the view.', mobile),
+					{ icon: icons.record, label: 'Record video' },
+					{ icon: icons.audio, label: 'Audio sonification', shortcut: 'M' }
+				], 'Navigate, capture, and hear the simulation.', mobile),
 				side: popoverSide,
 				align: 'center'
 			}
@@ -1707,7 +1714,7 @@ function getTourSteps(): DriveStep[] {
 					: `<div class="tour-shortcuts">
 						<div class="tour-shortcut-row"><kbd>Enter</kbd> <span>Play/Pause</span> <kbd>Space</kbd> <span>Hold to pan</span></div>
 						<div class="tour-shortcut-row"><kbd>B</kbd> <span>Toggle brush/pan</span> <kbd>C</kbd> <span>Cycle colors</span></div>
-						<div class="tour-shortcut-row"><kbd>T</kbd> <span>Toggle theme</span> <kbd>R</kbd> <span>Reinitialize</span></div>
+						<div class="tour-shortcut-row"><kbd>M</kbd> <span>Toggle audio</span> <kbd>⇧M</kbd> <span>Cycle presets</span></div>
 						<div class="tour-shortcut-row"><kbd>E</kbd> <span>Edit rules</span> <kbd>?</kbd> <span>All shortcuts</span></div>
 					</div>`,
 				side: 'over',

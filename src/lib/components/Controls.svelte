@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { getSimulationState, getUIState, getSimulationRef } from '../stores/simulation.svelte.js';
-	import { openModal, closeModal, getModalStates } from '../stores/modalManager.svelte.js';
+	import { openModal, closeModal, toggleModal, getModalStates } from '../stores/modalManager.svelte.js';
+	import { getAudioState, toggleAudio } from '../stores/audio.svelte.js';
 	import HeartIcon from './HeartIcon.svelte';
 	import { canUndo, canRedo, undo as historyUndo, redo as historyRedo, subscribeHistory } from '../stores/history.js';
 
@@ -24,6 +25,7 @@
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
+	const audioState = getAudioState();
 	const modalStates = $derived(getModalStates());
 	let showSpeedSlider = $state(false);
 	let isSpeedDragging = $state(false);
@@ -437,6 +439,26 @@
 					<rect x="2" y="6" width="14" height="12" rx="2" />
 					<path d="M22 8l-6 4 6 4V8z" fill="currentColor" />
 					<circle cx="7" cy="12" r="2" />
+				{/if}
+			</svg>
+		</button>
+
+		<!-- Audio Settings -->
+		<button 
+			id="tour-audio-btn" 
+			class="control-btn" 
+			class:active={audioState.isEnabled || modalStates.audio.isOpen}
+			onclick={() => toggleModal('audio')}
+			data-tooltip="Audio Settings"
+			aria-label="Audio Settings"
+		>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<!-- Speaker base (always shown) -->
+				<path d="M11 5L6 9H2v6h4l5 4V5z" fill={audioState.isEnabled ? "currentColor" : "none"} opacity={audioState.isEnabled ? 0.3 : 1} />
+				{#if audioState.isEnabled}
+					<!-- Sound waves when audio is on -->
+					<path d="M15.54 8.46a5 5 0 010 7.07" />
+					<path d="M19.07 4.93a10 10 0 010 14.14" />
 				{/if}
 			</svg>
 		</button>

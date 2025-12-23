@@ -2,14 +2,16 @@
 	import { onMount } from 'svelte';
 	import { initWebGPU, type WebGPUContext, type WebGPUError } from '@games-of-life/webgpu';
 	import { Simulation } from '@games-of-life/webgpu';
-import { getSimulationState, getUIState, GRID_SCALES, type GridScale, type SpectrumMode, type BrushShape, setSimulationRef, wasBrushEditorSnapshotTaken, markBrushEditorSnapshotTaken, markBrushEditorEdited } from '../stores/simulation.svelte.js';
-import { addSnapshotWithBefore, resetHistory } from '../stores/history.js';
+	import { getSimulationState, getUIState, GRID_SCALES, type GridScale, type SpectrumMode, type BrushShape, setSimulationRef, wasBrushEditorSnapshotTaken, markBrushEditorSnapshotTaken, markBrushEditorEdited } from '../stores/simulation.svelte.js';
+	import { addSnapshotWithBefore, resetHistory } from '../stores/history.js';
 	import { isTourActive } from '../utils/tour.js';
 	import { isModalOpen } from '../stores/modalManager.svelte.js';
 	import { brushShapeToIndex, spectrumModeToIndex } from '@games-of-life/core';
+	import { initializeAudio, getAudioState, updateAudio, updateAudioSimulation } from '../stores/audio.svelte.js';
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
+	const audioState = getAudioState();
 	
 	// Convert spectrum mode string to number for shader
 	function getSpectrumModeIndex(mode: SpectrumMode): number {
@@ -215,6 +217,13 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		setSimulationRef(simulation);
 		await resetHistory(simulation);
 
+		// Initialize audio engine (won't start playing until user enables it)
+		try {
+			await initializeAudio(ctx.device, simulation);
+		} catch (e) {
+			console.warn('Audio initialization failed:', e);
+		}
+
 		// Apply the selected initialization method
 		applyLastInitialization();
 		
@@ -364,6 +373,11 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		// Also render to recording canvas if recording
 		if (isRecording && recordingCanvas) {
 			simulation.renderToRecordingCanvas();
+		}
+
+		// Update audio (throttled internally to ~30 Hz)
+		if (audioState.isEnabled) {
+			updateAudio(canvasWidth, canvasHeight);
 		}
 
 		// Update alive cells count (sync version for display)
@@ -972,6 +986,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 				height,
 				rule: simState.currentRule
 			});
+			setSimulationRef(simulation);
+			updateAudioSimulation(simulation);
 			applyLastInitialization();
 			
 			// Reset view to fit the new grid (no animation since grid was recreated)
@@ -1184,6 +1200,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			height,
 			rule: simState.currentRule
 		});
+		setSimulationRef(simulation);
+		updateAudioSimulation(simulation);
 		applyLastInitialization();
 	}
 	
@@ -1207,6 +1225,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			height,
 			rule: simState.currentRule
 		});
+		setSimulationRef(simulation);
+		updateAudioSimulation(simulation);
 		applyLastInitialization();
 		
 		// Reset view to fit the new grid (no animation since grid was recreated)

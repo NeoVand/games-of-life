@@ -12,14 +12,17 @@
 	import AboutModal from '$lib/components/AboutModal.svelte';
 	import HistoryTimelineModal from '$lib/components/HistoryTimelineModal.svelte';
 	import BrushEditorModal from '$lib/components/BrushEditorModal.svelte';
+	import AudioModal from '$lib/components/AudioModal.svelte';
 	import { getSimulationState, getUIState, DARK_THEME_COLORS, LIGHT_THEME_COLORS, SPECTRUM_MODES, type GridScale } from '$lib/stores/simulation.svelte.js';
 	import { closeModal, toggleModal, getModalStates } from '$lib/stores/modalManager.svelte.js';
+	import { getAudioState, toggleAudio, cycleAudioPreset } from '$lib/stores/audio.svelte.js';
 	import { hasTourBeenCompleted, startTour, getTourStyles, getSelectedGalleryRule } from '$lib/utils/tour.js';
 	import { getRuleByName } from '$lib/utils/rules.js';
 	import 'driver.js/dist/driver.css';
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
+	const audioState = getAudioState();
 	
 	const isGuide = $derived($page.url.pathname.includes('/gol'));
 	
@@ -32,6 +35,7 @@
 	const showSettings = $derived(modalStates.settings.isOpen);
 	const showHistoryTimeline = $derived(modalStates.historyTimeline.isOpen);
 	const showBrushEditor = $derived(modalStates.brushEditor.isOpen);
+	const showAudio = $derived(modalStates.audio.isOpen);
 	let canvas: Canvas;
 	let tourStyleElement: HTMLStyleElement | null = null;
 	
@@ -367,6 +371,16 @@
 					canvas?.toggleRecording();
 				}
 				break;
+			case 'KeyM':
+				// M toggles audio on/off, Shift+M cycles presets
+				if (!e.ctrlKey && !e.metaKey) {
+					if (e.shiftKey) {
+						cycleAudioPreset();
+					} else {
+						toggleAudio();
+					}
+				}
+				break;
 			case 'KeyE':
 				toggleModal('ruleEditor');
 				break;
@@ -477,6 +491,12 @@
 		{#if showBrushEditor}
 			<BrushEditorModal
 				onclose={() => closeModal('brushEditor')}
+			/>
+		{/if}
+
+		{#if showAudio}
+			<AudioModal
+				onclose={() => closeModal('audio')}
 			/>
 		{/if}
 
