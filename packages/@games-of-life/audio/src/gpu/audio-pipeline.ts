@@ -44,8 +44,10 @@ export class AudioPipeline {
 	private curveBuffers: GPUBuffer[] = []; // 5 curves
 
 	// Triple-buffering state
-	private currentReadbackIndex = 0;
-	private pendingReadback: Promise<Float32Array> | null = null;
+	private writeIndex = 0;  // Index of buffer to write to next
+	private readIndex = 0;   // Index of buffer to read from next
+	private bufferInUse: boolean[] = [false, false, false]; // Track mapped buffers
+	private lastReadResult: Float32Array | null = null; // Cache last successful read
 
 	// Cell buffer reference (from Simulation)
 	private cellBuffer: GPUBuffer | null = null;
@@ -142,14 +144,25 @@ export class AudioPipeline {
 		computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
 		computePass.end();
 
-		// Copy spectrum to readback buffer
-		const readbackBuffer = this.readbackBuffers[this.currentReadbackIndex];
-		if (readbackBuffer) {
+		// Find a readback buffer that's not currently mapped
+		let targetIndex = this.writeIndex;
+		for (let i = 0; i < 3; i++) {
+			const idx = (this.writeIndex + i) % 3;
+			if (!this.bufferInUse[idx] && this.readbackBuffers[idx]?.mapState === 'unmapped') {
+				targetIndex = idx;
+				break;
+			}
+		}
+
+		// Copy spectrum to readback buffer (only if not in use)
+		const readbackBuffer = this.readbackBuffers[targetIndex];
+		if (readbackBuffer && !this.bufferInUse[targetIndex] && readbackBuffer.mapState === 'unmapped') {
 			commandEncoder.copyBufferToBuffer(
 				this.spectrumBuffer, 0,
 				readbackBuffer, 0,
 				SPECTRUM_BUFFER_SIZE
 			);
+			this.writeIndex = (targetIndex + 1) % 3;
 		}
 	}
 
@@ -162,14 +175,28 @@ export class AudioPipeline {
 	 * Normalizes values to prevent clipping from accumulation.
 	 */
 	async readSpectrum(): Promise<Float32Array | null> {
-		// Rotate to next readback buffer
-		const readIndex = (this.currentReadbackIndex + 2) % 3; // Read from 2 frames ago
-		this.currentReadbackIndex = (this.currentReadbackIndex + 1) % 3;
-
-		const buffer = this.readbackBuffers[readIndex];
-		if (!buffer || buffer.mapState !== 'unmapped') {
-			return null;
+		// Find a buffer that's ready to read (not in use, not mapped, not the write target)
+		let foundIndex = -1;
+		for (let i = 0; i < 3; i++) {
+			const idx = (this.readIndex + i) % 3;
+			// Skip the buffer we're currently writing to
+			if (idx === this.writeIndex) continue;
+			// Skip buffers that are in use or already mapped
+			if (this.bufferInUse[idx]) continue;
+			const buffer = this.readbackBuffers[idx];
+			if (buffer && buffer.mapState === 'unmapped') {
+				foundIndex = idx;
+				break;
+			}
 		}
+
+		// If no buffer is ready, return cached result
+		if (foundIndex === -1) {
+			return this.lastReadResult;
+		}
+
+		const buffer = this.readbackBuffers[foundIndex];
+		this.bufferInUse[foundIndex] = true;
 
 		try {
 			await buffer.mapAsync(GPUMapMode.READ);
@@ -187,9 +214,13 @@ export class AudioPipeline {
 			}
 			
 			buffer.unmap();
+			this.bufferInUse[foundIndex] = false;
+			this.readIndex = (foundIndex + 1) % 3;
+			this.lastReadResult = result;
 			return result;
 		} catch {
-			return null;
+			this.bufferInUse[foundIndex] = false;
+			return this.lastReadResult;
 		}
 	}
 
