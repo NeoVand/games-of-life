@@ -7,7 +7,7 @@
 	import { isTourActive } from '../utils/tour.js';
 	import { isModalOpen } from '../stores/modalManager.svelte.js';
 	import { brushShapeToIndex, spectrumModeToIndex } from '@games-of-life/core';
-	import { initializeAudio, getAudioState, updateAudio, updateAudioSimulation } from '../stores/audio.svelte.js';
+	import { initializeAudio, getAudioState, updateAudio, updateAudioSimulation, silenceAudio } from '../stores/audio.svelte.js';
 
 	const simState = getSimulationState();
 	const uiState = getUIState();
@@ -376,7 +376,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 		}
 
 		// Update audio (throttled internally to ~30 Hz)
-		if (audioState.isEnabled) {
+		// Only update when simulation is playing to avoid repeating the same sound
+		if (audioState.isEnabled && simState.isPlaying) {
 			updateAudio(canvasWidth, canvasHeight);
 		}
 
@@ -395,6 +396,10 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 			simulation.countAliveCellsAsync().then(count => {
 				simState.aliveCells = count;
 			});
+			// Silence audio when paused to avoid repeating the same sound
+			if (audioState.isEnabled) {
+				silenceAudio();
+			}
 		}
 		wasPlaying = simState.isPlaying;
 	});

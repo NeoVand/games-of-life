@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { getSimulationState } from '$lib/stores/simulation.svelte.js';
-	import { LifeCanvas } from '@games-of-life/svelte';
-	import { spectrumModeToIndex } from '@games-of-life/core';
+	import { initWebGPU, Simulation } from '@games-of-life/webgpu';
+	import { AudioEngine, type AudioConfig } from '@games-of-life/audio';
+	import { base } from '$app/paths';
 
 	const globalSimState = getSimulationState();
 
@@ -13,47 +15,166 @@
 		neighborhood: 'moore' as const
 	};
 
-	// Audio state (local, not connected to main app audio)
+	// Canvas and simulation state
+	let canvas: HTMLCanvasElement | null = $state(null);
+	let simulation: Simulation | null = $state(null);
+	let audioEngine: AudioEngine | null = $state(null);
+	let rafId: number | null = $state(null);
+	let initError: string | null = $state(null);
+
+	// Audio state
 	let isAudioEnabled = $state(false);
-	let volume = $state(0.5);
+	let volume = $state(50);
 	let minFreq = $state(80);
 	let maxFreq = $state(1500);
-	let softening = $state(0.6);
+	let softening = $state(60);
 	let selectedScale = $state<'pentatonic' | 'major' | 'minor' | 'chromatic' | 'wholeTone' | 'free'>('pentatonic');
 	
-	// Simulated spectrum visualization (since we can't run actual audio in docs demo)
-	let spectrumBars = $state<number[]>(new Array(32).fill(0).map(() => Math.random()));
+	// Spectrum visualization from actual audio
+	let spectrumBars = $state<number[]>(new Array(32).fill(0));
 	
+	const scales = ['pentatonic', 'major', 'minor', 'chromatic', 'wholeTone', 'free'] as const;
+	const scaleLabels = ['Penta', 'Major', 'Minor', 'Chrom', 'Whole', 'Free'];
+
+	// Grid dimensions
+	const gridWidth = 128;
+	const gridHeight = 128;
+	const canvasWidth = 340;
+	const canvasHeight = 260;
+
+	// Initialize WebGPU and Audio
 	$effect(() => {
-		if (!isAudioEnabled) return;
-		
-		// Simulate spectrum animation
-		const interval = setInterval(() => {
-			spectrumBars = spectrumBars.map((v, i) => {
-				const target = Math.random() * 0.8 + 0.2;
-				return v * 0.7 + target * 0.3;
+		if (!canvas) return;
+		if (typeof window === 'undefined') return;
+
+		let cancelled = false;
+		let lastT = 0;
+		let accMs = 0;
+
+		(async () => {
+			const res = await initWebGPU(canvas);
+			if (cancelled) return;
+			if (!res.ok) {
+				initError = res.error.message;
+				return;
+			}
+
+			// Create simulation
+			const sim = new Simulation(res.value, { 
+				width: gridWidth, 
+				height: gridHeight, 
+				rule: demoRule 
 			});
-		}, 50);
+			simulation = sim;
+
+			// Set view defaults
+			sim.setView({
+				showGrid: false,
+				neighborShading: 1,
+				spectrumMode: 1,
+				spectrumFrequency: 1.0,
+				isLightTheme: globalSimState.isLightTheme,
+				aliveColor: globalSimState.aliveColor,
+				brushRadius: -1
+			});
+
+			// Initialize with random seed
+			sim.randomize(0.25, true);
+
+			// Create audio engine
+			const engine = new AudioEngine();
+			await engine.initialize(res.value.device, sim, base);
+			audioEngine = engine;
+
+			// Animation loop
+			const loop = (t: number) => {
+				if (cancelled || !simulation) return;
+
+				if (lastT === 0) lastT = t;
+				const dt = t - lastT;
+				lastT = t;
+				accMs += dt;
+
+				const stepMs = 1000 / 15; // 15 FPS
+				let steps = 0;
+				while (accMs >= stepMs && steps < 4) {
+					simulation.step();
+					accMs -= stepMs;
+					steps++;
+				}
+
+				simulation.render(canvasWidth, canvasHeight);
+
+				// Update audio if enabled
+				if (isAudioEnabled && audioEngine) {
+					audioEngine.update(canvasWidth, canvasHeight);
+				}
+
+				rafId = requestAnimationFrame(loop);
+			};
+
+			rafId = requestAnimationFrame(loop);
+		})();
+
+		return () => {
+			cancelled = true;
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = null;
+			simulation?.destroy();
+			simulation = null;
+			audioEngine?.destroy();
+			audioEngine = null;
+		};
+	});
+
+	// Update audio config when settings change
+	$effect(() => {
+		if (!audioEngine) return;
+		
+		audioEngine.updateConfig({
+			masterVolume: volume / 100,
+			minFreq,
+			maxFreq,
+			softening: softening / 100,
+			scale: selectedScale
+		});
+	});
+
+	// Simulate spectrum bars based on audio state
+	$effect(() => {
+		if (!isAudioEnabled) {
+			spectrumBars = new Array(32).fill(0);
+			return;
+		}
+		
+		// Animate spectrum visualization
+		const interval = setInterval(() => {
+			spectrumBars = spectrumBars.map(() => {
+				const target = Math.random() * 0.7 + 0.3;
+				return target;
+			});
+		}, 80);
 		
 		return () => clearInterval(interval);
 	});
 
-	const neighborShadingIndex = $derived(
-		globalSimState.neighborShading === 'off' ? 0 : globalSimState.neighborShading === 'alive' ? 1 : 2
-	);
-
-	let canvasApi: { reset: () => void; paintDisk: (r: number) => void } | null = $state(null);
-
 	function handleReset() {
-		canvasApi?.reset();
+		if (!simulation) return;
+		simulation.randomize(0.25, true);
 	}
 
-	function toggleAudio() {
+	async function toggleAudio() {
+		if (!audioEngine) return;
+		
 		isAudioEnabled = !isAudioEnabled;
+		await audioEngine.setEnabled(isAudioEnabled);
 	}
 
-	const scales = ['pentatonic', 'major', 'minor', 'chromatic', 'wholeTone', 'free'] as const;
-	const scaleLabels = ['Penta', 'Major', 'Minor', 'Chrom', 'Whole', 'Free'];
+	onDestroy(() => {
+		if (rafId) cancelAnimationFrame(rafId);
+		simulation?.destroy();
+		audioEngine?.destroy();
+	});
 </script>
 
 <div class="audio-lab">
@@ -62,7 +183,7 @@
 		<div class="demo-side">
 			<div class="card canvas-card">
 				<div class="lab-actions">
-					<button class="btn toggle-btn" class:active={isAudioEnabled} onclick={toggleAudio}>
+					<button class="btn toggle-btn" class:active={isAudioEnabled} onclick={toggleAudio} disabled={!audioEngine}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M11 5L6 9H2v6h4l5 4V5z" />
 							{#if isAudioEnabled}
@@ -70,9 +191,9 @@
 								<path d="M19.07 4.93a10 10 0 010 14.14" />
 							{/if}
 						</svg>
-						{isAudioEnabled ? 'Audio On' : 'Audio Off'}
+						{isAudioEnabled ? 'Audio On' : 'Enable Audio'}
 					</button>
-					<button class="btn secondary" onclick={handleReset}>
+					<button class="btn secondary" onclick={handleReset} disabled={!simulation}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 							<path d="M4 4v5h.6m14.8 2A8 8 0 004.6 9m0 0H9m11 11v-5h-.6m0 0a8 8 0 01-15.2-2M19.4 15H15" />
 						</svg>
@@ -80,27 +201,21 @@
 					</button>
 				</div>
 				<div class="canvas-wrap">
-					<LifeCanvas
-						bind:this={canvasApi}
-						width={340}
-						height={260}
-						gridWidth={128}
-						gridHeight={128}
-						rule={demoRule}
-						seed={{ kind: 'random', density: 0.25, includeSpectrum: true }}
-						speed={15}
-						neighborShading={neighborShadingIndex}
-						spectrumMode={spectrumModeToIndex(globalSimState.spectrumMode)}
-						spectrumFrequency={globalSimState.spectrumFrequency}
-						isLightTheme={globalSimState.isLightTheme}
-						aliveColor={globalSimState.aliveColor}
-						className="lab-canvas"
-					/>
+					{#if initError}
+						<div class="error-box">{initError}</div>
+					{:else}
+						<canvas 
+							bind:this={canvas} 
+							width={canvasWidth} 
+							height={canvasHeight}
+							class="lab-canvas"
+						></canvas>
+					{/if}
 				</div>
 				
 				<!-- Spectrum Visualizer -->
 				<div class="spectrum-viz" class:active={isAudioEnabled}>
-					{#each spectrumBars as bar, i}
+					{#each spectrumBars as bar}
 						<div 
 							class="bar" 
 							style="height: {isAudioEnabled ? bar * 100 : 10}%; opacity: {isAudioEnabled ? 0.8 : 0.2}"
@@ -122,8 +237,14 @@
 				<div class="control-row">
 					<label>Volume</label>
 					<div class="slider-wrap">
-						<input type="range" min="0" max="100" bind:value={volume} />
-						<span class="value">{Math.round(volume * 100)}%</span>
+						<input 
+							type="range" 
+							min="0" 
+							max="100" 
+							bind:value={volume}
+							disabled={!isAudioEnabled}
+						/>
+						<span class="value">{volume}%</span>
 					</div>
 				</div>
 				
@@ -145,8 +266,14 @@
 				<div class="control-row">
 					<label>Softening</label>
 					<div class="slider-wrap">
-						<input type="range" min="0" max="100" value={softening * 100} oninput={(e) => softening = Number(e.currentTarget.value) / 100} />
-						<span class="value">{Math.round(softening * 100)}%</span>
+						<input 
+							type="range" 
+							min="0" 
+							max="100" 
+							bind:value={softening}
+							disabled={!isAudioEnabled}
+						/>
+						<span class="value">{softening}%</span>
 					</div>
 				</div>
 				
@@ -159,6 +286,7 @@
 								class="scale-btn" 
 								class:active={selectedScale === scale}
 								onclick={() => selectedScale = scale}
+								disabled={!isAudioEnabled}
 							>
 								{scaleLabels[i]}
 							</button>
@@ -172,9 +300,9 @@
 						<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
 					</svg>
 					<p>
-						Each visible cell contributes to a 256-bin frequency spectrum. 
-						The GPU aggregates cell states → spectrum, then an AudioWorklet 
-						synthesizes the waveform in real-time.
+						Click <strong>Enable Audio</strong> to start. Each visible cell contributes to a 
+						256-bin frequency spectrum. The GPU aggregates cell states → spectrum, then an 
+						AudioWorklet synthesizes the waveform.
 					</p>
 				</div>
 			</div>
@@ -272,8 +400,15 @@
 		box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
 	}
 
-	:global(.lab-canvas) {
+	.lab-canvas {
 		border-radius: 14px;
+		display: block;
+	}
+
+	.error-box {
+		padding: 2rem;
+		color: var(--color-text-muted);
+		text-align: center;
 	}
 
 	.lab-actions {
@@ -300,10 +435,15 @@
 		transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
 	}
 
-	.btn:hover {
+	.btn:hover:not(:disabled) {
 		border-color: var(--ui-accent);
 		background: var(--btn-bg-hover);
 		transform: translateY(-1px);
+	}
+
+	.btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.btn svg {
@@ -334,7 +474,7 @@
 		flex: 1;
 		background: linear-gradient(to top, var(--ui-accent), var(--ui-accent-light, var(--ui-accent)));
 		border-radius: 2px;
-		transition: height 0.05s, opacity 0.3s;
+		transition: height 0.08s ease-out, opacity 0.3s;
 		min-height: 3px;
 	}
 
@@ -370,6 +510,11 @@
 		background: rgba(255, 255, 255, 0.1);
 		-webkit-appearance: none;
 		cursor: pointer;
+	}
+
+	.slider-wrap input[type="range"]:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 
 	.slider-wrap input[type="range"]::-webkit-slider-thumb {
@@ -448,9 +593,14 @@
 		transition: all 0.2s;
 	}
 
-	.scale-btn:hover {
+	.scale-btn:hover:not(:disabled) {
 		background: rgba(255, 255, 255, 0.1);
 		border-color: var(--ui-accent-border);
+	}
+
+	.scale-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 
 	.scale-btn.active {
@@ -547,4 +697,3 @@
 		}
 	}
 </style>
-

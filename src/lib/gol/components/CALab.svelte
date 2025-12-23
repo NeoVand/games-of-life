@@ -229,17 +229,25 @@
 		flex-direction: column;
 		gap: 1rem;
 		align-items: center;
+		overflow: hidden;
+		min-width: 0;
+	}
+
+	.grid-wrap {
+		max-width: 100%;
+		overflow: hidden;
 	}
 
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(5, 36px);
-		grid-template-rows: repeat(5, 36px);
+		grid-template-columns: repeat(5, minmax(28px, 36px));
+		grid-template-rows: repeat(5, minmax(28px, 36px));
 		gap: 4px;
 		background: rgba(255, 255, 255, 0.02);
 		padding: 8px;
 		border-radius: 14px;
 		border: 1px solid rgba(255, 255, 255, 0.05);
+		max-width: 100%;
 	}
 
 	.cell {
@@ -390,5 +398,18 @@
 	@media (max-width: 900px) {
 		.scenarios-grid { grid-template-columns: 1fr; }
 		.ca-lab { padding: 1.5rem; }
+	}
+
+	@media (max-width: 500px) {
+		.grid {
+			grid-template-columns: repeat(5, 24px);
+			grid-template-rows: repeat(5, 24px);
+			gap: 3px;
+			padding: 6px;
+		}
+		.ca-lab { padding: 1rem; border-radius: 20px; }
+		.stepper-box { min-height: auto; }
+		.actions { flex-direction: column; gap: 0.5rem; }
+		.btn { width: 100%; }
 	}
 </style>

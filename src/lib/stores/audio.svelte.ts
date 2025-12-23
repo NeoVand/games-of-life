@@ -94,6 +94,15 @@ export async function updateAudio(
 }
 
 /**
+ * Silence the audio.
+ * Call this when the simulation is paused.
+ */
+export function silenceAudio(): void {
+	if (!audioEngine) return;
+	audioEngine.silence();
+}
+
+/**
  * Set master volume (0-1).
  */
 export function setVolume(volume: number): void {

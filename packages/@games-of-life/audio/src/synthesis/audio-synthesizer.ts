@@ -115,6 +115,18 @@ export class AudioSynthesizer {
 	}
 
 	/**
+	 * Send silence to the AudioWorklet.
+	 * Use this when the simulation is paused to avoid repeating the last frame's sound.
+	 */
+	silence(): void {
+		if (!this.workletNode || !this.isInitialized) return;
+
+		// Send empty spectrum to fade out
+		const emptySpectrum = new Float32Array(SPECTRUM_BINS * 4);
+		this.workletNode.port.postMessage({ spectrum: emptySpectrum });
+	}
+
+	/**
 	 * Update audio configuration.
 	 */
 	updateConfig(config: Partial<AudioConfig>): void {

@@ -256,6 +256,14 @@ export class AudioEngine {
 	}
 
 	/**
+	 * Silence the audio output.
+	 * Call this when the simulation is paused to stop the repeating sound.
+	 */
+	silence(): void {
+		this.synthesizer?.silence();
+	}
+
+	/**
 	 * Clean up all resources.
 	 */
 	destroy(): void {
