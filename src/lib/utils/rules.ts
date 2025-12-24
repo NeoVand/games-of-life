@@ -1179,16 +1179,16 @@ export const RULE_PRESETS: CARule[] = [
 		density: 0.2,
 		vitality: {
 			mode: 'curve',
-			threshold: 1.0,
+			threshold: 1,
 			ghostFactor: 0,
-			sigmoidSharpness: 10.0,
-			decayPower: 1.0,
+			sigmoidSharpness: 10,
+			decayPower: 1,
 			curvePoints: [
 				{ x: 0, y: 0 },
-				{ x: 0.372, y: -0.746 },
-				{ x: 0.531, y: 0.321 },
-				{ x: 0.695, y: -0.669 },
-				{ x: 1, y: -1 }
+				{ x: 0.023852062676947353, y: -2 },
+				{ x: 0.043852062676947356, y: 0.17373826222513555 },
+				{ x: 0.12143718315835779, y: -1.789263658747065 },
+				{ x: 1, y: -2 }
 			]
 		}
 	},
