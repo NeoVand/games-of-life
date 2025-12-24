@@ -28,13 +28,9 @@
 	let minFreq = $state(80);
 	let maxFreq = $state(1500);
 	let softening = $state(60);
-	let selectedScale = $state<'pentatonic' | 'major' | 'minor' | 'chromatic' | 'wholeTone' | 'free'>('pentatonic');
 	
 	// Spectrum visualization from actual audio
 	let spectrumBars = $state<number[]>(new Array(32).fill(0));
-	
-	const scales = ['pentatonic', 'major', 'minor', 'chromatic', 'wholeTone', 'free'] as const;
-	const scaleLabels = ['Penta', 'Major', 'Minor', 'Chrom', 'Whole', 'Free'];
 
 	// Grid dimensions
 	const gridWidth = 128;
@@ -135,8 +131,7 @@
 			masterVolume: volume / 100,
 			minFreq,
 			maxFreq,
-			softening: softening / 100,
-			scale: selectedScale
+			softening: softening / 100
 		});
 	});
 
@@ -274,23 +269,6 @@
 							disabled={!isAudioEnabled}
 						/>
 						<span class="value">{softening}%</span>
-					</div>
-				</div>
-				
-				<!-- Musical Scale -->
-				<div class="control-row">
-					<label>Scale</label>
-					<div class="scale-buttons">
-						{#each scales as scale, i}
-							<button 
-								class="scale-btn" 
-								class:active={selectedScale === scale}
-								onclick={() => selectedScale = scale}
-								disabled={!isAudioEnabled}
-							>
-								{scaleLabels[i]}
-							</button>
-						{/each}
 					</div>
 				</div>
 				
@@ -573,40 +551,6 @@
 		);
 		border-radius: 4px;
 		opacity: 1;
-	}
-
-	.scale-buttons {
-		display: flex;
-		gap: 0.3rem;
-	}
-
-	.scale-btn {
-		flex: 1;
-		padding: 0.4rem 0.5rem;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid var(--ui-border);
-		color: var(--color-text-muted);
-		font-size: 0.7rem;
-		font-weight: 700;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.scale-btn:hover:not(:disabled) {
-		background: rgba(255, 255, 255, 0.1);
-		border-color: var(--ui-accent-border);
-	}
-
-	.scale-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-
-	.scale-btn.active {
-		background: var(--ui-accent-bg);
-		border-color: var(--ui-accent);
-		color: var(--ui-accent);
 	}
 
 	.info-box {

@@ -136,14 +136,6 @@ export function setSoftening(softening: number): void {
 }
 
 /**
- * Update musical scale.
- */
-export function setScale(scale: AudioConfig['scale']): void {
-	config = { ...config, scale };
-	audioEngine?.updateConfig({ scale });
-}
-
-/**
  * Cycle through audio presets.
  * Returns the name of the new preset.
  */

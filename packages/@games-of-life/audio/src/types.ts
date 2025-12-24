@@ -13,33 +13,6 @@ export const AUDIO_CURVE_SAMPLES = 128;
 /** Number of frequency bins in the spectrum */
 export const SPECTRUM_BINS = 256;
 
-/** Musical scales for pitch quantization */
-export type MusicalScale =
-	| 'chromatic'    // All 12 semitones
-	| 'pentatonic'   // 5-note scale (pleasant, no dissonance)
-	| 'major'        // Major scale (happy)
-	| 'minor'        // Minor scale (melancholic)
-	| 'whole-tone'   // Whole tone scale (dreamy)
-	| 'free';        // No quantization (continuous frequencies)
-
-/** MIDI note numbers for common root notes */
-export const ROOT_NOTES = {
-	C3: 48,
-	D3: 50,
-	E3: 52,
-	F3: 53,
-	G3: 55,
-	A3: 57,
-	B3: 59,
-	C4: 60, // Middle C
-	D4: 62,
-	E4: 64,
-	F4: 65,
-	G4: 67,
-	A4: 69, // A440
-	B4: 71,
-	C5: 72,
-} as const;
 
 /**
  * Audio configuration state.
@@ -59,8 +32,6 @@ export interface AudioConfig {
 	waveCurve: CurvePoint[];        // Vitality → waveform complexity
 
 	// Quick controls
-	scale: MusicalScale;
-	rootNote: number;       // MIDI note (60 = C4)
 	softening: number;      // 0-1, smoothing amount
 
 	// Frequency range
@@ -111,7 +82,6 @@ export const AUDIO_PRESETS: AudioPreset[] = [
 			softening: 0.8,
 			minFreq: 80,
 			maxFreq: 800,
-			scale: 'pentatonic',
 		}
 	},
 	{
@@ -123,7 +93,6 @@ export const AUDIO_PRESETS: AudioPreset[] = [
 			softening: 0.3,
 			minFreq: 400,
 			maxFreq: 4000,
-			scale: 'major',
 		}
 	},
 	{
@@ -135,7 +104,6 @@ export const AUDIO_PRESETS: AudioPreset[] = [
 			softening: 0.9,
 			minFreq: 40,
 			maxFreq: 300,
-			scale: 'minor',
 		}
 	},
 	{
@@ -147,7 +115,6 @@ export const AUDIO_PRESETS: AudioPreset[] = [
 			softening: 0.6,
 			minFreq: 200,
 			maxFreq: 1200,
-			scale: 'major',
 		}
 	},
 	{
@@ -159,7 +126,6 @@ export const AUDIO_PRESETS: AudioPreset[] = [
 			softening: 0.5,
 			minFreq: 60,
 			maxFreq: 2500,
-			scale: 'whole-tone',
 		}
 	},
 	{
@@ -171,7 +137,6 @@ export const AUDIO_PRESETS: AudioPreset[] = [
 			softening: 0.95,
 			minFreq: 100,
 			maxFreq: 600,
-			scale: 'pentatonic',
 		}
 	},
 ];
@@ -253,8 +218,6 @@ export const DEFAULT_AUDIO_CONFIG: AudioConfig = {
 		{ x: 1, y: 0.4 }     // Alive = slightly complex
 	],
 
-	scale: 'pentatonic',
-	rootNote: ROOT_NOTES.C4,
 	softening: 0.6,
 	minFreq: 80,
 	maxFreq: 1500,

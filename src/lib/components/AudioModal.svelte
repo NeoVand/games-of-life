@@ -5,13 +5,12 @@
 		setVolume, 
 		setFrequencyRange, 
 		setSoftening, 
-		setScale, 
 		updateAudioConfig 
 	} from '../stores/audio.svelte.js';
 	import { getSimulationState } from '../stores/simulation.svelte.js';
 	import { draggable } from '../utils/draggable.js';
 	import { bringToFront, setModalPosition, getModalState } from '../stores/modalManager.svelte.js';
-	import { AUDIO_PRESETS, type MusicalScale } from '@games-of-life/audio';
+	import { AUDIO_PRESETS } from '@games-of-life/audio';
 
 	interface Props {
 		onclose: () => void;
@@ -45,7 +44,6 @@
 	let maxFreq = $state(audioState.config.maxFreq);
 	let softening = $state(audioState.config.softening);
 	let selectedPreset = $state<string | null>(null);
-	let selectedScale = $state<MusicalScale>(audioState.config.scale);
 
 	// Pitch curve state (maps vitality to frequency)
 	let pitchCurvePoints = $state<{x: number, y: number}[]>([
@@ -58,16 +56,6 @@
 		{ x: 0, y: 0 },
 		{ x: 1, y: 1 }
 	]);
-
-	// Musical scales for the selector
-	const SCALES: { id: MusicalScale; name: string }[] = [
-		{ id: 'pentatonic', name: 'Penta' },
-		{ id: 'major', name: 'Major' },
-		{ id: 'minor', name: 'Minor' },
-		{ id: 'chromatic', name: 'Chrom' },
-		{ id: 'whole-tone', name: 'Whole' },
-		{ id: 'free', name: 'Free' },
-	];
 
 	// Event handlers for sliders
 	function handleVolumeChange() {
@@ -96,16 +84,8 @@
 		if (preset.config.minFreq !== undefined) minFreq = preset.config.minFreq;
 		if (preset.config.maxFreq !== undefined) maxFreq = preset.config.maxFreq;
 		if (preset.config.softening !== undefined) softening = preset.config.softening;
-		if (preset.config.scale !== undefined) selectedScale = preset.config.scale;
 		
 		updateAudioConfig(preset.config);
-	}
-
-	// Handle scale selection
-	function handleScaleChange(scale: MusicalScale) {
-		selectedScale = scale;
-		setScale(scale);
-		selectedPreset = null;
 	}
 
 	// Get frequency display
@@ -257,22 +237,6 @@
 					class="slider"
 					aria-label="Softening"
 				/>
-			</div>
-
-			<!-- Scale -->
-			<div class="row col">
-				<span class="label">Scale</span>
-				<div class="scale-grid">
-					{#each SCALES as scale}
-						<button
-							class="scale-btn"
-							class:active={selectedScale === scale.id}
-							onclick={() => handleScaleChange(scale.id)}
-						>
-							{scale.name}
-						</button>
-					{/each}
-				</div>
 			</div>
 		</div>
 	</div>
@@ -585,36 +549,5 @@
 
 	.range-max {
 		z-index: 1;
-	}
-
-	/* Scale Grid */
-	.scale-grid {
-		display: grid;
-		grid-template-columns: repeat(6, 1fr);
-		gap: 0.2rem;
-		width: 100%;
-	}
-
-	.scale-btn {
-		padding: 0.3rem 0.1rem;
-		border-radius: 3px;
-		border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
-		background: var(--ui-border, rgba(255, 255, 255, 0.03));
-		color: var(--ui-text, #888);
-		font-size: 0.55rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.1s ease;
-	}
-
-	.scale-btn:hover {
-		background: var(--ui-border-hover, rgba(255, 255, 255, 0.08));
-		color: var(--ui-text-hover, #fff);
-	}
-
-	.scale-btn.active {
-		background: var(--ui-accent-bg, rgba(45, 212, 191, 0.15));
-		border-color: var(--ui-accent-border, rgba(45, 212, 191, 0.3));
-		color: var(--ui-accent, #2dd4bf);
 	}
 </style>
