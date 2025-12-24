@@ -31,7 +31,6 @@ export class AudioEngine {
 	private synthesizer: AudioSynthesizer | null = null;
 	private config: AudioConfig = { ...DEFAULT_AUDIO_CONFIG };
 	private isInitialized = false;
-	private isDestroyed = false;
 	private basePath: string = '';
 	
 	// Throttle spectrum updates (audio runs at lower rate than video)
@@ -65,9 +64,6 @@ export class AudioEngine {
 		this.isInitialized = true;
 	}
 
-	// Track pending spectrum read to prevent overlapping async operations
-	private pendingRead = false;
-
 	/**
 	 * Update audio each frame.
 	 * Call this in the render loop.
@@ -80,7 +76,6 @@ export class AudioEngine {
 		canvasWidth: number,
 		canvasHeight: number
 	): Promise<void> {
-		if (this.isDestroyed) return;
 		if (!this.isInitialized || !this.config.enabled) return;
 		if (!this.pipeline || !this.simulation || !this.device) return;
 
@@ -124,17 +119,9 @@ export class AudioEngine {
 		this.device.queue.submit([commandEncoder.finish()]);
 
 		// Read spectrum from previous frame (async, triple-buffered)
-		// Use non-blocking pattern to prevent stalling if buffer isn't ready
-		if (!this.pendingRead) {
-			this.pendingRead = true;
-			this.pipeline.readSpectrum().then(spectrum => {
-				this.pendingRead = false;
-				if (spectrum && this.synthesizer?.isReady()) {
-					this.synthesizer.updateSpectrum(spectrum);
-				}
-			}).catch(() => {
-				this.pendingRead = false;
-			});
+		const spectrum = await this.pipeline.readSpectrum();
+		if (spectrum && this.synthesizer?.isReady()) {
+			this.synthesizer.updateSpectrum(spectrum);
 		}
 	}
 
@@ -280,16 +267,13 @@ export class AudioEngine {
 	 * Clean up all resources.
 	 */
 	destroy(): void {
-		// Mark as destroyed first to stop any pending operations
-		this.isDestroyed = true;
-		this.isInitialized = false;
-		
 		this.pipeline?.destroy();
 		this.synthesizer?.destroy();
 		this.pipeline = null;
 		this.synthesizer = null;
 		this.simulation = null;
 		this.device = null;
+		this.isInitialized = false;
 	}
 }
 

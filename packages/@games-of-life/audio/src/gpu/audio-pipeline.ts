@@ -125,7 +125,6 @@ export class AudioPipeline {
 		numStates: number,
 		masterVolume: number
 	): void {
-		if (this.isDestroyed) return;
 		if (!this.pipeline || !this.bindGroup || !this.spectrumBuffer) return;
 
 		// Clear spectrum buffer before aggregation
@@ -170,20 +169,12 @@ export class AudioPipeline {
 	// Store last viewport size for normalization
 	private lastViewportCellCount = 1;
 
-	// Track if pipeline has been destroyed
-	private isDestroyed = false;
-
 	/**
 	 * Read spectrum data from GPU asynchronously.
 	 * Returns the previous frame's data (triple-buffered for smoothness).
 	 * Normalizes values to prevent clipping from accumulation.
 	 */
 	async readSpectrum(): Promise<Float32Array | null> {
-		// Safety check - don't try to read if destroyed
-		if (this.isDestroyed) {
-			return this.lastReadResult;
-		}
-
 		// Find a buffer that's ready to read (not in use, not mapped, not the write target)
 		let foundIndex = -1;
 		for (let i = 0; i < 3; i++) {
@@ -205,34 +196,20 @@ export class AudioPipeline {
 		}
 
 		const buffer = this.readbackBuffers[foundIndex];
-		
-		// Double-check buffer is still valid
-		if (!buffer || buffer.mapState !== 'unmapped') {
-			return this.lastReadResult;
-		}
-		
 		this.bufferInUse[foundIndex] = true;
 
 		try {
 			await buffer.mapAsync(GPUMapMode.READ);
-			
-			// Check if we were destroyed while waiting
-			if (this.isDestroyed) {
-				try { buffer.unmap(); } catch { /* ignore */ }
-				this.bufferInUse[foundIndex] = false;
-				return this.lastReadResult;
-			}
-			
 			const data = new Int32Array(buffer.getMappedRange());
 			
-			// Convert from fixed-point to float
-			// Use a FIXED normalization factor - the AudioWorklet handles dynamic normalization
-			// This ensures consistent volume regardless of zoom level
-			// FP_SCALE converts fixed-point back to float, multiply by small factor for headroom
-			const normFactor = FP_SCALE * 0.1; // Fixed factor, gives good headroom
+			// Convert from fixed-point to float with normalization
+			// Normalize by expected cell count to prevent accumulation clipping
+			// Use sqrt for perceptual scaling (loudness is logarithmic)
+			const normFactor = Math.sqrt(Math.max(1, this.lastViewportCellCount)) * FP_SCALE;
 			
 			const result = new Float32Array(SPECTRUM_BINS * 4);
 			for (let i = 0; i < data.length; i++) {
+				// Divide by normalization factor to keep values in reasonable range
 				result[i] = data[i] / normFactor;
 			}
 			
@@ -242,7 +219,6 @@ export class AudioPipeline {
 			this.lastReadResult = result;
 			return result;
 		} catch {
-			// Buffer was likely destroyed - this is expected during HMR
 			this.bufferInUse[foundIndex] = false;
 			return this.lastReadResult;
 		}
@@ -392,26 +368,14 @@ export class AudioPipeline {
 	 * Clean up GPU resources.
 	 */
 	destroy(): void {
-		// Mark as destroyed first to stop any pending operations
-		this.isDestroyed = true;
-		
-		// Wait a tick to let any pending mapAsync calls complete/fail
-		setTimeout(() => {
-			this.paramsBuffer?.destroy();
-			this.spectrumBuffer?.destroy();
-			for (const buffer of this.readbackBuffers) {
-				try {
-					if (buffer.mapState === 'mapped') {
-						buffer.unmap();
-					}
-					buffer.destroy();
-				} catch { /* ignore - buffer may already be destroyed */ }
-			}
-			for (const buffer of this.curveBuffers) {
-				buffer.destroy();
-			}
-		}, 0);
-		
+		this.paramsBuffer?.destroy();
+		this.spectrumBuffer?.destroy();
+		for (const buffer of this.readbackBuffers) {
+			buffer.destroy();
+		}
+		for (const buffer of this.curveBuffers) {
+			buffer.destroy();
+		}
 		this.pipeline = null;
 		this.bindGroup = null;
 	}
