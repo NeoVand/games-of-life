@@ -41,6 +41,12 @@ class SpectralProcessor extends AudioWorkletProcessor {
 		/** @type {number} - Softening amount for low-pass filtering */
 		this.softening = 0.5;
 		
+		/** @type {number} - Frame counter since last spectrum update */
+		this.framesSinceUpdate = 0;
+		
+		/** @type {number} - Max frames before auto-fade (prevents stuck audio) */
+		this.maxFramesWithoutUpdate = 30; // ~0.1 seconds
+		
 		// Pre-calculate frequencies for each bin (logarithmic spacing)
 		/** @type {Float32Array} */
 		this.frequencies = new Float32Array(this.numBins);
@@ -72,6 +78,8 @@ class SpectralProcessor extends AudioWorkletProcessor {
 		if (data.spectrum instanceof Float32Array) {
 			// Received new spectrum data from GPU
 			this.targetSpectrum.set(data.spectrum);
+			// Reset frame counter - we got fresh data
+			this.framesSinceUpdate = 0;
 		}
 		
 		if (typeof data.enabled === 'boolean') {
@@ -113,19 +121,42 @@ class SpectralProcessor extends AudioWorkletProcessor {
 		const right = output[1];
 		const bufferSize = left.length;
 		
+		// Increment frame counter (used to detect stale data)
+		this.framesSinceUpdate++;
+		
+		// If no new data for too long, fade out to prevent stuck audio
+		if (this.framesSinceUpdate > this.maxFramesWithoutUpdate) {
+			// Fade target spectrum to zero
+			for (let i = 0; i < this.targetSpectrum.length; i++) {
+				this.targetSpectrum[i] *= 0.95;
+			}
+		}
+		
 		// Smoothly interpolate spectrum towards target
 		for (let i = 0; i < this.spectrum.length; i++) {
 			this.spectrum[i] = this.spectrum[i] * this.smoothing + 
 			                   this.targetSpectrum[i] * (1 - this.smoothing);
 		}
 		
-		// Count active bins for dynamic normalization
+		// Count active bins and sum total amplitude for dynamic normalization
 		let activeBins = 0;
+		let totalAmp = 0;
 		for (let bin = 0; bin < this.numBins; bin++) {
-			if (this.spectrum[bin * 4] > 0.0001) activeBins++;
+			const amp = this.spectrum[bin * 4];
+			if (amp > 0.0001) {
+				activeBins++;
+				totalAmp += amp;
+			}
 		}
-		// Use at least 1 to avoid division by zero, but scale by sqrt for perceptual balance
-		const binNormFactor = Math.max(1, Math.sqrt(activeBins));
+		
+		// Dynamic normalization: scale by total energy to keep consistent volume
+		// Use log scale for more natural loudness perception
+		// Add 1 to avoid log(0), clamp minimum to prevent silence
+		const targetLevel = 0.3; // Target RMS level
+		const currentEnergy = Math.max(0.001, totalAmp);
+		// Smooth the normalization to avoid sudden volume changes
+		const desiredNorm = targetLevel / Math.sqrt(currentEnergy);
+		const binNormFactor = Math.max(0.1, Math.min(10, desiredNorm)); // Clamp to reasonable range
 		
 		// Generate audio samples
 		for (let s = 0; s < bufferSize; s++) {
@@ -134,17 +165,19 @@ class SpectralProcessor extends AudioWorkletProcessor {
 			
 			for (let bin = 0; bin < this.numBins; bin++) {
 				const offset = bin * 4;
-				// Clamp amplitude to reasonable range (already normalized, but safety first)
+				// Get raw amplitude (already quite small from shader)
 				const rawAmp = this.spectrum[offset];
-				const amplitude = Math.min(rawAmp, 2.0); // Hard clamp to prevent extreme values
 				
-				// Skip silent bins
-				if (amplitude < 0.0001) continue;
+				// Skip silent bins early
+				if (rawAmp < 0.0001) continue;
 				
-				// Clamp pan values too
+				// Clamp amplitude to reasonable range
+				const amplitude = Math.min(rawAmp, 1.0);
+				
+				// Get phase and pan values with clamping
 				const phase = this.spectrum[offset + 1];
-				const panL = Math.min(Math.max(this.spectrum[offset + 2], 0), 2.0);
-				const panR = Math.min(Math.max(this.spectrum[offset + 3], 0), 2.0);
+				const panL = Math.min(Math.max(this.spectrum[offset + 2], 0), 1.0);
+				const panR = Math.min(Math.max(this.spectrum[offset + 3], 0), 1.0);
 				
 				// Get frequency for this bin
 				const freq = this.frequencies[bin];
@@ -160,18 +193,17 @@ class SpectralProcessor extends AudioWorkletProcessor {
 				const theta = (this.phases[bin] + phase / 6.28318) * Math.PI * 2;
 				const sample = Math.sin(theta);
 				
-				// Scale amplitude: normalize by active bins to prevent additive clipping
-				// The 0.5 factor keeps overall level reasonable
-				const scaledAmp = amplitude * 0.5 / binNormFactor;
+				// Scale amplitude: heavy normalization to prevent clipping
+				const scaledAmp = amplitude / binNormFactor;
 				
 				sumL += sample * scaledAmp * panL;
 				sumR += sample * scaledAmp * panR;
 			}
 			
-			// Apply master volume with gentler scaling and soft clip
-			const volumeScale = this.masterVolume * 0.8;
-			left[s] = Math.tanh(sumL * volumeScale);
-			right[s] = Math.tanh(sumR * volumeScale);
+			// Apply master volume with soft clipping (tanh provides smooth saturation)
+			// The dynamic normalization keeps levels consistent, so just apply master volume
+			left[s] = Math.tanh(sumL * this.masterVolume * 3.0);
+			right[s] = Math.tanh(sumR * this.masterVolume * 3.0);
 		}
 		
 		return true;

@@ -172,9 +172,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let freq_bin = u32(clamp(pitch_t * f32(params.num_bins - 1u), 0.0, f32(params.num_bins - 1u)));
     
     // Amplitude: vitality → loudness (curve 1)
-    // Scale per-cell contribution - normalization happens on CPU side
+    // Scale per-cell contribution very small - many cells will accumulate
+    // Final normalization happens on CPU side, but we keep base values tiny
     let base_amplitude = sample_curve(1u, vitality) * params.master_volume;
-    let amplitude = base_amplitude * 0.1; // Each cell contributes to the total
+    let amplitude = base_amplitude * 0.01; // Very small per-cell contribution
     
     // Timbre: neighbors → harmonic spread (curve 2)
     let timbre = sample_curve(2u, neighbors);
