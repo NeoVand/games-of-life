@@ -179,8 +179,8 @@ export class AudioPipeline {
 		}
 	}
 
-	// Store last viewport size for normalization
-	private lastViewportCellCount = 1;
+	// Store viewport cell count for shader pre-normalization
+	private viewportCellCount = 1;
 
 	/**
 	 * Read spectrum data from GPU asynchronously.
@@ -215,15 +215,11 @@ export class AudioPipeline {
 			await buffer.mapAsync(GPUMapMode.READ);
 			const data = new Int32Array(buffer.getMappedRange());
 			
-			// Convert from fixed-point to float with normalization
-			// Normalize by expected cell count to prevent accumulation clipping
-			// Use sqrt for perceptual scaling (loudness is logarithmic)
-			const normFactor = Math.sqrt(Math.max(1, this.lastViewportCellCount)) * FP_SCALE;
-			
+			// Convert from fixed-point to float.
+			// Pre-normalization is done in the shader via inv_sqrt_cells, so we only need FP_SCALE here.
 			const result = new Float32Array(SPECTRUM_BINS * 4);
 			for (let i = 0; i < data.length; i++) {
-				// Divide by normalization factor to keep values in reasonable range
-				result[i] = data[i] / normFactor;
+				result[i] = data[i] / FP_SCALE;
 			}
 			
 			buffer.unmap();
@@ -238,10 +234,10 @@ export class AudioPipeline {
 	}
 
 	/**
-	 * Set the viewport cell count for normalization.
+	 * Set the viewport cell count for shader pre-normalization (prevents fixed-point overflow).
 	 */
 	setViewportCellCount(count: number): void {
-		this.lastViewportCellCount = Math.max(1, count);
+		this.viewportCellCount = Math.max(1, count);
 	}
 
 	/**
@@ -378,7 +374,8 @@ export class AudioPipeline {
 		view.setFloat32(48, this.neighborVitalityTimbreDepth, true);
 		view.setFloat32(52, this.neighborVitalityWaveDepth, true);
 		view.setFloat32(56, this.neighborVitalitySign, true);
-		view.setFloat32(60, 0, true); // pad
+		// Pre-normalization factor: 1 / sqrt(cellCount) to prevent fixed-point overflow
+		view.setFloat32(60, 1.0 / Math.sqrt(this.viewportCellCount), true);
 
 		this.device.queue.writeBuffer(this.paramsBuffer, 0, data);
 	}

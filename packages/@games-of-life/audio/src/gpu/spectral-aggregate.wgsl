@@ -38,7 +38,10 @@ struct AudioParams {
     neighbor_timbre_depth: f32, // 0..1, bias timbre/brightness based on curve
     neighbor_wave_depth: f32,   // 0..1, modulate waveform complexity based on curve
     neighbor_sign: f32,         // +1 or -1 (invert)
-    _pad0: f32,
+    
+    // Pre-normalization factor to prevent fixed-point overflow on large viewports.
+    // Set to 1 / sqrt(viewport_cell_count), so that accumulated values stay in safe i32 range.
+    inv_sqrt_cells: f32,
 }
 
 // Output spectrum bins - using atomic i32 for accumulation
@@ -208,8 +211,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let neighbor_curve = sample_curve(5u, neighbor_vitality) * params.neighbor_sign;
 
     // Amplitude: vitality → loudness (curve 1), modulated by neighbor vitality (2^(curve * depth))
+    // Pre-normalize by inv_sqrt_cells to prevent fixed-point overflow during atomic accumulation.
     let neighbor_gain = pow(2.0, neighbor_curve * params.neighbor_amp_depth); // depth=1 => 0.25×..4×
-    let amplitude = sample_curve(1u, vitality) * params.master_volume * neighbor_gain;
+    let amplitude = sample_curve(1u, vitality) * params.master_volume * neighbor_gain * params.inv_sqrt_cells;
     
     // Timbre: neighbors → harmonic spread (curve 2)
     var timbre = sample_curve(2u, neighbors);
