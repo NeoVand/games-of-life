@@ -29,6 +29,9 @@
 	const gradientStops = Array.from({ length: 33 }, (_, i) => i);
 	const sampleIndicators = Array.from({ length: 16 }, (_, i) => i);
 	
+	// Unique instance ID for SVG gradient definitions (prevents collision when multiple editors exist)
+	const instanceId = Math.random().toString(36).slice(2, 8);
+	
 	const globalSimState = getSimulationState();
 	const targetState = $derived(stateOverride || globalSimState);
 	
@@ -816,13 +819,13 @@
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<svg bind:this={svgElement} {width} {height} viewBox="0 0 {width} {height}" class="curve-svg" class:full={compact} onmousedown={handleCurveMouseDown} ontouchstart={handleCurveTouchStart} role="application">
 			<defs>
-				<linearGradient id="vitalityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+				<linearGradient id="vitalityGradient-{instanceId}" x1="0%" y1="0%" x2="100%" y2="0%">
 					{#each gradientStops as i (i)}
 						{@const v = i / 32}
 						<stop offset="{v * 100}%" stop-color={getVitalityColor(v)} />
 					{/each}
 				</linearGradient>
-				<linearGradient id="vitalityFillGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+				<linearGradient id="vitalityFillGradient-{instanceId}" x1="0%" y1="0%" x2="100%" y2="0%">
 					{#each gradientStops as i (i)}
 						{@const v = i / 32}
 						<stop offset="{v * 100}%" stop-color={getVitalityColor(v)} stop-opacity="0.25" />
@@ -836,9 +839,9 @@
 			<line x1={toSvgX(0.75)} y1={padding.top} x2={toSvgX(0.75)} y2={padding.top + plotHeight} stroke={gridColor} stroke-dasharray="2,2" />
 			<line x1={padding.left} y1={toSvgY(0)} x2={padding.left + plotWidth} y2={toSvgY(0)} stroke={zeroLineColor} stroke-width="1" />
 			<rect x={padding.left} y={padding.top} width={plotWidth} height={plotHeight} fill="none" stroke={gridColor} stroke-width="1" />
-			<path d={positiveFillPath} fill="url(#vitalityFillGradient)" />
-			<path d={negativeFillPath} fill="url(#vitalityFillGradient)" />
-			<path d={curvePath} fill="none" stroke="url(#vitalityGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+			<path d={positiveFillPath} fill="url(#vitalityFillGradient-{instanceId})" />
+			<path d={negativeFillPath} fill="url(#vitalityFillGradient-{instanceId})" />
+			<path d={curvePath} fill="none" stroke="url(#vitalityGradient-{instanceId})" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
 			{#each sampleIndicators as i (i)}
 				{@const v = (i * 8) / 127}
 				<circle cx={toSvgX(v)} cy={toSvgY(sampleCurveAt(v))} r="1" fill={targetState.isLightTheme ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)'} />
