@@ -23,20 +23,45 @@ export interface PromptConfig {
 	advancedTemplate?: string;
 }
 
-// Default task description (forms a square border)
-const DEFAULT_TASK = `Work with your neighbors to form a square border around the grid.
+// Default task description (forms a filled square in the center)
+const DEFAULT_TASK = `Form a filled square in the center of the grid.
 
 Rules:
-1. If you are on an edge (x=0, x=max, y=0, or y=max) → output 1
-2. If you are in the interior (not on any edge) → output 0
-3. Coordinate with neighbors: if they're forming a continuous border and you connect them → output 1`;
+1. If your x coordinate is between 3 and 7 (inclusive) AND your y coordinate is between 3 and 7 (inclusive) → output 1
+2. Otherwise → output 0
+3. Your previous state does not matter - only your position determines your state`;
 
-// Default template
-const DEFAULT_TEMPLATE = `You are cell ({{CELL_X}},{{CELL_Y}}) on a {{GRID_WIDTH}}x{{GRID_HEIGHT}} grid.
+// Default template - provides full context about cellular automata
+const DEFAULT_TEMPLATE = `You are an autonomous cell agent in a cellular automaton simulation.
 
-TASK: {{TASK}}
+== YOUR IDENTITY ==
+Position: ({{CELL_X}}, {{CELL_Y}}) on a {{GRID_WIDTH}}×{{GRID_HEIGHT}} grid
+Coordinate system: x increases rightward (0 to {{MAX_X}}), y increases downward (0 to {{MAX_Y}})
 
-OUTPUT FORMAT: {"state":0} or {"state":1} — nothing else.`;
+== CELLULAR AUTOMATA CONTEXT ==
+You are one of {{GRID_WIDTH}}×{{GRID_HEIGHT}} cells operating in parallel.
+Each generation, every cell simultaneously decides its next state based on:
+- Its position on the grid
+- Its current state (0=dead/off, 1=alive/on)
+- The states of neighboring cells
+
+This is a synchronous update: all cells read the current state, then all cells update at once.
+
+== YOUR TASK ==
+{{TASK}}
+
+== INPUT FORMAT (provided each generation) ==
+You will receive a JSON object with:
+- "generation": Current time step (0, 1, 2, ...)
+- "state": Your current state (0 or 1)
+- "neighbors": Count of alive neighbors (0-8 for Moore neighborhood)
+- "neighborhood": Array of [dx, dy, state] for each neighbor
+  - dx, dy: relative offset from your position (e.g., [-1, -1] is top-left)
+  - state: that neighbor's current state (0 or 1)
+
+== OUTPUT FORMAT ==
+Respond with ONLY: {"state":0} or {"state":1}
+No explanation. No other text.`;
 
 /**
  * Replace all placeholders in a template string
@@ -103,18 +128,18 @@ export function buildCellSystemPromptLegacy(
 
 /**
  * Build the user prompt for a single cell's decision.
- * Compact JSON format to minimize tokens.
+ * Uses clear, descriptive field names so the LLM understands the context.
  */
 export function buildCellUserPrompt(req: NlcaCellRequest): string {
 	// Count alive neighbors for quick context
 	const aliveCount = req.neighbors.filter(n => n.state === 1).length;
 	
-	// Compact format: generation, self state, alive neighbor count, neighbor details
+	// Clear, descriptive format matching what's documented in the system prompt
 	const payload = {
-		g: req.generation,
-		s: req.self,
-		alive: aliveCount,
-		n: req.neighbors.map((nn) => [nn.dx, nn.dy, nn.state])
+		generation: req.generation,
+		state: req.self,
+		neighbors: aliveCount,
+		neighborhood: req.neighbors.map((nn) => [nn.dx, nn.dy, nn.state])
 	};
 	return JSON.stringify(payload);
 }

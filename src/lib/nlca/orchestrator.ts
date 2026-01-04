@@ -21,7 +21,8 @@ export interface DebugLogEntry {
 	x: number;
 	y: number;
 	generation: number;
-	input: string;
+	input: string; // User prompt (for backward compatibility)
+	fullPrompt: string; // Full prompt including system message
 	output: string;
 	latencyMs: number;
 	success: boolean;
@@ -219,13 +220,20 @@ export class NlcaOrchestrator {
 
 		// Add debug log entry if enabled
 		if (this.debugEnabled) {
+			// Build full prompt string (system + user) for debugging
+			const systemPrompt = agent.getHistory().find(m => m.role === 'system')?.content || '';
+			const fullPrompt = systemPrompt 
+				? `[SYSTEM PROMPT]\n${systemPrompt}\n\n[USER PROMPT]\n${userPrompt}`
+				: userPrompt;
+			
 			const entry: DebugLogEntry = {
 				timestamp: Date.now(),
 				cellId: agent.cellId,
 				x: agent.x,
 				y: agent.y,
 				generation: req.generation,
-				input: userPrompt,
+				input: userPrompt, // Keep for backward compatibility
+				fullPrompt: fullPrompt, // Full prompt with system message
 				output: raw,
 				latencyMs,
 				success,

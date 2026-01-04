@@ -80,7 +80,7 @@
 	
 	// Debug panel state
 	let nlcaShowDebug = $state(false);
-	let nlcaDebugEntries = $state<Array<{ timestamp: number; cellId: number; x: number; y: number; generation: number; input: string; output: string; latencyMs: number; success: boolean; cost?: number }>>([]);
+	let nlcaDebugEntries = $state<Array<{ timestamp: number; cellId: number; x: number; y: number; generation: number; input: string; fullPrompt?: string; output: string; latencyMs: number; success: boolean; cost?: number }>>([]);
 
 	// Frame buffer state for buffered playback
 	let nlcaFrameBuffer: NlcaFrameBuffer | null = null;
@@ -2027,8 +2027,8 @@ let pendingStrokeBefore: Promise<Uint32Array> | null = null;
 								{#if entry.cost}<span class="entry-cost">${entry.cost.toFixed(6)}</span>{/if}
 							</div>
 							<div class="entry-io">
-								<div class="io-label">IN:</div>
-								<pre class="io-content">{entry.input}</pre>
+								<div class="io-label">FULL PROMPT:</div>
+								<pre class="io-content">{entry.fullPrompt || entry.input}</pre>
 							</div>
 							<div class="entry-io">
 								<div class="io-label">OUT:</div>

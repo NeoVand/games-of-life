@@ -216,16 +216,16 @@
 
 			<!-- User Prompt Info -->
 			<div class="section info-section">
-				<h4>User Prompt (sent each generation)</h4>
+				<h4>Cell State Input (sent each generation)</h4>
 				<p class="hint">
-					Each generation, cells also receive their current state and neighbors as compact JSON:
+					Each generation, cells receive their current state and neighborhood as JSON:
 				</p>
-				<pre class="example-code">{`{"g":0,"s":0,"alive":2,"n":[[-1,-1,0],[0,-1,1],...]}`}</pre>
+				<pre class="example-code">{`{"generation":0,"state":0,"neighbors":2,"neighborhood":[[-1,-1,0],[0,-1,1],...]}`}</pre>
 				<div class="format-legend">
-					<span><code>g</code> = generation</span>
-					<span><code>s</code> = self state</span>
-					<span><code>alive</code> = alive neighbor count</span>
-					<span><code>n</code> = neighbors [dx, dy, state]</span>
+					<span><code>generation</code> = time step</span>
+					<span><code>state</code> = your current state (0/1)</span>
+					<span><code>neighbors</code> = alive neighbor count</span>
+					<span><code>neighborhood</code> = [dx, dy, state] per neighbor</span>
 				</div>
 			</div>
 		</div>
